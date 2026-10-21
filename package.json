@@ -1,0 +1,28 @@
+{
+  "name": "cropguard-market",
+  "version": "1.0.0",
+  "description": "Direct Market Access Platform for Farmers (Ministry of Agriculture & UASD Dharwad)",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend/web",
+    "frontend/mobile"
+  ],
+  "scripts": {
+    "backend": "npm --prefix backend run dev",
+    "web": "npm --prefix frontend/web run dev",
+    "mobile": "npm --prefix frontend/mobile start",
+    "install:backend": "npm --prefix backend install"
+  },
+  "keywords": [
+    "agritech",
+    "cropguard",
+    "farmers-market",
+    "direct-market-access",
+    "mern",
+    "react-native",
+    "socket-io"
+  ],
+  "author": "CropGuard Team",
+  "license": "ISC"
+}
