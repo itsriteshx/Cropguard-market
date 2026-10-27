@@ -8,6 +8,7 @@ const errorHandler = require('./middleware/errorHandler');
 const healthRoutes = require('./routes/healthRoutes');
 const authRoutes = require('./routes/authRoutes');
 const listingRoutes = require('./routes/listingRoutes');
+const mandiRoutes = require('./routes/mandiRoutes');
 
 // Initialize Express App
 const app = express();
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/mandi-rates', mandiRoutes);
 
 app.get('/', (req, res) => {
   res.status(200).json({
