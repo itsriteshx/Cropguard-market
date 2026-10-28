@@ -302,9 +302,156 @@ const getMyOrders = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get Farmer Digital Ledger (Khata) with financial statistics & earnings
+ * @route   GET /api/orders/farmer-ledger
+ * @access  Private (FARMER only)
+ */
+const getFarmerLedger = async (req, res, next) => {
+  try {
+    const farmerId = req.user._id;
+
+    // Fetch all orders for this farmer
+    const orders = await Order.find({ farmer: farmerId })
+      .populate('buyer', 'name phone')
+      .sort('-createdAt');
+
+    let totalEarnings = 0;
+    let pendingEscrowAmount = 0;
+    let totalVolumeKg = 0;
+    let settledOrdersCount = 0;
+    let activeOrdersCount = 0;
+
+    orders.forEach((order) => {
+      // Calculate volumes (normalize Quintal to Kg for metrics: 1 Quintal = 100 Kg)
+      const volumeInKg = order.unit === 'QUINTAL' ? order.quantity * 100 : order.quantity;
+
+      if (order.orderStatus === 'SETTLED') {
+        totalEarnings += order.totalAmount;
+        settledOrdersCount += 1;
+        totalVolumeKg += volumeInKg;
+      } else if (['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED'].includes(order.orderStatus)) {
+        if (order.paymentStatus === 'ESCROW_SECURED') {
+          pendingEscrowAmount += order.totalAmount;
+        }
+        activeOrdersCount += 1;
+        totalVolumeKg += volumeInKg;
+      }
+    });
+
+    // Traditional supply chain cuts ~10% intermediary commission
+    const estimatedMiddlemanSavings = Math.round(totalEarnings * 0.1);
+
+    const recentTransactions = orders.slice(0, 10).map((order) => ({
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      cropName: order.cropName,
+      quantity: `${order.quantity} ${order.unit}`,
+      amount: order.totalAmount,
+      buyerName: order.buyer ? order.buyer.name : 'Unknown Buyer',
+      orderStatus: order.orderStatus,
+      paymentStatus: order.paymentStatus,
+      date: order.createdAt
+    }));
+
+    return res.status(200).json({
+      success: true,
+      ledgerSummary: {
+        totalEarnings: Math.round(totalEarnings * 100) / 100,
+        pendingEscrowAmount: Math.round(pendingEscrowAmount * 100) / 100,
+        totalVolumeKg,
+        settledOrdersCount,
+        activeOrdersCount,
+        estimatedMiddlemanSavings,
+        currency: 'INR'
+      },
+      recentTransactions
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Generate printable digital invoice / receipt slip for an order
+ * @route   GET /api/orders/:id/receipt
+ * @access  Private (Participants & Admin)
+ */
+const getOrderReceipt = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('buyer', 'name phone location')
+      .populate('farmer', 'name phone location');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const userId = req.user._id.toString();
+    const isBuyer = order.buyer._id.toString() === userId;
+    const isFarmer = order.farmer._id.toString() === userId;
+
+    if (!isBuyer && !isFarmer && req.user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view receipt for this order'
+      });
+    }
+
+    const receipt = {
+      receiptNumber: `REC-${order.orderNumber}`,
+      issueDate: new Date(),
+      orderNumber: order.orderNumber,
+      orderStatus: order.orderStatus,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentDetails?.paymentMethod || 'UPI',
+      seller: {
+        role: 'FARMER',
+        name: order.farmer.name,
+        phone: order.farmer.phone,
+        location: `${order.farmer.location?.village || ''}, ${order.farmer.location?.district || ''}, ${order.farmer.location?.state || ''}`
+      },
+      buyer: {
+        role: 'BUYER',
+        name: order.buyer.name,
+        phone: order.buyer.phone,
+        deliveryAddress: `${order.deliveryAddress?.village || ''}, ${order.deliveryAddress?.district || ''}, ${order.deliveryAddress?.state || ''}`
+      },
+      items: [
+        {
+          description: order.cropName,
+          quantity: order.quantity,
+          unit: order.unit,
+          unitRate: order.unitPrice,
+          total: order.totalAmount
+        }
+      ],
+      financialBreakdown: {
+        subtotal: order.totalAmount,
+        intermediaryCommissionFee: 0,
+        tax: 0,
+        grandTotal: order.totalAmount
+      },
+      declaration: 'Certified 100% direct farmer-to-buyer transaction under Ministry of Agriculture & UASD Dharwad Direct Market Access guidelines.'
+    };
+
+    return res.status(200).json({
+      success: true,
+      receipt
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createOrder,
   updateOrderStatus,
   getOrderById,
-  getMyOrders
+  getMyOrders,
+  getFarmerLedger,
+  getOrderReceipt
 };
