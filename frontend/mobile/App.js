@@ -7,7 +7,7 @@ export default function App() {
       <Text style={styles.title}>🌾 CropGuard Market</Text>
       <Text style={styles.subtitle}>Direct Market Access for Farmers</Text>
       <View style={styles.badge}>
-        <Text style={styles.badgeText}>✔ Connected to Expo Go (SDK 57)</Text>
+        <Text style={styles.badgeText}>✔ Connected to Expo Go (SDK 58)</Text>
       </View>
       <Text style={styles.footer}>Day 1 Setup Complete • Ready for Phase 1</Text>
       <StatusBar style="auto" />
