@@ -10,6 +10,7 @@ const authRoutes = require('./routes/authRoutes');
 const listingRoutes = require('./routes/listingRoutes');
 const mandiRoutes = require('./routes/mandiRoutes');
 const negotiationRoutes = require('./routes/negotiationRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 // Initialize Express App
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/mandi-rates', mandiRoutes);
 app.use('/api/negotiations', negotiationRoutes);
+app.use('/api/orders', orderRoutes);
 
 app.get('/', (req, res) => {
   res.status(200).json({
