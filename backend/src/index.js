@@ -20,6 +20,7 @@ const mandiRoutes = require('./routes/mandiRoutes');
 const negotiationRoutes = require('./routes/negotiationRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const docsRoutes = require('./routes/docsRoutes');
 const initNegotiationSocket = require('./sockets/negotiationSocket');
 
 // Initialize Express App & HTTP Server
@@ -64,12 +65,14 @@ app.use('/api/mandi-rates', mandiRoutes);
 app.use('/api/negotiations', negotiationRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/docs', docsRoutes);
 
 app.get('/', (req, res) => {
   res.status(200).json({
     message: 'CropGuard Market API Gateway',
     status: 'online',
-    healthCheck: '/api/health'
+    healthCheck: '/api/health',
+    documentation: '/api/docs'
   });
 });
 
