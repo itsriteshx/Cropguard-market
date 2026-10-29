@@ -13,6 +13,7 @@ const listingRoutes = require('./routes/listingRoutes');
 const mandiRoutes = require('./routes/mandiRoutes');
 const negotiationRoutes = require('./routes/negotiationRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 const initNegotiationSocket = require('./sockets/negotiationSocket');
 
 // Initialize Express App & HTTP Server
@@ -40,6 +41,9 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 
+// Static files for local image uploads in dev
+app.use('/uploads', express.static(path.resolve(__dirname, '../public/uploads')));
+
 // Routes
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
@@ -47,6 +51,7 @@ app.use('/api/listings', listingRoutes);
 app.use('/api/mandi-rates', mandiRoutes);
 app.use('/api/negotiations', negotiationRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/upload', uploadRoutes);
 
 app.get('/', (req, res) => {
   res.status(200).json({

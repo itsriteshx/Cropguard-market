@@ -20,6 +20,7 @@ lerna-debug.log*
 dist/
 build/
 coverage/
+backend/public/uploads/
 
 # Expo & React Native
 .expo/
