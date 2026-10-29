@@ -1,4 +1,6 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
@@ -11,9 +13,25 @@ const listingRoutes = require('./routes/listingRoutes');
 const mandiRoutes = require('./routes/mandiRoutes');
 const negotiationRoutes = require('./routes/negotiationRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const initNegotiationSocket = require('./sockets/negotiationSocket');
 
-// Initialize Express App
+// Initialize Express App & HTTP Server
 const app = express();
+const server = http.createServer(app);
+
+// Initialize Socket.io Server with CORS
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
+  }
+});
+
+// Attach io instance to Express app for controller access
+app.set('io', io);
+
+// Initialize WebSocket Negotiation Gateway
+initNegotiationSocket(io);
 
 // Connect to MongoDB Atlas
 connectDB();
@@ -43,6 +61,7 @@ app.use(errorHandler);
 
 // Start Server
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port: ${PORT}`);
+  console.log(`Socket.io Gateway active on /negotiation`);
 });
