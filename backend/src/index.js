@@ -7,6 +7,12 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
+const {
+  helmetMiddleware,
+  apiLimiter,
+  authLimiter,
+  sanitizeMiddleware
+} = require('./middleware/securityMiddleware');
 const healthRoutes = require('./routes/healthRoutes');
 const authRoutes = require('./routes/authRoutes');
 const listingRoutes = require('./routes/listingRoutes');
@@ -37,9 +43,15 @@ initNegotiationSocket(io);
 // Connect to MongoDB Atlas
 connectDB();
 
-// Middlewares
+// Security & Request Middlewares
+app.use(helmetMiddleware);
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(sanitizeMiddleware);
+
+// Rate Limiting
+app.use('/api', apiLimiter);
+app.use('/api/auth', authLimiter);
 
 // Static files for local image uploads in dev
 app.use('/uploads', express.static(path.resolve(__dirname, '../public/uploads')));
