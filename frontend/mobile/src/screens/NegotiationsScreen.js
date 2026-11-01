@@ -22,6 +22,8 @@ export default function NegotiationsScreen() {
     joinNegotiationRoom,
     leaveNegotiationRoom,
     sendLiveCounterOffer,
+    acceptLiveDeal,
+    rejectLiveDeal,
     socketService
   } = useSocket();
 
@@ -37,6 +39,12 @@ export default function NegotiationsScreen() {
 
   // Real-time toast state
   const [liveToast, setLiveToast] = useState(null);
+
+  // Celebratory Locked Deal Modal State
+  const [lockedDealModal, setLockedDealModal] = useState(null);
+
+  // Online status of counterparts per user ID
+  const [onlineUsers, setOnlineUsers] = useState({});
 
   // Keep track of joined rooms
   const joinedRoomsRef = useRef(new Set());
@@ -67,7 +75,7 @@ export default function NegotiationsScreen() {
     };
   }, [leaveNegotiationRoom]);
 
-  // Real-Time Socket Event Listeners for Counter-Offers
+  // Real-Time Socket Event Listeners (Counter Offers, Deal Locked, Deal Rejected, Presence)
   useEffect(() => {
     if (!socketService) return;
 
@@ -92,7 +100,7 @@ export default function NegotiationsScreen() {
         })
       );
 
-      // If active modal is open for this negotiation, keep it synced
+      // Keep open modal in sync
       setActiveSession((prev) => {
         if (prev && prev._id === data.negotiationId) {
           return {
@@ -118,8 +126,72 @@ export default function NegotiationsScreen() {
       }
     });
 
+    // 2. Listen for deal locked event
+    const unsubLocked = socketService.onDealLocked((data) => {
+      console.log('[NegotiationsScreen] Deal locked event received:', data);
+      if (!data || !data.dealSummary) return;
+
+      const summary = data.dealSummary;
+
+      setNegotiations((prev) =>
+        prev.map((item) => {
+          if (item._id === summary.negotiationId) {
+            return {
+              ...item,
+              status: 'ACCEPTED',
+              agreedPrice: summary.agreedPricePerUnit,
+              agreedTotalAmount: summary.agreedTotalAmount
+            };
+          }
+          return item;
+        })
+      );
+
+      // Trigger celebratory deal modal
+      setLockedDealModal(summary);
+    });
+
+    // 3. Listen for deal rejection
+    const unsubRejected = socketService.onDealRejected((data) => {
+      console.log('[NegotiationsScreen] Deal rejected event:', data);
+      if (!data || !data.negotiationId) return;
+
+      setNegotiations((prev) =>
+        prev.map((item) => {
+          if (item._id === data.negotiationId) {
+            return {
+              ...item,
+              status: 'REJECTED'
+            };
+          }
+          return item;
+        })
+      );
+
+      setLiveToast({
+        id: Date.now(),
+        type: 'REJECTED',
+        title: '🛑 Negotiation Closed',
+        message: data.reason || 'Offer was declined by counterpart'
+      });
+      setTimeout(() => setLiveToast(null), 4000);
+    });
+
+    // 4. Listen for participant status (online presence)
+    const unsubPresence = socketService.onParticipantStatus((data) => {
+      if (data && data.userId) {
+        setOnlineUsers((prev) => ({
+          ...prev,
+          [data.userId]: data.status === 'ONLINE'
+        }));
+      }
+    });
+
     return () => {
       unsubCounter();
+      unsubLocked();
+      unsubRejected();
+      unsubPresence();
     };
   }, [socketService, role]);
 
@@ -198,23 +270,29 @@ export default function NegotiationsScreen() {
   };
 
   const handleAcceptDeal = (session) => {
+    const totalAmount = Math.round(session.currentOfferedPrice * session.quantity);
     Alert.alert(
       'Lock Deal Price? 🔒',
-      `Accept ₹${session.currentOfferedPrice}/${session.listing?.unit || 'Kg'} for ${session.quantity} ${session.listing?.unit || 'Kg'}? Total: ₹${Math.round(session.currentOfferedPrice * session.quantity)}`,
+      `Accept ₹${session.currentOfferedPrice}/${session.listing?.unit || 'Kg'} for ${session.quantity} ${session.listing?.unit || 'Kg'}? Total: ₹${totalAmount.toLocaleString('en-IN')}`,
       [
         { text: t.common.cancel, style: 'cancel' },
         {
           text: t.negotiations.acceptBtn,
           onPress: async () => {
+            // 1. Broadcast instant deal lock via WebSocket
+            if (isConnected) {
+              acceptLiveDeal(session._id);
+            }
+
+            // 2. Execute REST acceptance API
             const res = await apiRequest(
               `/negotiations/${session._id}/accept`,
               { method: 'POST' },
               token
             );
             if (res.success) {
-              Alert.alert('🎉 Deal Accepted & Locked!', res.message || 'Deal locked into digital agreement.');
               fetchNegotiations();
-            } else {
+            } else if (!isConnected) {
               Alert.alert('Notice', res.message || 'Could not accept deal');
             }
           }
@@ -233,6 +311,12 @@ export default function NegotiationsScreen() {
           text: 'Reject Deal',
           style: 'destructive',
           onPress: async () => {
+            // 1. Broadcast instant rejection via WebSocket
+            if (isConnected) {
+              rejectLiveDeal(session._id, 'Price not acceptable');
+            }
+
+            // 2. Execute REST rejection API
             const res = await apiRequest(
               `/negotiations/${session._id}/reject`,
               {
@@ -242,7 +326,6 @@ export default function NegotiationsScreen() {
               token
             );
             if (res.success) {
-              Alert.alert('Closed', 'Negotiation session has been rejected.');
               fetchNegotiations();
             }
           }
@@ -258,9 +341,10 @@ export default function NegotiationsScreen() {
     const isAccepted = item.status === 'ACCEPTED';
     const isRejected = item.status === 'REJECTED';
 
-    const otherPartyName = isBuyer
-      ? item.farmer?.name || 'Farmer'
-      : item.buyer?.name || 'Buyer';
+    const otherParty = isBuyer ? item.farmer : item.buyer;
+    const otherPartyName = otherParty?.name || (isBuyer ? 'Farmer' : 'Buyer');
+    const otherPartyId = otherParty?._id || otherParty;
+    const isCounterpartOnline = onlineUsers[otherPartyId];
 
     return (
       <View style={[styles.card, isAccepted && styles.cardAccepted]}>
@@ -276,9 +360,17 @@ export default function NegotiationsScreen() {
                 </View>
               )}
             </View>
-            <Text style={styles.sessionSubtitle}>
-              With: <Text style={styles.otherPartyText}>{otherPartyName}</Text>
-            </Text>
+            <View style={styles.counterpartRow}>
+              <Text style={styles.sessionSubtitle}>
+                With: <Text style={styles.otherPartyText}>{otherPartyName}</Text>
+              </Text>
+              {isCounterpartOnline && (
+                <View style={styles.presencePill}>
+                  <View style={styles.presenceDot} />
+                  <Text style={styles.presenceText}>{t.negotiations.liveParticipantOnline}</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           <View style={styles.statusBadge}>
@@ -371,8 +463,20 @@ export default function NegotiationsScreen() {
     <View style={styles.container}>
       {/* Live Toast Banner */}
       {liveToast && (
-        <View style={styles.toastContainer}>
-          <Text style={styles.toastTitle}>{liveToast.title}</Text>
+        <View
+          style={[
+            styles.toastContainer,
+            liveToast.type === 'REJECTED' && styles.toastRejected
+          ]}
+        >
+          <Text
+            style={[
+              styles.toastTitle,
+              liveToast.type === 'REJECTED' && { color: '#F87171' }
+            ]}
+          >
+            {liveToast.title}
+          </Text>
           <Text style={styles.toastMessage}>{liveToast.message}</Text>
         </View>
       )}
@@ -474,6 +578,61 @@ export default function NegotiationsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Celebratory Deal Locked Popup Modal */}
+      <Modal
+        visible={!!lockedDealModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLockedDealModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.celebrationCard}>
+            <Text style={styles.celebrationEmoji}>🎉🤝🌾</Text>
+            <Text style={styles.celebrationTitle}>{t.negotiations.liveDealBannerTitle}</Text>
+            <Text style={styles.celebrationSubtitle}>
+              {lockedDealModal?.crop || 'Crop Produce'}
+            </Text>
+
+            <View style={styles.celebrationSummaryBox}>
+              <View style={styles.celebrationRow}>
+                <Text style={styles.celebrationLabel}>Agreed Price:</Text>
+                <Text style={styles.celebrationHighlight}>
+                  ₹{lockedDealModal?.agreedPricePerUnit} / Kg
+                </Text>
+              </View>
+              <View style={styles.celebrationRow}>
+                <Text style={styles.celebrationLabel}>Total Volume:</Text>
+                <Text style={styles.celebrationValue}>
+                  {lockedDealModal?.quantity} Kg
+                </Text>
+              </View>
+              <View style={[styles.celebrationRow, styles.celebrationTotalRow]}>
+                <Text style={styles.celebrationTotalLabel}>Contract Value:</Text>
+                <Text style={styles.celebrationTotalAmount}>
+                  ₹{Number(lockedDealModal?.agreedTotalAmount || 0).toLocaleString('en-IN')}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.celebrationNotice}>
+              {t.negotiations.liveDealBannerBody}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.celebrationBtn}
+              onPress={() => {
+                setLockedDealModal(null);
+                fetchNegotiations();
+              }}
+            >
+              <Text style={styles.celebrationBtnText}>
+                {t.negotiations.viewInKhata || 'Continue to Khata'} ✓
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -496,6 +655,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 4
+  },
+  toastRejected: {
+    backgroundColor: '#450A0A',
+    borderColor: '#EF4444'
   },
   toastTitle: {
     color: '#34D399',
@@ -615,13 +778,38 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: 'bold'
   },
+  counterpartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2
+  },
   sessionSubtitle: {
     fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 2
+    color: '#94A3B8'
   },
   otherPartyText: {
     color: '#38BDF8',
+    fontWeight: '600'
+  },
+  presencePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6
+  },
+  presenceDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#10B981',
+    marginRight: 4
+  },
+  presenceText: {
+    color: '#34D399',
+    fontSize: 9,
     fontWeight: '600'
   },
   statusBadge: {
@@ -834,5 +1022,100 @@ const styles = StyleSheet.create({
   submitBtnText: {
     color: '#0F172A',
     fontWeight: 'bold'
+  },
+  celebrationCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: '#10B981',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8
+  },
+  celebrationEmoji: {
+    fontSize: 40,
+    marginBottom: 8
+  },
+  celebrationTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#F8FAFC',
+    textAlign: 'center',
+    marginBottom: 4
+  },
+  celebrationSubtitle: {
+    fontSize: 14,
+    color: '#34D399',
+    fontWeight: '600',
+    marginBottom: 16
+  },
+  celebrationSummaryBox: {
+    width: '100%',
+    backgroundColor: '#1E293B',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#334155'
+  },
+  celebrationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  celebrationLabel: {
+    fontSize: 12,
+    color: '#94A3B8'
+  },
+  celebrationHighlight: {
+    fontSize: 14,
+    color: '#10B981',
+    fontWeight: 'bold'
+  },
+  celebrationValue: {
+    fontSize: 13,
+    color: '#F8FAFC',
+    fontWeight: '600'
+  },
+  celebrationTotalRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+    paddingTop: 8,
+    marginTop: 4,
+    marginBottom: 0
+  },
+  celebrationTotalLabel: {
+    fontSize: 13,
+    color: '#CBD5E1',
+    fontWeight: 'bold'
+  },
+  celebrationTotalAmount: {
+    fontSize: 17,
+    color: '#38BDF8',
+    fontWeight: 'black'
+  },
+  celebrationNotice: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 16,
+    marginBottom: 18
+  },
+  celebrationBtn: {
+    backgroundColor: '#10B981',
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center'
+  },
+  celebrationBtnText: {
+    color: '#0F172A',
+    fontWeight: 'bold',
+    fontSize: 14
   }
 });

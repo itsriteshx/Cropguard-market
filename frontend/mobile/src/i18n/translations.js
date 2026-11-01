@@ -73,7 +73,12 @@ export const translations = {
       counterModalTitle: 'Submit Counter Offer',
       counterPriceLabel: 'Your Counter Price (₹/Kg)',
       counterNoteLabel: 'Reason or note',
-      sendCounterBtn: 'Submit Counter Offer'
+      sendCounterBtn: 'Submit Counter Offer',
+      liveDealBannerTitle: '🎉 Deal Locked & Contract Created!',
+      liveDealBannerBody: 'Price locked in real-time. Ready in Digital Khata.',
+      liveParticipantOnline: 'Online in Room',
+      liveDealRejected: 'Negotiation session was closed',
+      viewInKhata: 'View in Khata'
     },
     ledger: {
       title: 'Farmer Digital Khata',
@@ -123,30 +128,30 @@ export const translations = {
       quintal: 'क्विंटल',
       perKg: '₹/किलो',
       verified: 'सत्यापित किसान',
-      anonymous: 'खरीददार'
+      anonymous: 'प्रत्यक्ष खरीददार'
     },
     market: {
-      title: 'किसान फ़सल बाज़ार',
-      subtitle: 'सीधे स्थानीय किसानों से ताज़ा फ़सल खरीदें, बिना किसी बिचौलिए के',
-      searchPlaceholder: 'फ़सल खोजें (जैसे टमाटर, प्याज़, गेहूं)...',
+      title: 'किसान उत्पाद बाज़ार',
+      subtitle: 'स्थानीय सत्यापित किसानों से बिना बिचौलियों के सीधे ताज़ी उपज खरीदें',
+      searchPlaceholder: 'फ़सल खोजें (जैसे: टमाटर, प्याज, गेहूं)...',
       allCategories: 'सभी फ़सलें',
-      makeOffer: 'बोली लगाएं',
+      makeOffer: 'दाम लगाएं',
       quantityAvailable: 'उपलब्ध मात्रा',
       askingRate: 'किसान का भाव',
       seller: 'किसान',
       location: 'खेत का स्थान',
-      noListings: 'कोई फ़सल नहीं मिली।',
-      offerModalTitle: 'खरीद प्रस्ताव भेजें',
-      offerPriceLabel: 'आपका प्रस्ताव (₹/किलो)',
-      offerQtyLabel: 'मात्रा (किलो)',
+      noListings: 'आपकी खोज से मेल खाती कोई फ़सल नहीं मिली।',
+      offerModalTitle: 'खरीद प्रस्ताव (ऑफर) भेजें',
+      offerPriceLabel: 'आपका प्रस्तावित भाव (₹/किलो)',
+      offerQtyLabel: 'खरीदने की मात्रा (किलो)',
       offerNoteLabel: 'किसान के लिए संदेश',
-      submitOfferBtn: 'किसान को प्रस्ताव भेजें'
+      submitOfferBtn: 'किसान को ऑफर भेजें'
     },
     sell: {
-      title: 'अपनी फ़सल जोड़ें',
-      subtitle: 'लाइव मंडी भाव देखकर सही दाम पर फ़सल बेचें',
+      title: 'अपनी फ़सल बाज़ार में लगाएं',
+      subtitle: 'लाइव मंडी भाव देखकर खरीददारों को सीधे उचित दाम पर बेचें',
       cropNameLabel: 'फ़सल का नाम',
-      cropNamePlaceholder: 'उदा. हाइब्रिड टमाटर, लाल प्याज़, गेहूं',
+      cropNamePlaceholder: 'उदा. हाइब्रिड टमाटर, लाल प्याज, शरबती गेहूं',
       categoryLabel: 'श्रेणी',
       qtyLabel: 'कुल मात्रा',
       unitLabel: 'इकाई',
@@ -178,7 +183,12 @@ export const translations = {
       counterModalTitle: 'नया भाव (काउंटर ऑफर) दें',
       counterPriceLabel: 'आपका नया भाव (₹/किलो)',
       counterNoteLabel: 'कारण या संदेश',
-      sendCounterBtn: 'नया भाव भेजें'
+      sendCounterBtn: 'नया भाव भेजें',
+      liveDealBannerTitle: '🎉 सौदा पक्का हो गया और अनुबंध बन गया!',
+      liveDealBannerBody: 'रीयल-टाइम में भाव लॉक हो गया। डिजिटल खाते में दर्ज है।',
+      liveParticipantOnline: 'रूम में लाइव हैं',
+      liveDealRejected: 'सौदा बंद कर दिया गया',
+      viewInKhata: 'खाता में देखें'
     },
     ledger: {
       title: 'किसान डिजिटल खाता',
@@ -283,7 +293,12 @@ export const translations = {
       counterModalTitle: 'ಹೊಸ ದರ ಪ್ರಸ್ತಾಪಿಸಿ',
       counterPriceLabel: 'ನಿಮ್ಮ ಪ್ರತಿ ಆಫರ್ ದರ (₹/ಕೆಜಿ)',
       counterNoteLabel: 'ಕಾರಣ ಅಥವಾ ಟಿಪ್ಪಣಿ',
-      sendCounterBtn: 'ಹೊಸ ದರ ಕಳುಹಿಸಿ'
+      sendCounterBtn: 'ಹೊಸ ದರ ಕಳುಹಿಸಿ',
+      liveDealBannerTitle: '🎉 ವ್ಯಾಪಾರ ಅಂತಿಮಗೊಂಡಿದೆ!',
+      liveDealBannerBody: 'ದರ ಒಪ್ಪಂದ ಮುಕ್ತಾಯವಾಗಿದೆ. ಖಾತೆಯಲ್ಲಿ ಲಭ್ಯವಿದೆ.',
+      liveParticipantOnline: 'ಆನ್‌ಲೈನ್‌ನಲ್ಲಿದ್ದಾರೆ',
+      liveDealRejected: 'ಚೌಕಾಶಿ ರದ್ದುಗೊಂಡಿದೆ',
+      viewInKhata: 'ಖಾತೆಯಲ್ಲಿ ನೋಡಿ'
     },
     ledger: {
       title: 'ರೈತರ ಡಿಜಿಟಲ್ ಖಾತೆ ಪುಸ್ತಕ',
