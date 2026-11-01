@@ -8,7 +8,15 @@ const getBaseUrl = () => {
   return 'http://localhost:5001/api';
 };
 
+export const getSocketUrl = () => {
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:5001';
+  }
+  return 'http://localhost:5001';
+};
+
 export const API_BASE_URL = getBaseUrl();
+export const SOCKET_URL = getSocketUrl();
 
 export const apiRequest = async (endpoint, options = {}, token = null) => {
   const url = `${API_BASE_URL}${endpoint}`;
