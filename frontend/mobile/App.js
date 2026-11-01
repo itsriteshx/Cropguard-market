@@ -10,6 +10,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { SocketProvider, useSocket } from './src/context/SocketContext';
 import MarketplaceScreen from './src/screens/MarketplaceScreen';
 import SellProduceScreen from './src/screens/SellProduceScreen';
 import NegotiationsScreen from './src/screens/NegotiationsScreen';
@@ -18,6 +19,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 
 function MainApp() {
   const { t, role, language, toggleLanguage, switchUser } = useAuth();
+  const { isConnected } = useSocket();
   const [activeTab, setActiveTab] = useState('MARKET');
 
   const isFarmer = role === 'FARMER';
@@ -61,17 +63,33 @@ function MainApp() {
           </View>
         </View>
 
-        {/* Action Pills */}
+        {/* Status Pills */}
         <View style={styles.navActionsRow}>
-          {/* Persona Switch Pill */}
-          <TouchableOpacity style={styles.personaPill} onPress={switchUser}>
+          {/* Live Socket Status Beacon */}
+          <View style={[styles.socketBadge, isConnected ? styles.socketOnline : styles.socketOffline]}>
+            <View style={[styles.socketDot, isConnected ? styles.socketDotOnline : styles.socketDotOffline]} />
+            <Text style={[styles.socketText, isConnected ? styles.socketTextOnline : styles.socketTextOffline]}>
+              {isConnected ? 'Live' : 'Syncing'}
+            </Text>
+          </View>
+
+          {/* Quick Persona Switcher */}
+          <TouchableOpacity
+            style={styles.personaPill}
+            onPress={() => switchUser(isFarmer ? 'BUYER' : 'FARMER')}
+            activeOpacity={0.8}
+          >
             <Text style={styles.personaPillText}>
-              {isFarmer ? '👨‍🌾 Farmer' : '🛒 Buyer'}
+              {isFarmer ? '👨‍🌾 Farmer' : '🛒 Buyer'} ⇄
             </Text>
           </TouchableOpacity>
 
-          {/* Language Toggle Pill */}
-          <TouchableOpacity style={styles.langPill} onPress={toggleLanguage}>
+          {/* Multilingual Selector */}
+          <TouchableOpacity
+            style={styles.langPill}
+            onPress={toggleLanguage}
+            activeOpacity={0.8}
+          >
             <Text style={styles.langPillText}>
               {language.toUpperCase()}
             </Text>
@@ -109,7 +127,9 @@ function MainApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <SocketProvider>
+        <MainApp />
+      </SocketProvider>
     </AuthProvider>
   );
 }
@@ -149,16 +169,54 @@ const styles = StyleSheet.create({
   },
   navActionsRow: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    gap: 6
+  },
+  socketBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1
+  },
+  socketOnline: {
+    backgroundColor: 'rgba(6, 78, 59, 0.4)',
+    borderColor: '#059669'
+  },
+  socketOffline: {
+    backgroundColor: 'rgba(120, 53, 15, 0.3)',
+    borderColor: '#D97706'
+  },
+  socketDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 4
+  },
+  socketDotOnline: {
+    backgroundColor: '#10B981'
+  },
+  socketDotOffline: {
+    backgroundColor: '#F59E0B'
+  },
+  socketText: {
+    fontSize: 10,
+    fontWeight: '700'
+  },
+  socketTextOnline: {
+    color: '#34D399'
+  },
+  socketTextOffline: {
+    color: '#FBBF24'
   },
   personaPill: {
     backgroundColor: '#1E293B',
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#334155',
-    marginRight: 6
+    borderColor: '#334155'
   },
   personaPillText: {
     color: '#34D399',
