@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,10 +12,18 @@ import {
   Alert
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import { apiRequest } from '../config/api';
 
 export default function NegotiationsScreen() {
   const { t, token, user, role } = useAuth();
+  const {
+    isConnected,
+    joinNegotiationRoom,
+    leaveNegotiationRoom,
+    sendLiveCounterOffer,
+    socketService
+  } = useSocket();
 
   const [negotiations, setNegotiations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,9 +35,93 @@ export default function NegotiationsScreen() {
   const [counterNote, setCounterNote] = useState('');
   const [submittingCounter, setSubmittingCounter] = useState(false);
 
+  // Real-time toast state
+  const [liveToast, setLiveToast] = useState(null);
+
+  // Keep track of joined rooms
+  const joinedRoomsRef = useRef(new Set());
+
   useEffect(() => {
     fetchNegotiations();
   }, []);
+
+  // Whenever negotiations list updates, join their isolated socket rooms
+  useEffect(() => {
+    if (negotiations.length > 0 && isConnected) {
+      negotiations.forEach((neg) => {
+        if (!joinedRoomsRef.current.has(neg._id)) {
+          joinNegotiationRoom(neg._id);
+          joinedRoomsRef.current.add(neg._id);
+        }
+      });
+    }
+  }, [negotiations, isConnected, joinNegotiationRoom]);
+
+  // Clean up rooms on unmount
+  useEffect(() => {
+    return () => {
+      joinedRoomsRef.current.forEach((id) => {
+        leaveNegotiationRoom(id);
+      });
+      joinedRoomsRef.current.clear();
+    };
+  }, [leaveNegotiationRoom]);
+
+  // Real-Time Socket Event Listeners for Counter-Offers
+  useEffect(() => {
+    if (!socketService) return;
+
+    // 1. Listen for incoming counter offers
+    const unsubCounter = socketService.onCounterOfferReceived((data) => {
+      console.log('[NegotiationsScreen] Live counter received:', data);
+      if (!data || !data.negotiationId) return;
+
+      setNegotiations((prev) =>
+        prev.map((item) => {
+          if (item._id === data.negotiationId) {
+            const updatedBids = data.bidHistory || (item.bidHistory ? [...item.bidHistory, data.latestBid] : [data.latestBid]);
+            return {
+              ...item,
+              currentOfferedPrice: data.currentOfferedPrice,
+              currentTurn: data.currentTurn,
+              status: data.status || 'COUNTER_OFFERED',
+              bidHistory: updatedBids
+            };
+          }
+          return item;
+        })
+      );
+
+      // If active modal is open for this negotiation, keep it synced
+      setActiveSession((prev) => {
+        if (prev && prev._id === data.negotiationId) {
+          return {
+            ...prev,
+            currentOfferedPrice: data.currentOfferedPrice,
+            currentTurn: data.currentTurn,
+            status: data.status || 'COUNTER_OFFERED'
+          };
+        }
+        return prev;
+      });
+
+      // Show live toast banner
+      const isMyBid = data.latestBid?.bidderRole === (role === 'FARMER' ? 'FARMER' : 'BUYER');
+      if (!isMyBid) {
+        setLiveToast({
+          id: Date.now(),
+          type: 'COUNTER',
+          title: '⚡ New Live Counter-Offer!',
+          message: `Updated to ₹${data.currentOfferedPrice}/kg by ${data.latestBid?.bidderRole || 'Counterpart'}`
+        });
+        setTimeout(() => setLiveToast(null), 4000);
+      }
+    });
+
+    return () => {
+      unsubCounter();
+    };
+  }, [socketService, role]);
 
   const fetchNegotiations = async () => {
     setLoading(true);
@@ -60,26 +152,48 @@ export default function NegotiationsScreen() {
       return;
     }
 
-    setSubmittingCounter(true);
-    const res = await apiRequest(
-      `/negotiations/${activeSession._id}/counter`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          counterPrice: parseFloat(counterPrice),
-          note: counterNote || `Counter offer of ₹${counterPrice}/kg`
-        })
-      },
-      token
-    );
+    const priceNum = parseFloat(counterPrice);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      Alert.alert('Invalid Price', 'Please enter a valid numeric counter price');
+      return;
+    }
 
-    setSubmittingCounter(false);
-    if (res.success) {
-      Alert.alert('Counter Sent! 🤝', `Your counter-offer of ₹${counterPrice}/kg was broadcasted.`);
-      setActiveSession(null);
-      fetchNegotiations();
-    } else {
-      Alert.alert('Notice', res.message || 'Could not submit counter-offer');
+    setSubmittingCounter(true);
+
+    try {
+      // 1. Emit live WebSocket event for 0ms room broadcast
+      if (isConnected) {
+        sendLiveCounterOffer({
+          negotiationId: activeSession._id,
+          pricePerUnit: priceNum,
+          note: counterNote || `Live counter offer of ₹${counterPrice}/kg`
+        });
+      }
+
+      // 2. Execute REST persistence API
+      const res = await apiRequest(
+        `/negotiations/${activeSession._id}/counter`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            counterPrice: priceNum,
+            note: counterNote || `Live counter offer of ₹${counterPrice}/kg`
+          })
+        },
+        token
+      );
+
+      setSubmittingCounter(false);
+      if (res.success || isConnected) {
+        Alert.alert('Counter Sent! 🤝', `Your counter-offer of ₹${counterPrice}/kg was broadcasted in real time.`);
+        setActiveSession(null);
+        fetchNegotiations();
+      } else {
+        Alert.alert('Notice', res.message || 'Could not submit counter-offer');
+      }
+    } catch (err) {
+      setSubmittingCounter(false);
+      console.warn('Counter submit error:', err.message);
     }
   };
 
@@ -150,13 +264,23 @@ export default function NegotiationsScreen() {
 
     return (
       <View style={[styles.card, isAccepted && styles.cardAccepted]}>
+        {/* Card Header */}
         <View style={styles.cardHeader}>
           <View>
-            <Text style={styles.cropTitle}>{item.listing?.cropName || 'Produce Deal'}</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.cropTitle}>{item.listing?.cropName || 'Produce Deal'}</Text>
+              {isConnected && (
+                <View style={styles.liveRoomBadge}>
+                  <View style={styles.liveRoomDot} />
+                  <Text style={styles.liveRoomText}>Live Room</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.sessionSubtitle}>
               With: <Text style={styles.otherPartyText}>{otherPartyName}</Text>
             </Text>
           </View>
+
           <View style={styles.statusBadge}>
             <Text
               style={[
@@ -245,9 +369,25 @@ export default function NegotiationsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Live Toast Banner */}
+      {liveToast && (
+        <View style={styles.toastContainer}>
+          <Text style={styles.toastTitle}>{liveToast.title}</Text>
+          <Text style={styles.toastMessage}>{liveToast.message}</Text>
+        </View>
+      )}
+
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t.negotiations.title}</Text>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.headerTitle}>{t.negotiations.title}</Text>
+          <View style={[styles.headerBeacon, isConnected ? styles.beaconOnline : styles.beaconOffline]}>
+            <View style={[styles.beaconDot, isConnected ? styles.beaconDotOnline : styles.beaconDotOffline]} />
+            <Text style={styles.beaconText}>
+              {isConnected ? 'Socket.io Live' : 'Connecting'}
+            </Text>
+          </View>
+        </View>
         <Text style={styles.headerSubtitle}>{t.negotiations.subtitle}</Text>
       </View>
 
@@ -343,6 +483,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0F172A'
   },
+  toastContainer: {
+    backgroundColor: '#064E3B',
+    borderColor: '#10B981',
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 14,
+    marginTop: 10,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 4
+  },
+  toastTitle: {
+    color: '#34D399',
+    fontWeight: 'bold',
+    fontSize: 13
+  },
+  toastMessage: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    marginTop: 2
+  },
   header: {
     padding: 16,
     paddingTop: 10,
@@ -350,10 +514,48 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#334155'
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
   headerTitle: {
     fontSize: 22,
     fontWeight: 'bold',
     color: '#10B981'
+  },
+  headerBeacon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1
+  },
+  beaconOnline: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: '#10B981'
+  },
+  beaconOffline: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: '#F59E0B'
+  },
+  beaconDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 4
+  },
+  beaconDotOnline: {
+    backgroundColor: '#10B981'
+  },
+  beaconDotOffline: {
+    backgroundColor: '#F59E0B'
+  },
+  beaconText: {
+    fontSize: 10,
+    color: '#E2E8F0',
+    fontWeight: '600'
   },
   headerSubtitle: {
     fontSize: 13,
@@ -381,10 +583,37 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
   cropTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#F8FAFC'
+  },
+  liveRoomBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.5)'
+  },
+  liveRoomDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#34D399',
+    marginRight: 4
+  },
+  liveRoomText: {
+    color: '#34D399',
+    fontSize: 9,
+    fontWeight: 'bold'
   },
   sessionSubtitle: {
     fontSize: 12,
@@ -549,15 +778,15 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: '#1E293B',
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#10B981'
+    borderColor: '#334155'
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#10B981',
+    color: '#F8FAFC',
     marginBottom: 4
   },
   modalSubtitle: {
@@ -566,40 +795,40 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
   inputLabel: {
-    color: '#CBD5E1',
     fontSize: 12,
-    marginBottom: 4,
+    color: '#CBD5E1',
+    marginBottom: 6,
     fontWeight: '600'
   },
   modalInput: {
     backgroundColor: '#0F172A',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#334155',
-    marginBottom: 12,
-    fontSize: 14
+    borderRadius: 8,
+    padding: 12,
+    color: '#F8FAFC',
+    fontSize: 14,
+    marginBottom: 14
   },
   modalActionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 10
+    marginTop: 6
   },
   cancelBtn: {
-    paddingHorizontal: 16,
     paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     marginRight: 10
   },
   cancelBtnText: {
     color: '#94A3B8',
-    fontWeight: '600'
+    fontWeight: 'bold'
   },
   submitBtn: {
     backgroundColor: '#10B981',
-    paddingHorizontal: 18,
     paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 8
   },
   submitBtnText: {
