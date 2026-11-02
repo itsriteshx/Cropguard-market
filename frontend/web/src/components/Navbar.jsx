@@ -3,10 +3,11 @@ import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, Activity, Building2, UserCheck, ChevronDown, Sparkles, Globe, Check } from 'lucide-react';
 
 export default function Navbar({ onTabChange, activeTab }) {
-  const { activePersona, switchPersona, personas, backendOnline, language, setLanguage, languages } = useAuth();
+  const { activePersona, switchPersona, personas, backendOnline, language, setLanguage, languages, t } = useAuth();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
 
   const activeLang = languages.find((l) => l.code === language) || languages[0];
+  const n = t.navbar || {};
 
   return (
     <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
@@ -22,11 +23,11 @@ export default function Navbar({ onTabChange, activeTab }) {
                 <div className="flex items-center gap-2">
                   <span className="font-extrabold text-lg text-white tracking-tight">CropGuard</span>
                   <span className="text-xs uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/80">
-                    Wholesale & Mandi
+                    {n.brandTag || 'Wholesale & Mandi'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 hidden sm:block">
-                  Direct Market Access • UASD Dharwad & ICAR Protocol
+                  {n.brandSubtitle || 'Direct Market Access • UASD Dharwad & ICAR Protocol'}
                 </p>
               </div>
             </div>
@@ -37,7 +38,7 @@ export default function Navbar({ onTabChange, activeTab }) {
                 🏛️ UASD APMC Cell
               </span>
               <span className="px-2 py-1 rounded bg-slate-800/80 border border-slate-700/60 font-medium text-emerald-300">
-                Zero Middleman
+                {n.zeroMiddleman || 'Zero Middleman'}
               </span>
             </div>
           </div>
@@ -65,7 +66,7 @@ export default function Navbar({ onTabChange, activeTab }) {
                   <div className="fixed inset-0 z-40" onClick={() => setLangMenuOpen(false)} />
                   <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
                     <div className="px-3 py-2 text-[10px] uppercase font-bold tracking-wider text-slate-400 border-b border-slate-800 flex items-center justify-between">
-                      <span>Supported Languages (8)</span>
+                      <span>{n.languagesTitle || 'Supported Languages (8)'}</span>
                       <span className="text-emerald-400 font-mono text-[9px]">UASD / ICAR</span>
                     </div>
 
@@ -141,7 +142,7 @@ export default function Navbar({ onTabChange, activeTab }) {
               {/* Persona Menu */}
               <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-2 hidden group-hover:block hover:block z-50">
                 <div className="px-3 py-2 text-[10px] uppercase font-bold tracking-wider text-slate-400 border-b border-slate-800">
-                  Switch Active Role Persona
+                  {n.switchRole || 'Switch Active Role Persona'}
                 </div>
                 {personas.map((persona) => (
                   <button
@@ -172,7 +173,7 @@ export default function Navbar({ onTabChange, activeTab }) {
       {/* APMC Live Benchmark Ticker */}
       <div className="bg-slate-950 border-t border-slate-800/60 px-4 py-1.5 overflow-x-auto text-[11px] text-slate-400 flex items-center gap-6">
         <span className="font-bold text-emerald-400 shrink-0 flex items-center gap-1">
-          <Sparkles className="w-3.5 h-3.5" /> UASD Mandi Corridor:
+          <Sparkles className="w-3.5 h-3.5" /> {n.tickerTitle || 'UASD Mandi Corridor:'}
         </span>
         <div className="flex items-center gap-6 shrink-0">
           <span>🧅 Dharwad Onion: <strong className="text-slate-200">₹2,450 / qtl</strong></span>
@@ -183,7 +184,7 @@ export default function Navbar({ onTabChange, activeTab }) {
           <span className="text-slate-600">•</span>
           <span>🌽 Haveri Maize: <strong className="text-slate-200">₹2,100 / qtl</strong></span>
           <span className="text-slate-600">•</span>
-          <span>⚡ Middleman Margin Eliminated: <strong className="text-emerald-400">+10.0%</strong> Direct Farmer Bonus</span>
+          <span>⚡ {n.middlemanBonus || 'Middleman Margin Eliminated: +10.0% Direct Farmer Bonus'}</span>
         </div>
       </div>
     </header>

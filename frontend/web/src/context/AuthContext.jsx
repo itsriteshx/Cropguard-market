@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/api';
+import { webTranslations } from '../i18n/translations';
 
 const AuthContext = createContext();
 
@@ -54,6 +55,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [backendOnline, setBackendOnline] = useState(false);
 
+  const t = webTranslations[language] || webTranslations.en;
+
   const setLanguage = (langCode) => {
     setLanguageState(langCode);
     localStorage.setItem('cropguard_web_lang', langCode);
@@ -99,6 +102,7 @@ export const AuthProvider = ({ children }) => {
         backendOnline,
         setBackendOnline,
         personas: DEMO_PERSONAS,
+        t,
       }}
     >
       {children}

@@ -1,45 +1,46 @@
 import React from 'react';
+import { useAuth } from '../context/AuthContext';
 import {
   ShoppingBag,
   TrendingUp,
   FileText,
   ShieldCheck,
   Server,
-  Building2,
-  Users,
   Award,
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, onTabChange }) {
+  const { t } = useAuth();
+
   const navItems = [
     {
       id: 'marketplace',
-      label: 'Wholesale Marketplace',
-      sublabel: 'Direct Bulk Farm Lots (20-500 qtl)',
+      label: t.nav?.marketplace || 'Wholesale Marketplace',
+      sublabel: t.nav?.marketplaceSub || 'Direct Bulk Farm Lots (20-500 qtl)',
       icon: ShoppingBag,
     },
     {
       id: 'mandi',
-      label: 'APMC Mandi Intelligence',
-      sublabel: 'Price Trends & Modal Spread',
+      label: t.nav?.mandi || 'APMC Mandi Intelligence',
+      sublabel: t.nav?.mandiSub || 'Price Trends & Modal Spread',
       icon: TrendingUp,
     },
     {
       id: 'orders',
-      label: 'Bulk Orders & Escrow',
-      sublabel: 'Fulfillment & Settlement Pipeline',
+      label: t.nav?.orders || 'Bulk Orders & Escrow',
+      sublabel: t.nav?.ordersSub || 'Fulfillment & Settlement Pipeline',
       icon: FileText,
     },
     {
       id: 'compliance',
-      label: 'Audit & Fair-Trade',
-      sublabel: 'Digital Khata & +10% Savings',
+      label: t.nav?.compliance || 'Audit & Fair-Trade',
+      sublabel: t.nav?.complianceSub || 'Digital Khata & +10% Savings',
       icon: ShieldCheck,
     },
     {
       id: 'system',
-      label: 'API Gateway & Docs',
-      sublabel: 'Backend Health & Swagger Specs',
+      label: t.nav?.system || 'API Gateway & Docs',
+      sublabel: t.nav?.systemSub || 'Backend Health & Swagger Specs',
       icon: Server,
     },
   ];
@@ -48,7 +49,7 @@ export default function Sidebar({ activeTab, onTabChange }) {
     <aside className="w-full md:w-64 shrink-0 bg-slate-900/60 border-r border-slate-800 p-4 flex flex-col justify-between">
       <div className="space-y-1">
         <div className="px-3 py-2 text-[10px] uppercase font-bold tracking-wider text-slate-500">
-          Core Navigation
+          {t.nav?.coreNav || 'Core Navigation'}
         </div>
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -83,10 +84,10 @@ export default function Sidebar({ activeTab, onTabChange }) {
       <div className="mt-8 pt-4 border-t border-slate-800/80 px-2 space-y-3">
         <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] space-y-1.5">
           <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-            <Award className="w-4 h-4" /> ICAR & UASD Compliant
+            <Award className="w-4 h-4" /> {t.nav?.compliantBadge || 'ICAR & UASD Compliant'}
           </div>
           <p className="text-slate-400 text-[10px] leading-relaxed">
-            Eliminates APMC commission agents (arhatiyas) to transfer +10% economic value directly to farmers.
+            {t.nav?.complianceNotice || 'Eliminates APMC commission agents (arhatiyas) to transfer +10% economic value directly to farmers.'}
           </p>
         </div>
 
