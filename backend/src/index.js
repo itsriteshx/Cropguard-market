@@ -13,6 +13,7 @@ const {
   authLimiter,
   sanitizeMiddleware
 } = require('./middleware/securityMiddleware');
+const i18nMiddleware = require('./middleware/i18nMiddleware');
 const healthRoutes = require('./routes/healthRoutes');
 const authRoutes = require('./routes/authRoutes');
 const listingRoutes = require('./routes/listingRoutes');
@@ -49,6 +50,7 @@ app.use(helmetMiddleware);
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(sanitizeMiddleware);
+app.use(i18nMiddleware);
 
 // Rate Limiting
 app.use('/api', apiLimiter);
