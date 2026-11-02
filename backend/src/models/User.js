@@ -42,7 +42,10 @@ const userSchema = new mongoose.Schema(
     },
     languagePreference: {
       type: String,
-      enum: ['en', 'hi', 'kn'],
+      enum: {
+        values: ['en', 'hi', 'kn', 'mr', 'te', 'ta', 'gu', 'pa'],
+        message: '{VALUE} is not a supported language preference'
+      },
       default: 'en'
     },
     location: {

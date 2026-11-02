@@ -164,8 +164,49 @@ const getMe = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Update user language preference
+ * @route   PATCH /api/auth/language
+ * @access  Private (Requires Bearer Token)
+ */
+const updateLanguagePreference = async (req, res, next) => {
+  try {
+    const { languagePreference } = req.body;
+    const SUPPORTED = ['en', 'hi', 'kn', 'mr', 'te', 'ta', 'gu', 'pa'];
+
+    if (!languagePreference || !SUPPORTED.includes(languagePreference)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid language code. Supported languages are: ${SUPPORTED.join(', ')}`
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { languagePreference },
+      { new: true, runValidators: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Language preference updated successfully',
+      languagePreference: user.languagePreference,
+      user: {
+        _id: user._id,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        languagePreference: user.languagePreference
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
-  getMe
+  getMe,
+  updateLanguagePreference
 };
