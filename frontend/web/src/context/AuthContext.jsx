@@ -3,6 +3,17 @@ import { authService } from '../services/api';
 
 const AuthContext = createContext();
 
+export const WEB_LANGUAGES = [
+  { code: 'en', name: 'English', nativeName: 'English', flag: '🌐', region: 'Pan-India / Wholesale' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳', region: 'North & Central Mandis' },
+  { code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ', flag: '🌾', region: 'UASD Dharwad / Karnataka' },
+  { code: 'mr', name: 'Marathi', nativeName: 'मराठी', flag: '🚜', region: 'Maharashtra APMC' },
+  { code: 'te', name: 'Telugu', nativeName: 'తెలుగు', flag: '🌶️', region: 'AP & Telangana' },
+  { code: 'ta', name: 'Tamil', nativeName: 'தமிழ்', flag: '🥥', region: 'Tamil Nadu' },
+  { code: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી', flag: '🥜', region: 'Gujarat APMC' },
+  { code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', flag: '🌾', region: 'Punjab Mandis' },
+];
+
 export const DEMO_PERSONAS = [
   {
     id: 'BUYER_WHOLESALE',
@@ -39,8 +50,14 @@ export const DEMO_PERSONAS = [
 export const AuthProvider = ({ children }) => {
   const [activePersona, setActivePersona] = useState(DEMO_PERSONAS[0]);
   const [token, setToken] = useState(localStorage.getItem('cropguard_web_token') || null);
+  const [language, setLanguageState] = useState(localStorage.getItem('cropguard_web_lang') || 'en');
   const [loading, setLoading] = useState(false);
   const [backendOnline, setBackendOnline] = useState(false);
+
+  const setLanguage = (langCode) => {
+    setLanguageState(langCode);
+    localStorage.setItem('cropguard_web_lang', langCode);
+  };
 
   // Authenticate when persona switches
   const switchPersona = async (persona) => {
@@ -75,6 +92,9 @@ export const AuthProvider = ({ children }) => {
         activePersona,
         switchPersona,
         token,
+        language,
+        setLanguage,
+        languages: WEB_LANGUAGES,
         loading,
         backendOnline,
         setBackendOnline,

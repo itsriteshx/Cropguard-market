@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config/api';
 
 export default function ProfileScreen() {
-  const { t, user, role, language, setLanguage, switchUser } = useAuth();
+  const { t, user, role, language, setLanguage, languages, switchUser } = useAuth();
 
   const isFarmer = role === 'FARMER';
 
@@ -75,33 +75,44 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Language Switcher */}
+      {/* 8-Language Switcher Section */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>🌐 {t.profile.languageSettings}</Text>
-        <View style={styles.langRow}>
-          {[
-            { code: 'en', label: 'English (🇬🇧)' },
-            { code: 'hi', label: 'हिन्दी (🇮🇳)' },
-            { code: 'kn', label: 'ಕನ್ನಡ (🇮🇳 UASD)' }
-          ].map((item) => (
-            <TouchableOpacity
-              key={item.code}
-              style={[
-                styles.langBtn,
-                language === item.code && styles.langBtnActive
-              ]}
-              onPress={() => setLanguage(item.code)}
-            >
-              <Text
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.cardTitle}>🌐 {t.profile.languageSettings}</Text>
+          <View style={styles.langCountPill}>
+            <Text style={styles.langCountText}>8 Languages</Text>
+          </View>
+        </View>
+        <Text style={styles.cardSubtitle}>
+          Select your native agricultural language. Direct access under UASD Dharwad & ICAR guidelines.
+        </Text>
+
+        <View style={styles.langGrid}>
+          {(languages || []).map((item) => {
+            const isSelected = language === item.code;
+            return (
+              <TouchableOpacity
+                key={item.code}
                 style={[
-                  styles.langBtnText,
-                  language === item.code && styles.langBtnTextActive
+                  styles.langCard,
+                  isSelected && styles.langCardActive
                 ]}
+                onPress={() => setLanguage(item.code)}
+                activeOpacity={0.7}
               >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <View style={styles.langTopRow}>
+                  <Text style={styles.langFlag}>{item.flag}</Text>
+                  {isSelected && <Text style={styles.langSelectedBadge}>✓ Active</Text>}
+                </View>
+                <Text style={[styles.langNative, isSelected && styles.langNativeActive]}>
+                  {item.native}
+                </Text>
+                <Text style={styles.langLabel}>
+                  {item.label} • <Text style={styles.langRegionText}>{item.region}</Text>
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
@@ -153,14 +164,15 @@ const styles = StyleSheet.create({
   profileCard: {
     backgroundColor: '#1E293B',
     borderRadius: 14,
-    padding: 16,
+    padding: 18,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#10B981'
+    borderColor: '#334155'
   },
   avatarRow: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    marginBottom: 14
   },
   avatar: {
     width: 54,
@@ -169,7 +181,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#10B981',
     marginRight: 14
   },
@@ -185,17 +197,19 @@ const styles = StyleSheet.create({
     color: '#F8FAFC'
   },
   roleBadge: {
-    alignSelf: 'flex-start',
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    marginTop: 4
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#10B981'
   },
   roleBadgeText: {
-    color: '#34D399',
-    fontSize: 12,
-    fontWeight: '600'
+    color: '#10B981',
+    fontSize: 11,
+    fontWeight: 'bold'
   },
   divider: {
     height: 1,
@@ -213,19 +227,37 @@ const styles = StyleSheet.create({
   },
   infoVal: {
     fontSize: 13,
-    color: '#E2E8F0',
-    fontWeight: '500'
+    color: '#F8FAFC',
+    fontWeight: '600'
   },
   card: {
     backgroundColor: '#1E293B',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#334155'
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  langCountPill: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#10B981'
+  },
+  langCountText: {
+    color: '#34D399',
+    fontSize: 10,
+    fontWeight: 'bold'
+  },
   cardTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#F8FAFC',
     marginBottom: 4
@@ -233,47 +265,74 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: 12,
     color: '#94A3B8',
-    marginBottom: 12,
+    marginBottom: 14,
     lineHeight: 16
   },
   switchButton: {
-    backgroundColor: '#10B981',
-    borderRadius: 8,
+    backgroundColor: '#0F172A',
     paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#10B981',
     alignItems: 'center'
   },
   switchButtonText: {
-    color: '#0F172A',
-    fontSize: 14,
-    fontWeight: 'bold'
+    color: '#34D399',
+    fontWeight: 'bold',
+    fontSize: 13
   },
-  langRow: {
+  langGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8
+    flexWrap: 'wrap',
+    gap: 10
   },
-  langBtn: {
-    flex: 1,
+  langCard: {
+    width: '48%',
     backgroundColor: '#0F172A',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 4,
+    borderRadius: 10,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#334155'
   },
-  langBtnActive: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981'
+  langCardActive: {
+    borderColor: '#10B981',
+    backgroundColor: 'rgba(6, 78, 59, 0.3)'
   },
-  langBtnText: {
-    color: '#94A3B8',
-    fontSize: 12,
-    fontWeight: '600'
+  langTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4
   },
-  langBtnTextActive: {
-    color: '#0F172A',
-    fontWeight: 'bold'
+  langFlag: {
+    fontSize: 20
+  },
+  langSelectedBadge: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4
+  },
+  langNative: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#F8FAFC',
+    marginBottom: 2
+  },
+  langNativeActive: {
+    color: '#34D399'
+  },
+  langLabel: {
+    fontSize: 11,
+    color: '#94A3B8'
+  },
+  langRegionText: {
+    fontSize: 10,
+    color: '#64748B'
   },
   statusRow: {
     flexDirection: 'row',

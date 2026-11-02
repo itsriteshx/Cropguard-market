@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, Activity, Building2, UserCheck, ChevronDown, Sparkles } from 'lucide-react';
+import { ShieldCheck, Activity, Building2, UserCheck, ChevronDown, Sparkles, Globe, Check } from 'lucide-react';
 
 export default function Navbar({ onTabChange, activeTab }) {
-  const { activePersona, switchPersona, personas, backendOnline } = useAuth();
+  const { activePersona, switchPersona, personas, backendOnline, language, setLanguage, languages } = useAuth();
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
+
+  const activeLang = languages.find((l) => l.code === language) || languages[0];
 
   return (
     <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
@@ -39,11 +42,73 @@ export default function Navbar({ onTabChange, activeTab }) {
             </div>
           </div>
 
-          {/* Right Side: Backend Status & Persona Switcher */}
-          <div className="flex items-center gap-3">
+          {/* Right Side: Language Selector, Backend Status & Persona Switcher */}
+          <div className="flex items-center gap-2.5">
+            {/* 8-Language Selector Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setLangMenuOpen(!langMenuOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-emerald-600/40 text-xs font-bold text-emerald-300 transition-colors shadow-sm"
+                title="Select Platform Language"
+              >
+                <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-sm">{activeLang.flag}</span>
+                <span className="hidden sm:inline">{activeLang.nativeName}</span>
+                <span className="text-[10px] uppercase font-mono px-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  {activeLang.code}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              {langMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setLangMenuOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-3 py-2 text-[10px] uppercase font-bold tracking-wider text-slate-400 border-b border-slate-800 flex items-center justify-between">
+                      <span>Supported Languages (8)</span>
+                      <span className="text-emerald-400 font-mono text-[9px]">UASD / ICAR</span>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto py-1 space-y-1">
+                      {languages.map((lang) => {
+                        const isSelected = lang.code === language;
+                        return (
+                          <button
+                            key={lang.code}
+                            onClick={() => {
+                              setLanguage(lang.code);
+                              setLangMenuOpen(false);
+                            }}
+                            className={`w-full text-left p-2 rounded-xl flex items-center justify-between transition-colors ${
+                              isSelected
+                                ? 'bg-emerald-950/80 border border-emerald-700/80 text-emerald-200'
+                                : 'hover:bg-slate-800/80 text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-base">{lang.flag}</span>
+                              <div>
+                                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                                  <span>{lang.nativeName}</span>
+                                  <span className="text-[11px] text-slate-400 font-normal">({lang.name})</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 line-clamp-1">{lang.region}</div>
+                              </div>
+                            </div>
+
+                            {isSelected && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* Live Gateway Pill */}
             <div
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border ${
+              className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border ${
                 backendOnline
                   ? 'bg-emerald-950/70 border-emerald-700/60 text-emerald-300'
                   : 'bg-amber-950/70 border-amber-700/60 text-amber-300'
@@ -54,10 +119,10 @@ export default function Navbar({ onTabChange, activeTab }) {
                   backendOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
                 }`}
               />
-              <span className="hidden sm:inline">
-                {backendOnline ? 'Node.js Gateway :5001' : 'Offline / Standalone Demo'}
+              <span className="hidden md:inline">
+                {backendOnline ? 'Node.js Gateway :5001' : 'Standalone Demo'}
               </span>
-              <span className="sm:hidden">{backendOnline ? 'Live' : 'Demo'}</span>
+              <span className="md:hidden">{backendOnline ? 'Live' : 'Demo'}</span>
             </div>
 
             {/* Persona Switcher Dropdown */}

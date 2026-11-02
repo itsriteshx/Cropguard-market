@@ -4,6 +4,17 @@ import { translations } from '../i18n/translations';
 
 const AuthContext = createContext();
 
+export const SUPPORTED_LANGUAGES = [
+  { code: 'en', label: 'English', native: 'English', flag: '🌐', region: 'Pan-India' },
+  { code: 'hi', label: 'हिन्दी', native: 'हिन्दी', flag: '🇮🇳', region: 'North / Central' },
+  { code: 'kn', label: 'ಕನ್ನಡ', native: 'ಕನ್ನಡ', flag: '🌾', region: 'UASD Karnataka' },
+  { code: 'mr', label: 'मराठी', native: 'मराठी', flag: '🚜', region: 'Maharashtra APMC' },
+  { code: 'te', label: 'తెలుగు', native: 'తెలుగు', flag: '🌶️', region: 'AP & Telangana' },
+  { code: 'ta', label: 'தமிழ்', native: 'தமிழ்', flag: '🥥', region: 'Tamil Nadu' },
+  { code: 'gu', label: 'ગુજરાતી', native: 'ગુજરાતી', flag: '🥜', region: 'Gujarat APMC' },
+  { code: 'pa', label: 'ਪੰਜਾਬੀ', native: 'ਪੰਜਾਬੀ', flag: '🌾', region: 'Punjab Mandis' }
+];
+
 // Pre-seeded demo accounts in our MongoDB Atlas
 const DEMO_USERS = {
   FARMER: {
@@ -26,7 +37,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [role, setRole] = useState('FARMER');
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguageState] = useState('en');
   const [loading, setLoading] = useState(true);
 
   const t = translations[language] || translations.en;
@@ -53,7 +64,7 @@ export const AuthProvider = ({ children }) => {
         setUser(data.user);
         setRole(data.user.role);
         if (data.user.languagePreference) {
-          setLanguage(data.user.languagePreference);
+          setLanguageState(data.user.languagePreference);
         }
       } else {
         // Fallback local mock user if backend is offline
@@ -74,8 +85,29 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const setLanguage = async (newLang) => {
+    if (!newLang) return;
+    setLanguageState(newLang);
+
+    // Synchronize language preference with backend if logged in
+    if (token) {
+      try {
+        await apiRequest(
+          '/auth/language',
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ languagePreference: newLang })
+          },
+          token
+        );
+      } catch (err) {
+        console.warn('Failed to sync language to backend:', err.message);
+      }
+    }
+  };
+
   const toggleLanguage = () => {
-    const sequence = ['en', 'hi', 'kn'];
+    const sequence = SUPPORTED_LANGUAGES.map((l) => l.code);
     const nextIndex = (sequence.indexOf(language) + 1) % sequence.length;
     setLanguage(sequence[nextIndex]);
   };
@@ -92,6 +124,7 @@ export const AuthProvider = ({ children }) => {
         token,
         role,
         language,
+        languages: SUPPORTED_LANGUAGES,
         setLanguage,
         toggleLanguage,
         switchUser,

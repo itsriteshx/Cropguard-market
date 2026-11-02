@@ -5,6 +5,8 @@ import {
   View,
   SafeAreaView,
   TouchableOpacity,
+  Modal,
+  ScrollView,
   Platform
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -18,11 +20,17 @@ import LedgerScreen from './src/screens/LedgerScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 
 function MainApp() {
-  const { t, role, language, toggleLanguage, switchUser } = useAuth();
+  const { t, role, language, setLanguage, languages, switchUser } = useAuth();
   const { isConnected } = useSocket();
   const [activeTab, setActiveTab] = useState('MARKET');
+  const [langModalVisible, setLangModalVisible] = useState(false);
 
   const isFarmer = role === 'FARMER';
+  const currentLangMeta = (languages || []).find((l) => l.code === language) || {
+    flag: '🌐',
+    native: 'English',
+    code: 'en'
+  };
 
   const renderActiveScreen = () => {
     switch (activeTab) {
@@ -84,14 +92,14 @@ function MainApp() {
             </Text>
           </TouchableOpacity>
 
-          {/* Multilingual Selector */}
+          {/* Multilingual Selector Pill (Opens 8-Language Modal) */}
           <TouchableOpacity
             style={styles.langPill}
-            onPress={toggleLanguage}
+            onPress={() => setLangModalVisible(true)}
             activeOpacity={0.8}
           >
             <Text style={styles.langPillText}>
-              {language.toUpperCase()}
+              {currentLangMeta.flag} {language.toUpperCase()} ▾
             </Text>
           </TouchableOpacity>
         </View>
@@ -120,6 +128,69 @@ function MainApp() {
           );
         })}
       </View>
+
+      {/* 8-Language Selection Modal */}
+      <Modal
+        visible={langModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLangModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.langModalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>🌐 Select Platform Language</Text>
+                <Text style={styles.modalSubtitle}>8 Agricultural Languages (UASD / ICAR)</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setLangModalVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.langModalScroll}>
+              {(languages || []).map((lang) => {
+                const isSelected = language === lang.code;
+                return (
+                  <TouchableOpacity
+                    key={lang.code}
+                    style={[
+                      styles.langOptionCard,
+                      isSelected && styles.langOptionCardActive
+                    ]}
+                    onPress={() => {
+                      setLanguage(lang.code);
+                      setLangModalVisible(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.langOptionLeft}>
+                      <Text style={styles.langOptionFlag}>{lang.flag}</Text>
+                      <View>
+                        <Text style={[styles.langOptionNative, isSelected && styles.langOptionNativeActive]}>
+                          {lang.native}
+                        </Text>
+                        <Text style={styles.langOptionSub}>
+                          {lang.label} • {lang.region}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {isSelected && (
+                      <View style={styles.selectedPill}>
+                        <Text style={styles.selectedPillText}>✓ Selected</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -224,13 +295,15 @@ const styles = StyleSheet.create({
     fontWeight: '600'
   },
   langPill: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#10B981'
   },
   langPillText: {
-    color: '#0F172A',
+    color: '#34D399',
     fontSize: 11,
     fontWeight: 'bold'
   },
@@ -266,6 +339,99 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     color: '#10B981',
+    fontWeight: 'bold'
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end'
+  },
+  langModalCard: {
+    backgroundColor: '#0F172A',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: '#334155'
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+    paddingBottom: 12
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F8FAFC'
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2
+  },
+  modalCloseBtn: {
+    padding: 6
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#94A3B8',
+    fontWeight: 'bold'
+  },
+  langModalScroll: {
+    marginBottom: 20
+  },
+  langOptionCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#334155'
+  },
+  langOptionCardActive: {
+    borderColor: '#10B981',
+    backgroundColor: 'rgba(6, 78, 59, 0.35)'
+  },
+  langOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  langOptionFlag: {
+    fontSize: 24
+  },
+  langOptionNative: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#F8FAFC'
+  },
+  langOptionNativeActive: {
+    color: '#34D399'
+  },
+  langOptionSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2
+  },
+  selectedPill: {
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#10B981'
+  },
+  selectedPillText: {
+    color: '#10B981',
+    fontSize: 11,
     fontWeight: 'bold'
   }
 });
