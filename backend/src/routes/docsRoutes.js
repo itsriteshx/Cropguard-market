@@ -13,7 +13,8 @@ const apiCatalog = {
       endpoints: [
         { method: 'POST', path: '/api/auth/register', access: 'Public', desc: 'Register farmer, consumer, or retailer account' },
         { method: 'POST', path: '/api/auth/login', access: 'Public', desc: 'Authenticate with phone/email and password, returns JWT token' },
-        { method: 'GET', path: '/api/auth/me', access: 'Private (Bearer)', desc: 'Fetch authenticated user profile details' }
+        { method: 'GET', path: '/api/auth/me', access: 'Private (Bearer)', desc: 'Fetch authenticated user profile details' },
+        { method: 'PATCH', path: '/api/auth/language', access: 'Private (Bearer)', desc: 'Update user preferred language across 8 Indian languages (en, hi, kn, mr, te, ta, gu, pa)' }
       ]
     },
     {
@@ -58,6 +59,14 @@ const apiCatalog = {
       name: 'Media Upload (Cloudinary CDN)',
       endpoints: [
         { method: 'POST', path: '/api/upload', access: 'Private (FARMER)', desc: 'Upload up to 5 produce photos (auto-optimized via Cloudinary CDN or local fallback)' }
+      ]
+    },
+    {
+      name: 'Multilingual Localization (i18n & Regional Languages)',
+      endpoints: [
+        { method: 'GET', path: '/api/languages', access: 'Public', desc: 'Get all 8 supported Indian agricultural languages (en, hi, kn, mr, te, ta, gu, pa)' },
+        { method: 'GET', path: '/api/languages/crops', access: 'Public', desc: 'Get 25+ major Indian crops translated across all 8 languages' },
+        { method: 'GET', path: '/api/languages/translations/:lang', access: 'Public', desc: 'Get localized UI message bundle for given language code' }
       ]
     },
     {
