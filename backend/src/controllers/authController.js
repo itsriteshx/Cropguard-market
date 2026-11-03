@@ -26,6 +26,12 @@ const register = async (req, res, next) => {
       });
     }
 
+    // Administrative accounts must be provisioned outside public registration.
+    const publicRoles = ['FARMER', 'BUYER_RETAIL', 'BUYER_WHOLESALE'];
+    if (role && !publicRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: 'Invalid registration role' });
+    }
+
     // Check if phone number already registered
     const existingPhone = await User.findOne({ phone });
     if (existingPhone) {

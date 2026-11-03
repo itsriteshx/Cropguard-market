@@ -1,21 +1,11 @@
 import { Platform } from 'react-native';
 
-// In Expo, localhost works in web & iOS simulator; Android emulator uses 10.0.2.2
-const getBaseUrl = () => {
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5001/api';
-  }
-  return 'http://localhost:5001/api';
-};
+// Set EXPO_PUBLIC_API_ORIGIN to the backend origin for a physical device.
+const defaultOrigin = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
+const origin = (process.env.EXPO_PUBLIC_API_ORIGIN || defaultOrigin).replace(/\/+$/, '');
 
-export const getSocketUrl = () => {
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5001';
-  }
-  return 'http://localhost:5001';
-};
-
-export const API_BASE_URL = getBaseUrl();
+export const getSocketUrl = () => origin;
+export const API_BASE_URL = `${origin}/api`;
 export const SOCKET_URL = getSocketUrl();
 
 export const apiRequest = async (endpoint, options = {}, token = null) => {
@@ -27,17 +17,11 @@ export const apiRequest = async (endpoint, options = {}, token = null) => {
   };
 
   try {
-    const res = await fetch(url, {
-      ...options,
-      headers
-    });
+    const res = await fetch(url, { ...options, headers });
     const data = await res.json();
     return data;
   } catch (error) {
     console.error(`API Error on ${endpoint}:`, error.message);
-    return {
-      success: false,
-      message: error.message || 'Network error connecting to backend'
-    };
+    return { success: false, message: error.message || 'Network error connecting to backend' };
   }
 };

@@ -18,12 +18,15 @@ import SellProduceScreen from './src/screens/SellProduceScreen';
 import NegotiationsScreen from './src/screens/NegotiationsScreen';
 import LedgerScreen from './src/screens/LedgerScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import AuthScreen from './src/screens/AuthScreen';
 
 function MainApp() {
-  const { t, role, language, setLanguage, languages, switchUser } = useAuth();
+  const { t, role, language, setLanguage, languages, user } = useAuth();
   const { isConnected } = useSocket();
   const [activeTab, setActiveTab] = useState('MARKET');
   const [langModalVisible, setLangModalVisible] = useState(false);
+
+  if (!user) return <AuthScreen />;
 
   const isFarmer = role === 'FARMER';
   const currentLangMeta = (languages || []).find((l) => l.code === language) || {
@@ -80,17 +83,6 @@ function MainApp() {
               {isConnected ? 'Live' : 'Syncing'}
             </Text>
           </View>
-
-          {/* Quick Persona Switcher */}
-          <TouchableOpacity
-            style={styles.personaPill}
-            onPress={() => switchUser(isFarmer ? 'BUYER' : 'FARMER')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.personaPillText}>
-              {isFarmer ? '👨‍🌾 Farmer' : '🛒 Buyer'} ⇄
-            </Text>
-          </TouchableOpacity>
 
           {/* Multilingual Selector Pill (Opens 8-Language Modal) */}
           <TouchableOpacity
