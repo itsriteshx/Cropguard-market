@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config/api';
 
 export default function ProfileScreen() {
-  const { t, user, role, language, setLanguage, languages, switchUser } = useAuth();
+  const { t, user, role, language, setLanguage, languages, logout } = useAuth();
 
   const isFarmer = role === 'FARMER';
 
@@ -28,10 +28,10 @@ export default function ProfileScreen() {
             <Text style={styles.avatarText}>{isFarmer ? '👨‍🌾' : '🛒'}</Text>
           </View>
           <View style={styles.profileMeta}>
-            <Text style={styles.userName}>{user?.name || (isFarmer ? 'Ramesh Patil' : 'Sunil Retail Stores')}</Text>
+            <Text style={styles.userName}>{user?.name || 'Account'}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>
-                {isFarmer ? '🌾 Verified Farmer' : '🛒 Retail Store Buyer'}
+                {isFarmer ? '🌾 Farmer' : '🛒 Buyer'}
               </Text>
             </View>
           </View>
@@ -41,37 +41,27 @@ export default function ProfileScreen() {
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>📱 {t.profile.phone}:</Text>
-          <Text style={styles.infoVal}>{user?.phone || '9876543210'}</Text>
+          <Text style={styles.infoVal}>{user?.phone || 'Not provided'}</Text>
         </View>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>📍 Location:</Text>
           <Text style={styles.infoVal}>
-            {user?.location?.district || 'Dharwad'}, {user?.location?.state || 'Karnataka'}
+            {user?.location?.district || 'Not provided'}, {user?.location?.state || ''}
           </Text>
         </View>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>🆔 Account ID:</Text>
           <Text style={[styles.infoVal, { fontSize: 11, color: '#64748B' }]}>
-            {user?._id || 'demo_user_id'}
+            {user?._id || 'Not available'}
           </Text>
         </View>
       </View>
 
-      {/* Switch Demo Persona (Farmer <-> Buyer) */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>🔄 {t.profile.switchDemoUser}</Text>
-        <Text style={styles.cardSubtitle}>
-          Toggle between Farmer and Buyer accounts with one tap to test live bidding & listing flows.
-        </Text>
-
-        <TouchableOpacity style={styles.switchButton} onPress={switchUser}>
-          <Text style={styles.switchButtonText}>
-            {isFarmer
-              ? '👉 Switch to Buyer (Sunil Retail Stores)'
-              : '👉 Switch to Farmer (Ramesh Patil)'}
-          </Text>
+        <TouchableOpacity style={styles.switchButton} onPress={logout} accessibilityRole="button">
+          <Text style={styles.switchButtonText}>Sign out</Text>
         </TouchableOpacity>
       </View>
 

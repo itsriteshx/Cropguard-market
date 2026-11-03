@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { apiRequest } from '../config/api';
 import { translations } from '../i18n/translations';
 
@@ -15,74 +15,36 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'pa', label: 'ਪੰਜਾਬੀ', native: 'ਪੰਜਾਬੀ', flag: '🌾', region: 'Punjab Mandis' }
 ];
 
-// Pre-seeded demo accounts in our MongoDB Atlas
-const DEMO_USERS = {
-  FARMER: {
-    phone: '9876543210',
-    password: 'farmerpassword123',
-    role: 'FARMER',
-    name: 'Ramesh Patil',
-    district: 'Dharwad'
-  },
-  BUYER: {
-    phone: '9811223344',
-    password: 'buyerpassword123',
-    role: 'BUYER_RETAIL',
-    name: 'Sunil Retail Stores',
-    district: 'Hubballi'
-  }
-};
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [role, setRole] = useState('FARMER');
+  const [role, setRole] = useState(null);
   const [language, setLanguageState] = useState('en');
-  const [loading, setLoading] = useState(true);
-
+  const [loading, setLoading] = useState(false);
   const t = translations[language] || translations.en;
 
-  // Auto-login with default demo Farmer on launch
-  useEffect(() => {
-    loginDemoUser('FARMER');
-  }, []);
-
-  const loginDemoUser = async (targetRole = 'FARMER') => {
+  const authenticate = async (mode, fields) => {
     setLoading(true);
-    const credentials = DEMO_USERS[targetRole];
     try {
-      const data = await apiRequest('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({
-          phone: credentials.phone,
-          password: credentials.password
-        })
+      const data = await apiRequest(`/auth/${mode}`, {
+        method: 'POST', body: JSON.stringify(fields)
       });
-
-      if (data.success && data.token) {
+      if (data.success && data.token && data.user) {
         setToken(data.token);
         setUser(data.user);
         setRole(data.user.role);
-        if (data.user.languagePreference) {
-          setLanguageState(data.user.languagePreference);
-        }
-      } else {
-        // Fallback local mock user if backend is offline
-        setUser({
-          _id: targetRole === 'FARMER' ? 'farmer_demo_id' : 'buyer_demo_id',
-          name: credentials.name,
-          phone: credentials.phone,
-          role: credentials.role,
-          location: { district: credentials.district, state: 'Karnataka' },
-          isVerified: true
-        });
-        setRole(credentials.role);
+        setLanguageState(data.user.languagePreference || 'en');
       }
-    } catch (err) {
-      console.warn('Auto login fallback:', err.message);
+      return data;
     } finally {
       setLoading(false);
     }
+  };
+
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    setRole(null);
   };
 
   const setLanguage = async (newLang) => {
@@ -112,11 +74,6 @@ export const AuthProvider = ({ children }) => {
     setLanguage(sequence[nextIndex]);
   };
 
-  const switchUser = () => {
-    const nextRole = role === 'FARMER' ? 'BUYER' : 'FARMER';
-    loginDemoUser(nextRole);
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -127,8 +84,8 @@ export const AuthProvider = ({ children }) => {
         languages: SUPPORTED_LANGUAGES,
         setLanguage,
         toggleLanguage,
-        switchUser,
-        loginDemoUser,
+        authenticate,
+        logout,
         loading,
         t
       }}
