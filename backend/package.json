@@ -5,7 +5,10 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "seed": "node src/seeds/masterSeeder.js",
+    "db:seed": "node src/seeds/masterSeeder.js",
+    "db:health": "node src/utils/dbHealthCheck.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
