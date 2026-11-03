@@ -18,7 +18,8 @@ router.use(protect);
 // Farmer Digital Ledger (Khata) - Must be before /:id
 router.get('/farmer-ledger', authorize('FARMER', 'ADMIN'), getFarmerLedger);
 
-// My orders history
+// Orders query (admin or participant orders)
+router.get('/', getMyOrders);
 router.get('/my-orders', getMyOrders);
 
 // Order creation
@@ -28,5 +29,6 @@ router.post('/', createOrder);
 router.get('/:id', getOrderById);
 router.get('/:id/receipt', getOrderReceipt);
 router.put('/:id/status', updateOrderStatus);
+router.patch('/:id/status', updateOrderStatus);
 
 module.exports = router;

@@ -69,6 +69,10 @@ const orderSchema = new mongoose.Schema(
       required: [true, 'Total amount is required'],
       min: 0.1
     },
+    middlemanFeeSaved: {
+      type: Number,
+      default: 0
+    },
     orderStatus: {
       type: String,
       enum: {
@@ -113,9 +117,19 @@ const orderSchema = new mongoose.Schema(
     timeline: [orderTimelineSchema]
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// Virtual aliases for frontend compatibility
+orderSchema.virtual('status').get(function () {
+  return this.orderStatus;
+});
+orderSchema.virtual('agreedPrice').get(function () {
+  return this.unitPrice;
+});
 
 // Compound indexes for user query performance
 orderSchema.index({ buyer: 1, orderStatus: 1 });

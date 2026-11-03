@@ -85,9 +85,27 @@ const produceListingSchema = new mongoose.Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// Virtual aliases for frontend marketplace compatibility
+produceListingSchema.virtual('expectedPrice').get(function () {
+  return this.pricePerUnit;
+});
+
+produceListingSchema.virtual('locationName').get(function () {
+  if (this.location && this.location.taluk && this.location.district) {
+    return `${this.location.taluk}, ${this.location.district}`;
+  }
+  return this.location?.district || 'Dharwad';
+});
+
+produceListingSchema.virtual('organicCertified').get(function () {
+  return this.qualityGrade === 'ORGANIC';
+});
 
 // Geospatial index for hyper-local nearby radius search
 produceListingSchema.index({ 'location.coordinates': '2dsphere' });

@@ -63,9 +63,22 @@ const mandiRateSchema = new mongoose.Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// Virtual aliases for frontend charts & analytics
+mandiRateSchema.virtual('market').get(function () {
+  return this.marketCenter ? this.marketCenter.replace(/ APMC.*$/i, '').trim() : '';
+});
+mandiRateSchema.virtual('cropName').get(function () {
+  return this.commodity;
+});
+mandiRateSchema.virtual('arrivals').get(function () {
+  return this.arrivalQuantity;
+});
 
 // Compound index for sub-second APMC rate lookups by commodity and district
 mandiRateSchema.index({ commodity: 1, district: 1, priceDate: -1 });

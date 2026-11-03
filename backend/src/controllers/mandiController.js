@@ -128,7 +128,75 @@ const getBenchmarkForCrop = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get aggregated mandi market analytics & volume distribution using MongoDB Aggregation
+ * @route   GET /api/mandi-rates/analytics
+ * @access  Public
+ */
+const getMandiAnalytics = async (req, res, next) => {
+  try {
+    // Pipeline 1: Commodity price trends & spreads
+    const commodityTrends = await MandiRate.aggregate([
+      {
+        $group: {
+          _id: '$commodity',
+          avgModalPrice: { $avg: '$modalPrice' },
+          minObserved: { $min: '$minPrice' },
+          maxObserved: { $max: '$maxPrice' },
+          totalArrivals: { $sum: '$arrivalQuantity' },
+          marketsCount: { $sum: 1 },
+          category: { $first: '$category' }
+        }
+      },
+      {
+        $project: {
+          commodity: '$_id',
+          category: 1,
+          avgModalPrice: { $round: ['$avgModalPrice', 0] },
+          minObserved: 1,
+          maxObserved: 1,
+          priceSpread: { $subtract: ['$maxObserved', '$minObserved'] },
+          totalArrivals: 1,
+          marketsCount: 1
+        }
+      },
+      { $sort: { totalArrivals: -1 } }
+    ]);
+
+    // Pipeline 2: District-wise arrival volume
+    const districtArrivals = await MandiRate.aggregate([
+      {
+        $group: {
+          _id: '$district',
+          totalArrivals: { $sum: '$arrivalQuantity' },
+          commoditiesTracked: { $addToSet: '$commodity' },
+          mandiCount: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          district: '$_id',
+          totalArrivals: 1,
+          commoditiesCount: { $size: '$commoditiesTracked' },
+          mandiCount: 1
+        }
+      },
+      { $sort: { totalArrivals: -1 } }
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      corridor: 'UASD Dharwad - North Karnataka & Maharashtra Corridor',
+      commodityTrends,
+      districtArrivals
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getMandiRates,
-  getBenchmarkForCrop
+  getBenchmarkForCrop,
+  getMandiAnalytics
 };
