@@ -32,8 +32,8 @@ export const DEMO_PERSONAS = [
     role: 'ADMIN',
     badge: 'Mandi Regulatory Admin',
     district: 'Dharwad',
-    phone: '9876543210',
-    password: 'farmerpassword123',
+    phone: '9800012345',
+    password: 'adminpassword123',
     initials: 'UA',
   },
   {

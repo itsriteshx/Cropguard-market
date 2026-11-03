@@ -74,6 +74,10 @@ export const mandiService = {
     });
     return res.data;
   },
+  getAnalytics: async () => {
+    const res = await apiClient.get('/mandi-rates/analytics');
+    return res.data;
+  },
 };
 
 // Bulk Orders & Escrow
@@ -96,6 +100,18 @@ export const ordersService = {
   },
   getReceipt: async (orderId) => {
     const res = await apiClient.get(`/orders/${orderId}/receipt`);
+    return res.data;
+  },
+};
+
+// Statutory Audit & Fair-Trade Khata
+export const auditService = {
+  getLogs: async (params = {}) => {
+    const res = await apiClient.get('/audit', { params });
+    return res.data;
+  },
+  getSummary: async () => {
+    const res = await apiClient.get('/audit/summary');
     return res.data;
   },
 };
