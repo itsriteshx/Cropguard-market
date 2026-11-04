@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert,
   StyleSheet,
   Text,
   View,
@@ -60,7 +61,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.card}>
-        <TouchableOpacity style={styles.switchButton} onPress={logout} accessibilityRole="button">
+        <TouchableOpacity style={styles.switchButton} onPress={async () => { const result = await logout(); if (!result.success) Alert.alert('Sign out failed', result.message); }} accessibilityRole="button">
           <Text style={styles.switchButtonText}>Sign out</Text>
         </TouchableOpacity>
       </View>

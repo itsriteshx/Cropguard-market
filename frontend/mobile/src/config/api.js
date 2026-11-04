@@ -19,9 +19,9 @@ export const apiRequest = async (endpoint, options = {}, token = null) => {
   try {
     const res = await fetch(url, { ...options, headers });
     const data = await res.json();
-    return data;
+    return { ...data, httpStatus: res.status };
   } catch (error) {
     console.error(`API Error on ${endpoint}:`, error.message);
-    return { success: false, message: error.message || 'Network error connecting to backend' };
+    return { success: false, networkError: true, message: error.message || 'Network error connecting to backend' };
   }
 };

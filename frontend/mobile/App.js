@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  Platform
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
@@ -21,11 +22,13 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import AuthScreen from './src/screens/AuthScreen';
 
 function MainApp() {
-  const { t, role, language, setLanguage, languages, user } = useAuth();
+  const { t, role, language, setLanguage, languages, user, restoring, restoreError, restoreSession, logout } = useAuth();
   const { isConnected } = useSocket();
   const [activeTab, setActiveTab] = useState('MARKET');
   const [langModalVisible, setLangModalVisible] = useState(false);
 
+  if (restoring) return <View style={styles.restoreScreen}><ActivityIndicator size="large" color="#10B981" /><Text style={styles.restoreText}>Restoring your session…</Text></View>;
+  if (restoreError) return <View style={styles.restoreScreen}><Text style={styles.restoreText}>{restoreError}</Text><TouchableOpacity onPress={restoreSession}><Text style={styles.restoreAction}>Try again</Text></TouchableOpacity><TouchableOpacity onPress={async () => { const result = await logout(); if (!result.success) restoreSession(); }}><Text style={styles.restoreAction}>Sign out</Text></TouchableOpacity></View>;
   if (!user) return <AuthScreen />;
 
   const isFarmer = role === 'FARMER';
@@ -198,6 +201,9 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  restoreScreen: { flex: 1, backgroundColor: '#0F172A', justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 },
+  restoreText: { color: '#F8FAFC', textAlign: 'center' },
+  restoreAction: { color: '#34D399', fontSize: 16, padding: 8 },
   safeContainer: {
     flex: 1,
     backgroundColor: '#0F172A',
