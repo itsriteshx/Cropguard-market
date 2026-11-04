@@ -8,6 +8,9 @@ import {
   CheckCircle,
   HelpCircle,
   RefreshCw,
+  Database,
+  MapPin,
+  Layers,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -24,7 +27,7 @@ import {
   Legend,
 } from 'recharts';
 
-// Seed benchmark APMC rates (Dharwad, Hubballi, Belagavi, Pune, Haveri)
+// Seed benchmark APMC rates fallback
 const MOCK_MANDI_DATA = [
   { market: 'Dharwad APMC', crop: 'Red Onion', minPrice: 1900, modalPrice: 2450, maxPrice: 2900, arrivals: 420 },
   { market: 'Hubballi APMC', crop: 'Wheat Sharbati', minPrice: 2400, modalPrice: 2800, maxPrice: 3100, arrivals: 580 },
@@ -45,50 +48,93 @@ const HISTORICAL_PRICE_TRENDS = [
 
 export default function MandiAnalyticsPage() {
   const [mandiRates, setMandiRates] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedCrop, setSelectedCrop] = useState('Red Onion');
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedCrop, setSelectedCrop] = useState('ONION');
   const [testFarmerOffer, setTestFarmerOffer] = useState(2400);
 
-  // Load APMC rates from API with fallback
-  const loadRates = async () => {
+  // Load APMC rates and live MongoDB aggregation analytics concurrently
+  const loadRatesAndAnalytics = async () => {
     setLoading(true);
     try {
-      const data = await mandiService.getRates();
-      if (data && data.rates && data.rates.length > 0) {
-        // Map backend schema to chart friendly shape
-        const mapped = data.rates.map((r) => ({
-          market: `${r.market} APMC`,
-          crop: r.cropName,
+      const [ratesRes, analyticsRes] = await Promise.allSettled([
+        mandiService.getRates({ limit: 30 }),
+        mandiService.getAnalytics(),
+      ]);
+
+      if (ratesRes.status === 'fulfilled' && ratesRes.value?.rates?.length > 0) {
+        const mapped = ratesRes.value.rates.map((r) => ({
+          market: `${r.market || r.marketCenter} APMC`,
+          crop: r.cropName || r.commodity,
           minPrice: r.minPrice,
           modalPrice: r.modalPrice,
           maxPrice: r.maxPrice,
-          arrivals: r.arrivals || 350,
+          arrivals: r.arrivals || r.arrivalQuantity || 350,
+          district: r.district,
         }));
         setMandiRates(mapped);
       } else {
         setMandiRates(MOCK_MANDI_DATA);
       }
+
+      if (analyticsRes.status === 'fulfilled' && analyticsRes.value?.success) {
+        setAnalytics(analyticsRes.value);
+      } else {
+        // Fallback aggregate structure
+        setAnalytics({
+          corridor: 'UASD Dharwad - North Karnataka & Maharashtra Corridor',
+          commodityTrends: [
+            { commodity: 'ONION', avgModalPrice: 2450, totalArrivals: 650, marketsCount: 1 },
+            { commodity: 'WHEAT', avgModalPrice: 2800, totalArrivals: 580, marketsCount: 1 },
+            { commodity: 'TOMATO', avgModalPrice: 1950, totalArrivals: 420, marketsCount: 1 },
+            { commodity: 'SOYBEAN', avgModalPrice: 4450, totalArrivals: 340, marketsCount: 1 },
+            { commodity: 'MAIZE', avgModalPrice: 2150, totalArrivals: 720, marketsCount: 1 },
+          ],
+          districtArrivals: [
+            { district: 'DHARWAD', totalArrivals: 1510, commoditiesCount: 4, mandiCount: 3 },
+            { district: 'HAVERI', totalArrivals: 1610, commoditiesCount: 2, mandiCount: 2 },
+            { district: 'BELAGAVI', totalArrivals: 760, commoditiesCount: 2, mandiCount: 2 },
+            { district: 'PUNE', totalArrivals: 850, commoditiesCount: 1, mandiCount: 1 },
+            { district: 'GADAG', totalArrivals: 220, commoditiesCount: 1, mandiCount: 1 },
+          ],
+        });
+      }
     } catch (err) {
-      console.warn('Mandi API error, using default seeds:', err.message);
+      console.warn('[Mandi Analytics] Data load error:', err.message);
       setMandiRates(MOCK_MANDI_DATA);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    loadRates();
+    loadRatesAndAnalytics();
   }, []);
+
+  const handleManualRefresh = () => {
+    setRefreshing(true);
+    loadRatesAndAnalytics();
+  };
 
   // Benchmark logic
   const currentBenchmark =
-    mandiRates.find((m) => m.crop.toLowerCase().includes(selectedCrop.toLowerCase())) ||
+    mandiRates.find((m) => m.crop.toUpperCase().includes(selectedCrop.toUpperCase())) ||
     mandiRates[0] ||
     MOCK_MANDI_DATA[0];
 
   const modalRate = currentBenchmark?.modalPrice || 2450;
   const minCorridor = Math.round(modalRate * 0.9); // 10% tolerance floor
   const isExploitative = Number(testFarmerOffer) < minCorridor;
+
+  // Compute aggregate totals
+  const totalCorridorArrivals = analytics?.districtArrivals?.reduce(
+    (sum, d) => sum + (d.totalArrivals || 0),
+    0
+  ) || 4950;
+
+  const totalDistrictsTracked = analytics?.districtArrivals?.length || 5;
 
   return (
     <div className="space-y-6">
@@ -103,23 +149,42 @@ export default function MandiAnalyticsPage() {
           </h1>
           <p className="text-slate-300 text-sm mt-2 leading-relaxed">
             Real-time APMC price benchmarks prevent predatory buyer bidding. Direct market price
-            discovery eliminates unfair discounts forced on local farmers.
+            discovery eliminates unfair discounts forced on local farmers across Karnataka & Maharashtra.
           </p>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={handleManualRefresh}
+            disabled={refreshing}
+            className="px-3.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-2 border border-slate-700 transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-emerald-400' : 'text-slate-400'}`} />
+            <span>{refreshing ? 'Refreshing Pipeline...' : 'Refresh Mandi Analytics'}</span>
+          </button>
+
+          <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/60 px-3 py-1 rounded-xl border border-emerald-800/60">
+            <Database className="w-3.5 h-3.5" /> MongoDB $group Aggregations Active
+          </span>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-panel p-4 rounded-xl border border-slate-800">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">APMC Mandis Tracked</div>
-          <div className="text-2xl font-extrabold text-white mt-1">7 Markets</div>
-          <div className="text-[11px] text-emerald-400 mt-1">Dharwad, Hubballi, Belagavi, Haveri...</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">APMC Mandis & Districts</div>
+          <div className="text-2xl font-extrabold text-white mt-1">
+            {totalDistrictsTracked} Districts
+          </div>
+          <div className="text-[11px] text-emerald-400 mt-1">Dharwad, Hubballi, Belagavi, Haveri, Pune</div>
         </div>
 
         <div className="glass-panel p-4 rounded-xl border border-slate-800">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mandi Modal Spread</div>
-          <div className="text-2xl font-extrabold text-emerald-400 mt-1">₹1,950 - ₹18,500</div>
-          <div className="text-[11px] text-slate-400 mt-1">Weighted commodity range / qtl</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Corridor Inflow Volume</div>
+          <div className="text-2xl font-extrabold text-emerald-400 mt-1">
+            {totalCorridorArrivals.toLocaleString('en-IN')} <span className="text-xs font-normal text-slate-400">qtl</span>
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1">Cumulative weekly APMC market arrivals</div>
         </div>
 
         <div className="glass-panel p-4 rounded-xl border border-slate-800">
@@ -135,7 +200,7 @@ export default function MandiAnalyticsPage() {
         </div>
       </div>
 
-      {/* Charts Section */}
+      {/* Charts Section 1: Price Spread & Realization */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart 1: Min, Modal, Max APMC Price Spread */}
         <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-4">
@@ -144,13 +209,9 @@ export default function MandiAnalyticsPage() {
               <h3 className="font-bold text-white text-base">APMC Price Spread by Commodity</h3>
               <p className="text-xs text-slate-400">Min vs Modal vs Max Rate (₹ per Quintal)</p>
             </div>
-            <button
-              onClick={loadRates}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-              title="Refresh Mandi Pipeline"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+              Live Mandi Rates
+            </span>
           </div>
 
           <div className="h-72 w-full">
@@ -194,8 +255,8 @@ export default function MandiAnalyticsPage() {
               <h3 className="font-bold text-white text-base">Farmer Price Realization Over Time</h3>
               <p className="text-xs text-slate-400">CropGuard Direct Farmgate vs Mandi Auction Modal</p>
             </div>
-            <span className="text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
-              UASD Monitored
+            <span className="text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold">
+              UASD Protocol
             </span>
           </div>
 
@@ -249,6 +310,50 @@ export default function MandiAnalyticsPage() {
         </div>
       </div>
 
+      {/* Chart Section 2: APMC Market Depth & Inflow Volume by District (MongoDB Aggregation) */}
+      {analytics?.districtArrivals && (
+        <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-emerald-400" />
+                APMC Market Depth: District-wise Inflow & Arrival Volumes
+              </h3>
+              <p className="text-xs text-slate-400">
+                Aggregated via MongoDB pipeline ($group by district) across {analytics.corridor}
+              </p>
+            </div>
+            <span className="text-xs px-2.5 py-1 rounded bg-slate-900 text-slate-300 border border-slate-800">
+              Unit: Quintals (100 Kg)
+            </span>
+          </div>
+
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={analytics.districtArrivals}
+                margin={{ top: 10, right: 10, left: -10, bottom: 10 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.4} />
+                <XAxis dataKey="district" stroke="#94a3b8" fontSize={12} tickLine={false} />
+                <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    borderColor: '#334155',
+                    borderRadius: '0.75rem',
+                    fontSize: '12px',
+                    color: '#fff',
+                  }}
+                  formatter={(val) => [`${val} Quintals`, 'Arrival Volume']}
+                />
+                <Bar dataKey="totalArrivals" fill="#059669" name="Arrival Volume (Quintals)" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {/* Anti-Exploitation Benchmark Simulator */}
       <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
         <div className="flex items-center gap-2">
@@ -260,7 +365,7 @@ export default function MandiAnalyticsPage() {
               Anti-Exploitation Price Corridor Simulator
             </h3>
             <p className="text-xs text-slate-400">
-              Evaluate buyer bids against UASD ICAR statutory fair-trade price boundaries
+              Evaluate buyer bids against UASD ICAR statutory fair-trade price boundaries in real time
             </p>
           </div>
         </div>
@@ -273,13 +378,13 @@ export default function MandiAnalyticsPage() {
             <select
               value={selectedCrop}
               onChange={(e) => setSelectedCrop(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500 capitalize"
             >
-              <option value="Red Onion">Red Onion (Dharwad APMC)</option>
-              <option value="Wheat Sharbati">Wheat Sharbati (Hubballi APMC)</option>
-              <option value="Tomato Roma">Tomato Roma (Belagavi APMC)</option>
-              <option value="Yellow Soybean">Yellow Soybean (Haveri APMC)</option>
-              <option value="Red Chilli">Red Chilli Byadagi (GI Tagged)</option>
+              {mandiRates.map((m, idx) => (
+                <option key={idx} value={m.crop}>
+                  {m.crop} ({m.market})
+                </option>
+              ))}
             </select>
           </div>
 

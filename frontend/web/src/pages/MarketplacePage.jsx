@@ -175,11 +175,17 @@ export default function MarketplacePage() {
 
   // Filter listings
   const filteredListings = listings.filter((item) => {
-    const matchesCat = categoryFilter === 'ALL' || item.category === categoryFilter;
+    const matchesCat =
+      categoryFilter === 'ALL' ||
+      (item.category || '').toUpperCase() === categoryFilter.toUpperCase() ||
+      (categoryFilter.toUpperCase() === 'CEREALS' && (item.category || '').toUpperCase() === 'GRAINS');
     const matchesSearch =
+      !searchQuery ||
       item.cropName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.farmer?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.farmer?.district?.toLowerCase().includes(searchQuery.toLowerCase());
+      item.farmer?.district?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.location?.district?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.locationName?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesQty = Number(item.quantity) >= Number(minQuantity);
     return matchesCat && matchesSearch && matchesQty;
   });

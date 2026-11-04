@@ -230,8 +230,8 @@ export default function OrdersEscrowPage() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Commodity: <strong className="text-slate-200">{order.listing?.cropName || 'Produce Lot'}</strong>{' '}
-                    • Producer: <span className="text-emerald-400">{order.listing?.farmer?.name || 'Local Farmer'}</span>
+                    Commodity: <strong className="text-slate-200">{order.cropName || order.listing?.cropName || 'Produce Lot'}</strong>{' '}
+                    • Producer: <span className="text-emerald-400">{order.farmer?.name || order.listing?.farmer?.name || 'Local Farmer'}</span>
                   </p>
                 </div>
 
@@ -342,13 +342,13 @@ export default function OrdersEscrowPage() {
               <div className="grid grid-cols-2 gap-3 text-slate-300">
                 <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
                   <div className="text-[10px] uppercase text-slate-500 font-bold">Seller (Farmer)</div>
-                  <div className="font-bold text-white mt-0.5">{selectedReceipt.listing?.farmer?.name}</div>
-                  <div className="text-[11px] text-slate-400">{selectedReceipt.listing?.locationName || 'Dharwad'}</div>
+                  <div className="font-bold text-white mt-0.5">{selectedReceipt.farmer?.name || selectedReceipt.listing?.farmer?.name || 'Ramesh Patil'}</div>
+                  <div className="text-[11px] text-slate-400">{selectedReceipt.farmer?.location?.district || selectedReceipt.listing?.locationName || 'Dharwad'}</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
                   <div className="text-[10px] uppercase text-slate-500 font-bold">Buyer (Wholesaler)</div>
-                  <div className="font-bold text-white mt-0.5">{selectedReceipt.buyer?.name}</div>
-                  <div className="text-[11px] text-slate-400">{selectedReceipt.buyer?.district || 'Hubballi'}</div>
+                  <div className="font-bold text-white mt-0.5">{selectedReceipt.buyer?.name || 'Institutional Wholesaler'}</div>
+                  <div className="text-[11px] text-slate-400">{selectedReceipt.buyer?.location?.district || selectedReceipt.buyer?.district || 'Hubballi'}</div>
                 </div>
               </div>
 
@@ -364,10 +364,10 @@ export default function OrdersEscrowPage() {
                 <tbody>
                   <tr>
                     <td className="p-2 border border-slate-800 font-semibold">
-                      {selectedReceipt.listing?.cropName}
+                      {selectedReceipt.cropName || selectedReceipt.listing?.cropName || 'Farmgate Produce'}
                     </td>
                     <td className="p-2 border border-slate-800 text-right">{selectedReceipt.quantity} qtl</td>
-                    <td className="p-2 border border-slate-800 text-right">₹{selectedReceipt.agreedPrice}</td>
+                    <td className="p-2 border border-slate-800 text-right">₹{selectedReceipt.agreedPrice || selectedReceipt.unitPrice}</td>
                     <td className="p-2 border border-slate-800 text-right font-bold text-emerald-400">
                       ₹{selectedReceipt.totalAmount.toLocaleString('en-IN')}
                     </td>
