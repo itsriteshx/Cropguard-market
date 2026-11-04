@@ -91,7 +91,10 @@ export const ordersService = {
     return res.data;
   },
   updateStatus: async (orderId, status) => {
-    const res = await apiClient.patch(`/orders/${orderId}/status`, { status });
+    const res = await apiClient.patch(`/orders/${orderId}/status`, {
+      nextStatus: status,
+      status,
+    });
     return res.data;
   },
   getFarmerLedger: async (params = {}) => {

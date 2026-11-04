@@ -16,60 +16,92 @@ const generateOrderNumber = () => {
  */
 const createOrder = async (req, res, next) => {
   try {
-    const { negotiationId, deliveryAddress, paymentMethod } = req.body;
+    const {
+      negotiationId,
+      listingId,
+      quantity: reqQuantity,
+      agreedPrice: reqUnitPrice,
+      deliveryAddress,
+      paymentMethod,
+      notes
+    } = req.body;
 
-    if (!negotiationId) {
+    if (!negotiationId && !listingId) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide an agreed negotiationId to create an order'
+        message: 'Please provide either negotiationId or listingId to create an order'
       });
     }
 
-    const negotiation = await Negotiation.findById(negotiationId).populate('listing');
-    if (!negotiation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Negotiation not found'
-      });
-    }
+    let listing, farmerId, buyerId, quantity, unitPrice, totalAmount, linkedNegotiationId = null;
 
-    // Must be in ACCEPTED state
-    if (negotiation.status !== 'ACCEPTED') {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot create order. Negotiation status is ${negotiation.status}, not ACCEPTED.`
-      });
-    }
+    if (negotiationId) {
+      const negotiation = await Negotiation.findById(negotiationId).populate('listing');
+      if (!negotiation) {
+        return res.status(404).json({
+          success: false,
+          message: 'Negotiation not found'
+        });
+      }
 
-    // Check if order already exists for this negotiation
-    const existingOrder = await Order.findOne({ negotiation: negotiationId });
-    if (existingOrder) {
-      return res.status(400).json({
-        success: false,
-        message: 'An order has already been created for this negotiation',
-        orderId: existingOrder._id,
-        orderNumber: existingOrder.orderNumber
-      });
-    }
+      // Must be in ACCEPTED state
+      if (negotiation.status !== 'ACCEPTED') {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot create order. Negotiation status is ${negotiation.status}, not ACCEPTED.`
+        });
+      }
 
-    const listing = negotiation.listing;
-    const quantity = negotiation.quantity;
-    const unitPrice = negotiation.agreedPrice || negotiation.currentOfferedPrice;
-    const totalAmount = negotiation.agreedTotalAmount || Math.round(unitPrice * quantity * 100) / 100;
+      // Check if order already exists for this negotiation
+      const existingOrder = await Order.findOne({ negotiation: negotiationId });
+      if (existingOrder) {
+        return res.status(400).json({
+          success: false,
+          message: 'An order has already been created for this negotiation',
+          orderId: existingOrder._id,
+          orderNumber: existingOrder.orderNumber
+        });
+      }
+
+      listing = negotiation.listing;
+      quantity = negotiation.quantity;
+      unitPrice = negotiation.agreedPrice || negotiation.currentOfferedPrice;
+      totalAmount = negotiation.agreedTotalAmount || Math.round(unitPrice * quantity * 100) / 100;
+      buyerId = negotiation.buyer;
+      farmerId = negotiation.farmer;
+      linkedNegotiationId = negotiation._id;
+    } else {
+      // Direct wholesale farmgate procurement
+      listing = await ProduceListing.findById(listingId).populate('farmer');
+      if (!listing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Produce listing not found'
+        });
+      }
+
+      quantity = Number(reqQuantity) || listing.quantity;
+      unitPrice = Number(reqUnitPrice) || listing.pricePerUnit;
+      totalAmount = Math.round(unitPrice * quantity * 100) / 100;
+      buyerId = req.user._id;
+      farmerId = listing.farmer?._id || listing.farmer;
+    }
 
     const orderNumber = generateOrderNumber();
+    const middlemanFeeSaved = Math.round(totalAmount * 0.1);
 
     const order = await Order.create({
       orderNumber,
-      negotiation: negotiation._id,
+      negotiation: linkedNegotiationId,
       listing: listing._id,
-      buyer: negotiation.buyer,
-      farmer: negotiation.farmer,
+      buyer: buyerId,
+      farmer: farmerId,
       cropName: listing.cropName,
       quantity,
       unit: listing.unit,
       unitPrice,
       totalAmount,
+      middlemanFeeSaved,
       orderStatus: 'PLACED',
       paymentStatus: 'PENDING',
       paymentDetails: {
@@ -85,7 +117,7 @@ const createOrder = async (req, res, next) => {
       timeline: [
         {
           status: 'PLACED',
-          note: `Order ${orderNumber} created from agreed negotiation at ₹${unitPrice}/${listing.unit}`,
+          note: notes || `Order ${orderNumber} created at ₹${unitPrice}/${listing.unit} with direct +10% farmer margin retention`,
           timestamp: new Date(),
           updatedBy: req.user._id
         }
@@ -102,7 +134,7 @@ const createOrder = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Order created successfully from negotiated deal',
+      message: 'Order created successfully',
       order
     });
   } catch (error) {
@@ -117,7 +149,8 @@ const createOrder = async (req, res, next) => {
  */
 const updateOrderStatus = async (req, res, next) => {
   try {
-    const { nextStatus, note, transactionId } = req.body;
+    const { nextStatus: rawNextStatus, status, note, transactionId } = req.body;
+    const nextStatus = rawNextStatus || status;
 
     if (!nextStatus) {
       return res.status(400).json({
@@ -275,7 +308,9 @@ const getMyOrders = async (req, res, next) => {
 
     const query = {};
 
-    if (role === 'buyer') {
+    if (req.user.role === 'ADMIN') {
+      // Mandi Regulatory Admin monitors all orders across the APMC market
+    } else if (role === 'buyer') {
       query.buyer = userId;
     } else if (role === 'farmer') {
       query.farmer = userId;
@@ -288,8 +323,9 @@ const getMyOrders = async (req, res, next) => {
     }
 
     const orders = await Order.find(query)
-      .populate('buyer', 'name phone')
-      .populate('farmer', 'name phone')
+      .populate('buyer', 'name phone location')
+      .populate('farmer', 'name phone location')
+      .populate('listing', 'cropName category expectedPrice pricePerUnit location')
       .sort('-createdAt');
 
     return res.status(200).json({
