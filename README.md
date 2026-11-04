@@ -153,32 +153,44 @@ cropguard-market/
 * **MongoDB:** Local instance or MongoDB Atlas Connection URI
 * **Expo Go App:** Installed on physical Android/iOS device for mobile testing
 
-### 1. Clone Repository
+### 1. Install dependencies and configure the backend
 ```bash
 git clone https://github.com/Itsriteshx/Cropguard-market.git
 cd Cropguard-market
+npm install
+cp backend/.env.example backend/.env
+```
+Edit `backend/.env` with a working MongoDB connection string and a private JWT secret. Cloudinary credentials are needed for cloud image uploads. Start the backend from the repository root:
+
+```bash
+npm run backend
 ```
 
-### 2. Backend Server Setup
+It listens on port 5001 by default. Check `http://localhost:5001/api/health`; `database` must say `connected` for account and marketplace operations.
+
+### 2. Connect a physical phone
+
+Connect the computer and phone to the same Wi-Fi network. Find the computer's LAN IPv4 address (on macOS, System Settings → Wi-Fi → Details, or `ipconfig getifaddr en0`). Copy the example configuration:
+
 ```bash
-cd server
-npm install
-cp .env.example .env     # Configure PORT, MONGO_URI, JWT_SECRET
-npm run dev             # Starts server at http://localhost:5000
+cp frontend/mobile/.env.example frontend/mobile/.env
 ```
 
-### 3. Mobile App Setup (Expo)
+Set `EXPO_PUBLIC_API_ORIGIN` in `frontend/mobile/.env` to the computer's address and backend port, for example `http://192.168.1.20:5001`. Use the origin only: do not append `/api`. This address is shared by REST and Socket.IO. Expo public variables are included in the app; do not put secrets in them.
+
+From the phone's browser, open `http://YOUR_COMPUTER_IP:5001/api/health` first. If it fails, check the address, same-network connection, firewall and port. Then start Expo from the mobile directory:
+
 ```bash
-cd ../mobile
-npm install
-npx expo start          # Scan QR code using Expo Go app on phone
+cd frontend/mobile
+npx expo start
 ```
 
-### 4. Web Portal Setup (Vite)
+Scan the QR code with Expo Go. Restart Expo and fully reload the app after changing the address. Android emulator defaults to `10.0.2.2`; iOS simulator defaults to `localhost`, but neither default points to your computer from a physical phone. A LAN address and HTTP are for a trusted development network only; use HTTPS for deployment.
+
+### 3. Web portal
 ```bash
-cd ../web
-npm install
-npm run dev             # Starts Vite dev server at http://localhost:5173
+cd frontend/web
+npm run dev
 ```
 
 ---
