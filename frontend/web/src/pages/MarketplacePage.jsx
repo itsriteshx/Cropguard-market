@@ -9,10 +9,10 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
-// Fallback seed lots for wholesale preview
-const MOCK_WHOLESALE_LISTINGS = [
+// Minimal fallback lot for offline dev preview
+const DEFAULT_FALLBACK_LISTINGS = [
   {
-    _id: 'mock_list_01',
+    _id: 'default_lot_01',
     cropName: 'Red Onion (Garva Special)',
     category: 'Vegetables',
     quantity: 120,
@@ -29,82 +29,6 @@ const MOCK_WHOLESALE_LISTINGS = [
     locationName: 'Navalgund Taluk, Dharwad',
     distanceKm: 18.4,
     benchmarkRate: 2350,
-  },
-  {
-    _id: 'mock_list_02',
-    cropName: 'Sharbati Wheat (Premium)',
-    category: 'Cereals',
-    quantity: 250,
-    unit: 'Quintal',
-    expectedPrice: 2800,
-    harvestDate: '2026-10-20',
-    organicCertified: false,
-    qualityGrade: 'Grade A+',
-    farmer: {
-      name: 'Basavarajappa Gowda',
-      phone: '9845123456',
-      district: 'Hubballi',
-    },
-    locationName: 'Kundgol, Hubballi',
-    distanceKm: 28.2,
-    benchmarkRate: 2750,
-  },
-  {
-    _id: 'mock_list_03',
-    cropName: 'Roma Plum Tomatoes',
-    category: 'Vegetables',
-    quantity: 85,
-    unit: 'Quintal',
-    expectedPrice: 1950,
-    harvestDate: '2026-10-28',
-    organicCertified: true,
-    qualityGrade: 'Export Grade',
-    farmer: {
-      name: 'Mallikarjun Patil',
-      phone: '9731234567',
-      district: 'Belagavi',
-    },
-    locationName: 'Bailhongal, Belagavi',
-    distanceKm: 42.0,
-    benchmarkRate: 1900,
-  },
-  {
-    _id: 'mock_list_04',
-    cropName: 'Yellow Soybeans (High Protein)',
-    category: 'Oilseeds',
-    quantity: 320,
-    unit: 'Quintal',
-    expectedPrice: 4600,
-    harvestDate: '2026-10-15',
-    organicCertified: false,
-    qualityGrade: 'Grade A',
-    farmer: {
-      name: 'Ningappa Talwar',
-      phone: '9900112233',
-      district: 'Haveri',
-    },
-    locationName: 'Ranebennur, Haveri',
-    distanceKm: 64.5,
-    benchmarkRate: 4500,
-  },
-  {
-    _id: 'mock_list_05',
-    cropName: 'Byadagi Red Chilli',
-    category: 'Spices',
-    quantity: 60,
-    unit: 'Quintal',
-    expectedPrice: 18500,
-    harvestDate: '2026-10-18',
-    organicCertified: true,
-    qualityGrade: 'GI Tagged Special',
-    farmer: {
-      name: 'Chennamma Hiremath',
-      phone: '9822334455',
-      district: 'Haveri',
-    },
-    locationName: 'Byadagi, Haveri',
-    distanceKm: 58.0,
-    benchmarkRate: 18000,
   },
 ];
 
@@ -135,11 +59,11 @@ export default function MarketplacePage() {
       if (data && data.listings && data.listings.length > 0) {
         setListings(data.listings);
       } else {
-        setListings(MOCK_WHOLESALE_LISTINGS);
+        setListings(DEFAULT_FALLBACK_LISTINGS);
       }
     } catch (err) {
-      console.warn('API listings fetch failed, using seed data:', err.message);
-      setListings(MOCK_WHOLESALE_LISTINGS);
+      console.warn('API listings fetch failed, using fallback:', err.message);
+      setListings(DEFAULT_FALLBACK_LISTINGS);
     } finally {
       setLoading(false);
     }

@@ -6,18 +6,13 @@ import {
   ShieldAlert,
   Sparkles,
   CheckCircle,
-  HelpCircle,
   RefreshCw,
   Database,
-  MapPin,
-  Layers,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  LineChart,
-  Line,
   AreaChart,
   Area,
   XAxis,
@@ -27,15 +22,11 @@ import {
   Legend,
 } from 'recharts';
 
-// Seed benchmark APMC rates fallback
+// Minimal benchmark APMC fallback for offline preview
 const MOCK_MANDI_DATA = [
   { market: 'Dharwad APMC', crop: 'Red Onion', minPrice: 1900, modalPrice: 2450, maxPrice: 2900, arrivals: 420 },
   { market: 'Hubballi APMC', crop: 'Wheat Sharbati', minPrice: 2400, modalPrice: 2800, maxPrice: 3100, arrivals: 580 },
   { market: 'Belagavi APMC', crop: 'Tomato Roma', minPrice: 1400, modalPrice: 1950, maxPrice: 2300, arrivals: 310 },
-  { market: 'Haveri APMC', crop: 'Yellow Soybean', minPrice: 3800, modalPrice: 4600, maxPrice: 4950, arrivals: 640 },
-  { market: 'Byadagi APMC', crop: 'Red Chilli (GI)', minPrice: 15000, modalPrice: 18500, maxPrice: 22000, arrivals: 190 },
-  { market: 'Pune APMC', crop: 'Potato Kufri', minPrice: 1700, modalPrice: 2150, maxPrice: 2500, arrivals: 850 },
-  { market: 'Gadag APMC', crop: 'Green Gram', minPrice: 5600, modalPrice: 6200, maxPrice: 6800, arrivals: 220 },
 ];
 
 const HISTORICAL_PRICE_TRENDS = [

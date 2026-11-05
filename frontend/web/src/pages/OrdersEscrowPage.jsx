@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { ordersService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
-  FileText,
   Lock,
   Truck,
   CheckCircle2,
@@ -10,75 +9,23 @@ import {
   Printer,
   Shield,
   ArrowRight,
-  IndianRupee,
-  AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
 
-// Fallback seed orders for web preview
-const MOCK_ORDERS = [
+// Minimal fallback order for offline dev preview
+const DEFAULT_FALLBACK_ORDERS = [
   {
-    _id: 'ord_whl_001',
+    _id: 'default_ord_001',
     orderNumber: 'CG-ORD-2026-1001',
-    listing: {
-      cropName: 'Red Onion (Garva Special)',
-      farmer: { name: 'Ramesh Patil', phone: '9876543210' },
-      locationName: 'Navalgund, Dharwad',
-    },
-    buyer: {
-      name: 'Karnataka State Co-op Federation',
-      phone: '9811223344',
-      district: 'Dharwad',
-    },
+    cropName: 'Red Onion (Garva Special)',
+    farmer: { name: 'Ramesh Patil', phone: '9876543210', district: 'Dharwad' },
+    buyer: { name: 'Karnataka State Co-op Federation', phone: '9811223344', district: 'Dharwad' },
     quantity: 120,
     agreedPrice: 2450,
     totalAmount: 294000,
     middlemanFeeSaved: 29400,
     status: 'ESCROW_HELD',
     createdAt: '2026-10-29T10:30:00Z',
-    escrowDepositTime: '2026-10-29T11:00:00Z',
-  },
-  {
-    _id: 'ord_whl_002',
-    orderNumber: 'CG-ORD-2026-1002',
-    listing: {
-      cropName: 'Sharbati Wheat (Premium)',
-      farmer: { name: 'Basavarajappa Gowda', phone: '9845123456' },
-      locationName: 'Kundgol, Hubballi',
-    },
-    buyer: {
-      name: 'Karnataka State Co-op Federation',
-      phone: '9811223344',
-      district: 'Hubballi',
-    },
-    quantity: 200,
-    agreedPrice: 2800,
-    totalAmount: 560000,
-    middlemanFeeSaved: 56000,
-    status: 'DISPATCHED',
-    createdAt: '2026-10-28T09:15:00Z',
-    dispatchedAt: '2026-10-30T14:20:00Z',
-  },
-  {
-    _id: 'ord_whl_003',
-    orderNumber: 'CG-ORD-2026-1003',
-    listing: {
-      cropName: 'Roma Plum Tomatoes',
-      farmer: { name: 'Mallikarjun Patil', phone: '9731234567' },
-      locationName: 'Bailhongal, Belagavi',
-    },
-    buyer: {
-      name: 'Karnataka State Co-op Federation',
-      phone: '9811223344',
-      district: 'Belagavi',
-    },
-    quantity: 80,
-    agreedPrice: 1950,
-    totalAmount: 156000,
-    middlemanFeeSaved: 15600,
-    status: 'SETTLED',
-    createdAt: '2026-10-25T16:00:00Z',
-    settledAt: '2026-10-28T18:00:00Z',
   },
 ];
 
@@ -104,11 +51,11 @@ export default function OrdersEscrowPage() {
       if (data && data.orders && data.orders.length > 0) {
         setOrders(data.orders);
       } else {
-        setOrders(MOCK_ORDERS);
+        setOrders(DEFAULT_FALLBACK_ORDERS);
       }
     } catch (err) {
-      console.warn('Orders API error, using seed records:', err.message);
-      setOrders(MOCK_ORDERS);
+      console.warn('Orders API error, using fallback:', err.message);
+      setOrders(DEFAULT_FALLBACK_ORDERS);
     } finally {
       setLoading(false);
     }

@@ -2,18 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { ordersService, auditService } from '../services/api';
 import {
   ShieldCheck,
-  Award,
   CheckCircle2,
-  FileCheck,
-  TrendingUp,
   Download,
-  Building,
   Scale,
   RefreshCw,
   Database,
-  Lock,
-  ArrowRight,
-  BadgeCheck,
 } from 'lucide-react';
 
 export default function ComplianceAuditPage() {
