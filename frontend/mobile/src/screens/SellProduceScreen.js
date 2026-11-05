@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../config/api';
 
 const CATEGORIES = [
+  'OTHER',
   'VEGETABLES',
   'GRAINS',
   'PULSES',
@@ -25,7 +26,7 @@ const UNITS = ['KG', 'QUINTAL'];
 const QUALITY_GRADES = ['GRADE_A', 'GRADE_B', 'ORGANIC'];
 
 export default function SellProduceScreen({ onNavigateToMarket }) {
-  const { t, token, user } = useAuth();
+  const { t, token, user, role } = useAuth();
 
   const [cropName, setCropName] = useState('');
   const [category, setCategory] = useState('VEGETABLES');
@@ -63,7 +64,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
       setMandiBenchmark(res);
       // If price not entered yet, auto-suggest the recommended asking price!
       if (!pricePerUnit) {
-        setPricePerUnit(String(res.farmerPriceGuidance.modalRatePerKg));
+        setPricePerUnit(String(res.farmerPriceGuidance.modalRatePerKg * (unit === 'QUINTAL' ? 100 : 1)));
       }
     } else {
       setMandiBenchmark(null);
@@ -72,8 +73,28 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
   };
 
   const handleSubmitListing = async () => {
-    if (!cropName.trim() || !quantity || !pricePerUnit) {
-      Alert.alert('Required Fields', 'Please fill in crop name, quantity, and your asking price.');
+    if (submitting) return;
+    if (role !== 'FARMER') {
+      Alert.alert('Farmer account required', 'Sign in as a farmer to publish produce.');
+      return;
+    }
+    const name = cropName.trim();
+    const quantityValue = Number(quantity);
+    const priceValue = Number(pricePerUnit);
+    if (!name || name.length > 100) {
+      Alert.alert('Invalid crop name', 'Enter a crop name of up to 100 characters.');
+      return;
+    }
+    if (!quantity.trim() || !Number.isFinite(quantityValue) || quantityValue < 1) {
+      Alert.alert('Invalid quantity', 'Enter a quantity of at least 1.');
+      return;
+    }
+    if (!pricePerUnit.trim() || !Number.isFinite(priceValue) || priceValue < 1) {
+      Alert.alert('Invalid price', 'Enter a price of at least ₹1 per selected unit.');
+      return;
+    }
+    if (description.trim().length > 500) {
+      Alert.alert('Description too long', 'Use at most 500 characters.');
       return;
     }
 
@@ -83,11 +104,11 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
       {
         method: 'POST',
         body: JSON.stringify({
-          cropName: cropName.trim(),
+          cropName: name,
           category,
-          quantity: parseFloat(quantity),
+          quantity: quantityValue,
           unit,
-          pricePerUnit: parseFloat(pricePerUnit),
+          pricePerUnit: priceValue,
           qualityGrade,
           description: description.trim(),
           location: user?.location || {
@@ -169,6 +190,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           placeholderTextColor="#64748B"
           value={cropName}
           onChangeText={setCropName}
+          maxLength={100}
         />
 
         {/* Quick Crop Suggestions */}
@@ -284,6 +306,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           placeholderTextColor="#64748B"
           value={description}
           onChangeText={setDescription}
+          maxLength={500}
         />
 
         {/* Publish Button */}
