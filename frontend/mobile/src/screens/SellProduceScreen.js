@@ -7,10 +7,13 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert
+  Alert,
+  Image,
+  Platform
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../config/api';
+import * as ImagePicker from 'expo-image-picker';
 
 const CATEGORIES = [
   'OTHER',
@@ -35,6 +38,8 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
   const [pricePerUnit, setPricePerUnit] = useState('');
   const [qualityGrade, setQualityGrade] = useState('GRADE_A');
   const [description, setDescription] = useState('');
+  const [photo, setPhoto] = useState(null);
+  const [uploadedPhoto, setUploadedPhoto] = useState(null);
 
   // Mandi Benchmark State
   const [mandiBenchmark, setMandiBenchmark] = useState(null);
@@ -72,6 +77,22 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
     setLoadingBenchmark(false);
   };
 
+  const pickPhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+        Alert.alert('Photo too large', 'Choose an image smaller than 5 MB.');
+        return;
+      }
+      setPhoto(asset);
+      setUploadedPhoto(null);
+    } catch (error) {
+      Alert.alert('Photo unavailable', 'Could not open your photo library. Check your permissions and try again.');
+    }
+  };
+
   const handleSubmitListing = async () => {
     if (submitting) return;
     if (role !== 'FARMER') {
@@ -99,6 +120,29 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
     }
 
     setSubmitting(true);
+    let photoUrl = uploadedPhoto;
+    if (photo && !photoUrl) {
+      const form = new FormData();
+      if (Platform.OS === 'web') {
+        if (!photo.file) {
+          setSubmitting(false);
+          Alert.alert('Photo unavailable', 'Please select the photo again.');
+          return;
+        }
+        form.append('photos', photo.file);
+      } else {
+        const mime = photo.mimeType || 'image/jpeg';
+        form.append('photos', { uri: photo.uri, name: photo.fileName || 'produce.jpg', type: mime });
+      }
+      const upload = await apiRequest('/upload', { method: 'POST', body: form }, token);
+      if (!upload.success || !upload.images?.[0]) {
+        setSubmitting(false);
+        Alert.alert('Photo upload failed', upload.message || 'Please try again. Your listing has not been published.');
+        return;
+      }
+      photoUrl = upload.images[0];
+      setUploadedPhoto(photoUrl);
+    }
     const res = await apiRequest(
       '/listings',
       {
@@ -111,6 +155,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           pricePerUnit: priceValue,
           qualityGrade,
           description: description.trim(),
+          images: photoUrl ? [photoUrl] : [],
           location: user?.location || {
             type: 'Point',
             coordinates: [75.0084, 15.3647],
@@ -138,6 +183,8 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
               setQuantity('');
               setPricePerUnit('');
               setDescription('');
+              setPhoto(null);
+              setUploadedPhoto(null);
               setMandiBenchmark(null);
               if (onNavigateToMarket) onNavigateToMarket();
             }
@@ -309,6 +356,16 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           maxLength={500}
         />
 
+        <Text style={styles.inputLabel}>📷 Produce photo (optional)</Text>
+        {photo && <Image source={{ uri: photo.uri }} style={styles.photoPreview} accessibilityLabel="Selected produce photo" />}
+        <View style={styles.photoActions}>
+          <TouchableOpacity onPress={pickPhoto} disabled={submitting} style={styles.photoButton} accessibilityRole="button">
+            <Text style={styles.photoButtonText}>{photo ? 'Change photo' : 'Choose photo'}</Text>
+          </TouchableOpacity>
+          {photo && <TouchableOpacity onPress={() => { setPhoto(null); setUploadedPhoto(null); }} disabled={submitting} style={styles.photoButton} accessibilityRole="button"><Text style={styles.photoButtonText}>Remove</Text></TouchableOpacity>}
+        </View>
+        <Text style={styles.photoHint}>Choose an image under 5 MB.</Text>
+
         {/* Publish Button */}
         <TouchableOpacity
           style={styles.publishButton}
@@ -327,6 +384,11 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
 }
 
 const styles = StyleSheet.create({
+  photoPreview: { width: '100%', height: 180, borderRadius: 10, marginBottom: 10, backgroundColor: '#1E293B' },
+  photoActions: { flexDirection: 'row', gap: 10 },
+  photoButton: { padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#10B981' },
+  photoButtonText: { color: '#6EE7B7', fontWeight: '600' },
+  photoHint: { color: '#94A3B8', marginTop: 8, marginBottom: 12 },
   container: {
     flex: 1,
     backgroundColor: '#0F172A'

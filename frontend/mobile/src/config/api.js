@@ -5,13 +5,14 @@ const defaultOrigin = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http
 const origin = (process.env.EXPO_PUBLIC_API_ORIGIN || defaultOrigin).replace(/\/+$/, '');
 
 export const getSocketUrl = () => origin;
+export const resolveMediaUrl = (url) => url?.startsWith('/uploads/') ? `${origin}${url}` : url;
 export const API_BASE_URL = `${origin}/api`;
 export const SOCKET_URL = getSocketUrl();
 
 export const apiRequest = async (endpoint, options = {}, token = null) => {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };

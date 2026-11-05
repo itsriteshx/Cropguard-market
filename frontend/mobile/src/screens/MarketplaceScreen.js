@@ -9,10 +9,11 @@ import {
   Modal,
   ActivityIndicator,
   RefreshControl,
-  Alert
+  Alert,
+  Image
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { apiRequest } from '../config/api';
+import { apiRequest, resolveMediaUrl } from '../config/api';
 
 const CATEGORIES = ['ALL', 'VEGETABLES', 'GRAINS', 'PULSES', 'FRUITS', 'OILSEEDS', 'SPICES'];
 
@@ -118,6 +119,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 
     return (
       <View style={styles.card}>
+        {item.images?.[0] ? <Image source={{ uri: resolveMediaUrl(item.images[0]) }} style={styles.listingImage} accessibilityLabel={`${item.cropName} produce photo`} /> : null}
         <View style={styles.cardHeader}>
           <View>
             <Text style={styles.cropName}>{item.cropName}</Text>
@@ -309,6 +311,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 }
 
 const styles = StyleSheet.create({
+  listingImage: { width: '100%', height: 160, backgroundColor: '#1E293B' },
   container: {
     flex: 1,
     backgroundColor: '#0F172A'
