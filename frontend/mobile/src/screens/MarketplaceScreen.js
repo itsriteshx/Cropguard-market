@@ -7,6 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
+  ScrollView,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -39,6 +40,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 
   // Offer Modal State
   const [selectedListing, setSelectedListing] = useState(null);
+  const [listingDetails, setListingDetails] = useState(null);
   const [offerPrice, setOfferPrice] = useState('');
   const [offerQuantity, setOfferQuantity] = useState('');
   const [offerNote, setOfferNote] = useState('');
@@ -83,8 +85,15 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
   };
 
   const handleSubmitOffer = async () => {
-    if (!offerPrice || !offerQuantity) {
-      Alert.alert('Required', 'Please enter offer price and quantity');
+    if (submittingOffer) return;
+    const price = Number(offerPrice);
+    const quantity = Number(offerQuantity);
+    if (!offerPrice.trim() || !Number.isFinite(price) || price <= 0) {
+      Alert.alert('Invalid price', 'Enter a price greater than zero.');
+      return;
+    }
+    if (!offerQuantity.trim() || !Number.isFinite(quantity) || quantity <= 0 || quantity > selectedListing.quantity) {
+      Alert.alert('Invalid quantity', `Enter a quantity greater than zero and no more than ${selectedListing.quantity} ${selectedListing.unit}.`);
       return;
     }
 
@@ -95,8 +104,8 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
         method: 'POST',
         body: JSON.stringify({
           listingId: selectedListing._id,
-          offeredPrice: parseFloat(offerPrice),
-          quantity: parseFloat(offerQuantity),
+          offeredPrice: price,
+          quantity,
           note: offerNote || `Direct purchase offer on ${selectedListing.cropName}`
         })
       },
@@ -107,7 +116,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
     if (res.success) {
       Alert.alert(
         'Offer Sent! 🎉',
-        `Your offer of ₹${offerPrice}/kg for ${offerQuantity} ${selectedListing.unit || 'Kg'} was sent to farmer ${selectedListing.farmer?.name || ''}.`,
+        `Your offer of ₹${offerPrice}/${selectedListing.unit || 'Kg'} for ${offerQuantity} ${selectedListing.unit || 'Kg'} was sent to farmer ${selectedListing.farmer?.name || ''}.`,
         [
           {
             text: 'View in Bargaining Room',
@@ -153,7 +162,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>📍 {t.market.location}:</Text>
             <Text style={styles.infoValue}>
-              {item.location?.village ? `${item.location.village}, ` : ''}{item.location?.district || 'Dharwad'}, {item.location?.state || 'Karnataka'}
+              {[item.location?.village, item.location?.district, item.location?.state].filter(Boolean).join(', ') || 'Location not provided'}
             </Text>
           </View>
           {item.description ? (
@@ -162,11 +171,12 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
         </View>
 
         <View style={styles.cardFooter}>
+          <TouchableOpacity style={styles.detailsButton} onPress={() => setListingDetails(item)} accessibilityRole="button"><Text style={styles.detailsButtonText}>View listing details</Text></TouchableOpacity>
           {isOwner ? (
             <View style={styles.ownListingBadge}>
               <Text style={styles.ownListingText}>🌾 Your Active Harvest Listing</Text>
             </View>
-          ) : (
+          ) : !['BUYER_RETAIL', 'BUYER_WHOLESALE'].includes(role) ? null : (
             <TouchableOpacity
               style={styles.offerButton}
               onPress={() => handleOpenOfferModal(item)}
@@ -256,6 +266,24 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
         />
       )}
 
+      <Modal visible={!!listingDetails} transparent animationType="slide" onRequestClose={() => setListingDetails(null)}>
+        <View style={styles.modalOverlay}>
+          <ScrollView style={styles.modalCard} contentContainerStyle={styles.detailsContent}>
+            <Text style={styles.modalTitle}>{listingDetails?.cropName}</Text>
+            {listingDetails?.images?.[0] && <Image source={{ uri: resolveMediaUrl(listingDetails.images[0]) }} style={styles.detailsImage} accessibilityLabel={`${listingDetails.cropName} produce photo`} />}
+            <Text style={styles.detailText}>Category: {listingDetails?.category}</Text>
+            <Text style={styles.detailText}>Quality: {listingDetails?.qualityGrade || 'Not provided'}</Text>
+            <Text style={styles.detailText}>Available: {listingDetails?.quantity} {listingDetails?.unit}</Text>
+            <Text style={styles.detailText}>Asking price: ₹{listingDetails?.pricePerUnit} / {listingDetails?.unit}</Text>
+            <Text style={styles.detailText}>Seller: {listingDetails?.farmer?.name || 'Not provided'}</Text>
+            <Text style={styles.detailText}>Location: {[listingDetails?.location?.village, listingDetails?.location?.district, listingDetails?.location?.state].filter(Boolean).join(', ') || 'Not provided'}</Text>
+            <Text style={styles.detailText}>Harvest date: {listingDetails?.harvestDate ? new Date(listingDetails.harvestDate).toLocaleDateString('en-IN') : 'Not provided'}</Text>
+            <Text style={styles.detailText}>Description: {listingDetails?.description || 'Not provided'}</Text>
+            <TouchableOpacity style={styles.confirmButton} onPress={() => setListingDetails(null)} accessibilityRole="button"><Text style={styles.confirmButtonText}>Close</Text></TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
+
       {/* Make Offer Modal */}
       <Modal
         visible={!!selectedListing}
@@ -327,6 +355,11 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 }
 
 const styles = StyleSheet.create({
+  detailsButton: { borderColor: '#10B981', borderWidth: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginBottom: 8 },
+  detailsButtonText: { color: '#6EE7B7', fontWeight: '600' },
+  detailsContent: { gap: 12 },
+  detailsImage: { width: '100%', height: 180, borderRadius: 8 },
+  detailText: { color: '#E2E8F0', fontSize: 14 },
   listFooter: { alignItems: 'center', gap: 8, paddingBottom: 20 },
   photoRetry: { backgroundColor: '#10B981', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
   listingImage: { width: '100%', height: 160, backgroundColor: '#1E293B' },
