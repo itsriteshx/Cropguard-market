@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,7 +15,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { apiRequest, resolveMediaUrl } from '../config/api';
 
-const CATEGORIES = ['ALL', 'VEGETABLES', 'GRAINS', 'PULSES', 'FRUITS', 'OILSEEDS', 'SPICES'];
+const CATEGORIES = ['ALL', 'VEGETABLES', 'GRAINS', 'PULSES', 'FRUITS', 'OILSEEDS', 'SPICES', 'OTHER'];
 
 export default function MarketplaceScreen({ onNavigateToNegotiations }) {
   const { t, token, user, role } = useAuth();
@@ -25,6 +25,17 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const requestId = useRef(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Offer Modal State
   const [selectedListing, setSelectedListing] = useState(null);
@@ -34,36 +45,35 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
   const [submittingOffer, setSubmittingOffer] = useState(false);
 
   useEffect(() => {
-    fetchListings();
-  }, [selectedCategory]);
+    fetchListings(1);
+    return () => { requestId.current += 1; };
+  }, [selectedCategory, debouncedSearch]);
 
-  const fetchListings = async () => {
-    setLoading(true);
-    let endpoint = '/listings?status=AVAILABLE';
-    if (selectedCategory !== 'ALL') {
-      endpoint += `&category=${selectedCategory}`;
-    }
-    const res = await apiRequest(endpoint);
-    if (res.success && res.listings) {
-      setListings(res.listings);
+  const fetchListings = async (nextPage = 1, refresh = false) => {
+    const id = ++requestId.current;
+    if (nextPage > 1) setLoadingMore(true);
+    else if (refresh) setRefreshing(true);
+    else setLoading(true);
+    setLoadError('');
+    const params = [`status=AVAILABLE`, `page=${nextPage}`, 'limit=10'];
+    if (selectedCategory !== 'ALL') params.push(`category=${encodeURIComponent(selectedCategory)}`);
+    if (debouncedSearch) params.push(`search=${encodeURIComponent(debouncedSearch)}`);
+    const res = await apiRequest(`/listings?${params.join('&')}`);
+    if (id !== requestId.current) return;
+    if (res.success && Array.isArray(res.listings)) {
+      setListings((previous) => nextPage === 1 ? res.listings : [...previous, ...res.listings.filter((item) => !previous.some((old) => old._id === item._id))]);
+      setPage(res.page);
+      setPages(res.pages);
     } else {
-      setListings([]);
+      if (nextPage === 1) setListings([]);
+      setLoadError(res.message || 'Could not load listings. Please try again.');
     }
     setLoading(false);
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchListings();
+    setLoadingMore(false);
     setRefreshing(false);
   };
 
-  const filteredListings = listings.filter((item) => {
-    if (!searchQuery) return true;
-    const nameMatch = item.cropName?.toLowerCase().includes(searchQuery.toLowerCase());
-    const locMatch = item.location?.district?.toLowerCase().includes(searchQuery.toLowerCase());
-    return nameMatch || locMatch;
-  });
+  const onRefresh = () => fetchListings(1, true);
 
   const handleOpenOfferModal = (listing) => {
     setSelectedListing(listing);
@@ -220,7 +230,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
         </View>
       ) : (
         <FlatList
-          data={filteredListings}
+          data={listings}
           keyExtractor={(item) => item._id}
           renderItem={renderListingItem}
           contentContainerStyle={styles.listContent}
@@ -231,10 +241,16 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
               tintColor="#10B981"
             />
           }
+          ListFooterComponent={
+            <View style={styles.listFooter}>
+              {!!loadError && <Text style={styles.emptyText}>{loadError}</Text>}
+              {(loadError || page < pages) && <TouchableOpacity style={styles.photoRetry} onPress={() => fetchListings(loadError && listings.length === 0 ? 1 : page + 1)} disabled={loadingMore} accessibilityRole="button"><Text style={styles.offerButtonText}>{loadingMore ? 'Loading…' : loadError ? 'Try again' : 'Load more'}</Text></TouchableOpacity>}
+            </View>
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>🌾</Text>
-              <Text style={styles.emptyText}>{t.market.noListings}</Text>
+              <Text style={styles.emptyText}>{loadError ? 'Unable to load the marketplace.' : t.market.noListings}</Text>
             </View>
           }
         />
@@ -311,6 +327,8 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 }
 
 const styles = StyleSheet.create({
+  listFooter: { alignItems: 'center', gap: 8, paddingBottom: 20 },
+  photoRetry: { backgroundColor: '#10B981', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
   listingImage: { width: '100%', height: 160, backgroundColor: '#1E293B' },
   container: {
     flex: 1,
