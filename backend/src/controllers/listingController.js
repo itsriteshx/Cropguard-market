@@ -87,9 +87,13 @@ const getAllListings = async (req, res, next) => {
       query.qualityGrade = qualityGrade.toUpperCase();
     }
 
-    // Search by crop name (case-insensitive regex)
-    if (search) {
-      query.cropName = { $regex: search, $options: 'i' };
+    // Treat search as literal text and match both produce and district.
+    if (typeof search === 'string' && search.trim()) {
+      const text = search.trim().slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.$or = [
+        { cropName: { $regex: text, $options: 'i' } },
+        { 'location.district': { $regex: text, $options: 'i' } }
+      ];
     }
 
     // Price range filter
@@ -113,8 +117,11 @@ const getAllListings = async (req, res, next) => {
     }
 
     // Pagination
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    if (!Number.isSafeInteger(pageNum) || pageNum < 1 || !Number.isSafeInteger(limitNum) || limitNum < 1 || limitNum > 100) {
+      return res.status(400).json({ success: false, message: 'Page must be positive and limit must be between 1 and 100' });
+    }
     const skip = (pageNum - 1) * limitNum;
 
     const total = await ProduceListing.countDocuments(query);
