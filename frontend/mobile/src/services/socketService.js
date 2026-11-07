@@ -58,15 +58,10 @@ class SocketService {
   /**
    * Join dedicated negotiation room
    */
-  joinRoom(negotiationId, userId, userRole) {
+  joinRoom(negotiationId) {
     if (!this.socket) return;
     this.activeRooms.add(negotiationId);
-    this.socket.emit('join_room', {
-      negotiationId,
-      userId,
-      userRole
-    });
-    console.log(`[SocketService] Emitted join_room for negotiation: ${negotiationId}`);
+    this.socket.emit('join_room', { negotiationId });
   }
 
   /**
@@ -80,53 +75,14 @@ class SocketService {
   }
 
   /**
-   * Send live counter-offer to current negotiation room
-   */
-  sendCounterOffer({ negotiationId, bidderId, bidderRole, pricePerUnit, note }) {
-    if (!this.socket) {
-      throw new Error('Socket not initialized');
-    }
-    this.socket.emit('send_counter_offer', {
-      negotiationId,
-      bidderId,
-      bidderRole,
-      pricePerUnit: Number(pricePerUnit),
-      note
-    });
-  }
-
-  /**
-   * Lock deal in real-time
-   */
-  acceptDeal({ negotiationId, userId, userRole }) {
-    if (!this.socket) {
-      throw new Error('Socket not initialized');
-    }
-    this.socket.emit('accept_deal', {
-      negotiationId,
-      userId,
-      userRole
-    });
-  }
-
-  /**
-   * Reject deal in real-time
-   */
-  rejectDeal({ negotiationId, userId, userRole, reason }) {
-    if (!this.socket) {
-      throw new Error('Socket not initialized');
-    }
-    this.socket.emit('reject_deal', {
-      negotiationId,
-      userId,
-      userRole,
-      reason
-    });
-  }
-
-  /**
    * Event Listeners
    */
+  onNegotiationCreated(callback) {
+    if (!this.socket) return () => {};
+    this.socket.on('negotiation_created', callback);
+    return () => this.socket?.off('negotiation_created', callback);
+  }
+
   onCounterOfferReceived(callback) {
     if (!this.socket) return () => {};
     this.socket.on('counter_offer_received', callback);

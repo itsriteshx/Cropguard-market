@@ -1,6 +1,17 @@
 const Negotiation = require('../models/Negotiation');
 const ProduceListing = require('../models/ProduceListing');
 
+// Broadcast only after a successful database write. Personal rooms notify users
+// about new offers even when they have not opened a negotiation room yet.
+const notify = (req, negotiation, event, payload) => {
+  const io = req.app.get('io');
+  if (!io) return;
+  io.of('/negotiation').to(`user_${negotiation.buyer._id || negotiation.buyer}`)
+    .to(`user_${negotiation.farmer._id || negotiation.farmer}`).emit(event, payload);
+};
+const active = ['OPEN', 'COUNTER_OFFERED'];
+const revision = (negotiation) => ({ _id: negotiation._id, __v: negotiation.__v ?? 0, status: { $in: active } });
+
 /**
  * @desc    Start a new price negotiation / bid on a produce listing
  * @route   POST /api/negotiations
@@ -10,7 +21,11 @@ const startNegotiation = async (req, res, next) => {
   try {
     const { listingId, offeredPrice, quantity, note } = req.body;
 
-    if (!listingId || !offeredPrice || !quantity) {
+    if (!['BUYER_RETAIL', 'BUYER_WHOLESALE'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Only buyers can submit offers' });
+    }
+
+    if (!listingId || !Number.isFinite(Number(offeredPrice)) || Number(offeredPrice) < 0.1 || !Number.isFinite(Number(quantity)) || Number(quantity) < 1) {
       return res.status(400).json({
         success: false,
         message: 'Please provide listing ID, offered price per unit, and quantity'
@@ -23,6 +38,10 @@ const startNegotiation = async (req, res, next) => {
         success: false,
         message: 'Produce listing not found'
       });
+    }
+
+    if (Number(quantity) > listing.quantity) {
+      return res.status(400).json({ success: false, message: 'Requested quantity exceeds available produce' });
     }
 
     // Farmer cannot bid on their own produce
@@ -76,11 +95,7 @@ const startNegotiation = async (req, res, next) => {
       bidHistory: [initialBid]
     });
 
-    // Update listing status to UNDER_NEGOTIATION if currently AVAILABLE
-    if (listing.status === 'AVAILABLE') {
-      listing.status = 'UNDER_NEGOTIATION';
-      await listing.save();
-    }
+    notify(req, negotiation, 'negotiation_created', { negotiationId: String(negotiation._id) });
 
     return res.status(201).json({
       success: true,
@@ -101,7 +116,7 @@ const counterOffer = async (req, res, next) => {
   try {
     const { counterPrice, note } = req.body;
 
-    if (!counterPrice) {
+    if (!Number.isFinite(Number(counterPrice)) || Number(counterPrice) < 0.1) {
       return res.status(400).json({
         success: false,
         message: 'Please provide counter price per unit'
@@ -128,7 +143,7 @@ const counterOffer = async (req, res, next) => {
     const isBuyer = negotiation.buyer.toString() === userId;
     const isFarmer = negotiation.farmer.toString() === userId;
 
-    if (!isBuyer && !isFarmer && req.user.role !== 'ADMIN') {
+    if (!isBuyer && !isFarmer) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to participate in this negotiation session'
@@ -137,6 +152,7 @@ const counterOffer = async (req, res, next) => {
 
     const role = isBuyer ? 'BUYER' : 'FARMER';
     const nextTurn = isBuyer ? 'FARMER' : 'BUYER';
+    if (negotiation.currentTurn !== role) return res.status(409).json({ success: false, message: 'Please wait for the other participant to respond' });
 
     const newBid = {
       bidder: req.user._id,
@@ -146,17 +162,18 @@ const counterOffer = async (req, res, next) => {
       timestamp: new Date()
     };
 
-    negotiation.currentOfferedPrice = Number(counterPrice);
-    negotiation.currentTurn = nextTurn;
-    negotiation.status = 'COUNTER_OFFERED';
-    negotiation.bidHistory.push(newBid);
-
-    await negotiation.save();
+    const updated = await Negotiation.findOneAndUpdate(
+      { ...revision(negotiation), currentTurn: role },
+      { $set: { currentOfferedPrice: Number(counterPrice), currentTurn: nextTurn, status: 'COUNTER_OFFERED' }, $push: { bidHistory: newBid }, $inc: { __v: 1 } },
+      { new: true, runValidators: true }
+    );
+    if (!updated) return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    notify(req, updated, 'counter_offer_received', { success: true, negotiationId: String(updated._id), latestBid: newBid, currentOfferedPrice: updated.currentOfferedPrice, currentTurn: updated.currentTurn, status: updated.status, bidHistory: updated.bidHistory });
 
     return res.status(200).json({
       success: true,
       message: 'Counter-offer submitted successfully',
-      negotiation
+      negotiation: updated
     });
   } catch (error) {
     next(error);
@@ -193,35 +210,39 @@ const acceptDeal = async (req, res, next) => {
     const isBuyer = negotiation.buyer._id.toString() === userId;
     const isFarmer = negotiation.farmer._id.toString() === userId;
 
-    if (!isBuyer && !isFarmer && req.user.role !== 'ADMIN') {
+    if (!isBuyer && !isFarmer) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to accept this deal'
       });
     }
 
+    const role = isBuyer ? 'BUYER' : 'FARMER';
+    if (negotiation.currentTurn !== role) return res.status(409).json({ success: false, message: 'Only the participant whose turn it is may accept' });
+
     const agreedPrice = negotiation.currentOfferedPrice;
+    if (!Number.isFinite(Number(req.body?.expectedPrice)) || Number(req.body.expectedPrice) !== agreedPrice) {
+      return res.status(409).json({ success: false, message: 'The price has changed. Refresh the negotiation before accepting.' });
+    }
     const agreedTotalAmount = Math.round(agreedPrice * negotiation.quantity * 100) / 100;
 
-    negotiation.status = 'ACCEPTED';
-    negotiation.agreedPrice = agreedPrice;
-    negotiation.agreedTotalAmount = agreedTotalAmount;
-
-    await negotiation.save();
+    const updated = await Negotiation.findOneAndUpdate(
+      { ...revision(negotiation), currentTurn: role },
+      { $set: { status: 'ACCEPTED', agreedPrice, agreedTotalAmount }, $inc: { __v: 1 } },
+      { new: true, runValidators: true }
+    );
+    if (!updated) return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    const dealSummary = {
+      negotiationId: String(negotiation._id), crop: negotiation.listing?.cropName || 'Produce',
+      unit: negotiation.listing?.unit, quantity: negotiation.quantity, agreedPricePerUnit: agreedPrice,
+      agreedTotalAmount, farmer: negotiation.farmer.name, buyer: negotiation.buyer.name, status: 'ACCEPTED'
+    };
+    notify(req, updated, 'deal_locked', { success: true, dealSummary });
 
     return res.status(200).json({
       success: true,
       message: 'Deal locked and accepted! Proceeding to order creation.',
-      dealSummary: {
-        negotiationId: negotiation._id,
-        crop: negotiation.listing.cropName,
-        quantity: negotiation.quantity,
-        agreedPricePerUnit: agreedPrice,
-        agreedTotalAmount,
-        farmer: negotiation.farmer.name,
-        buyer: negotiation.buyer.name,
-        status: 'ACCEPTED'
-      }
+      dealSummary
     });
   } catch (error) {
     next(error);
@@ -249,23 +270,21 @@ const rejectDeal = async (req, res, next) => {
     const isBuyer = negotiation.buyer.toString() === userId;
     const isFarmer = negotiation.farmer.toString() === userId;
 
-    if (!isBuyer && !isFarmer && req.user.role !== 'ADMIN') {
+    if (!isBuyer && !isFarmer) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to reject this deal'
       });
     }
 
-    negotiation.status = 'REJECTED';
-    negotiation.bidHistory.push({
-      bidder: req.user._id,
-      bidderRole: isBuyer ? 'BUYER' : 'FARMER',
-      pricePerUnit: negotiation.currentOfferedPrice,
-      note: reason ? `Rejected: ${reason}` : 'Negotiation closed without agreement',
-      timestamp: new Date()
-    });
-
-    await negotiation.save();
+    if (!active.includes(negotiation.status)) return res.status(409).json({ success: false, message: `Negotiation is already ${negotiation.status}` });
+    const updated = await Negotiation.findOneAndUpdate(
+      revision(negotiation),
+      { $set: { status: 'REJECTED' }, $push: { bidHistory: { bidder: req.user._id, bidderRole: isBuyer ? 'BUYER' : 'FARMER', pricePerUnit: negotiation.currentOfferedPrice, note: reason ? `Rejected: ${reason}` : 'Negotiation closed without agreement', timestamp: new Date() } }, $inc: { __v: 1 } },
+      { new: true, runValidators: true }
+    );
+    if (!updated) return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    notify(req, updated, 'deal_rejected', { success: true, negotiationId: String(updated._id), reason: reason || 'Offer not accepted' });
 
     return res.status(200).json({
       success: true,

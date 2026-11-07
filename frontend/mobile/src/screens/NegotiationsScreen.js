@@ -21,15 +21,13 @@ export default function NegotiationsScreen() {
     isConnected,
     joinNegotiationRoom,
     leaveNegotiationRoom,
-    sendLiveCounterOffer,
-    acceptLiveDeal,
-    rejectLiveDeal,
     socketService
   } = useSocket();
 
   const [negotiations, setNegotiations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   // Counter Offer Modal State
   const [activeSession, setActiveSession] = useState(null);
@@ -77,7 +75,10 @@ export default function NegotiationsScreen() {
 
   // Real-Time Socket Event Listeners (Counter Offers, Deal Locked, Deal Rejected, Presence)
   useEffect(() => {
-    if (!socketService) return;
+    if (!socketService || !isConnected) return;
+
+    fetchNegotiations();
+    const unsubCreated = socketService.onNegotiationCreated(() => fetchNegotiations());
 
     // 1. Listen for incoming counter offers
     const unsubCounter = socketService.onCounterOfferReceived((data) => {
@@ -188,20 +189,22 @@ export default function NegotiationsScreen() {
     });
 
     return () => {
+      unsubCreated();
       unsubCounter();
       unsubLocked();
       unsubRejected();
       unsubPresence();
     };
-  }, [socketService, role]);
+  }, [socketService, role, isConnected]);
 
   const fetchNegotiations = async () => {
     setLoading(true);
     const res = await apiRequest('/negotiations/my', {}, token);
     if (res.success && res.negotiations) {
       setNegotiations(res.negotiations);
+      setLoadError('');
     } else {
-      setNegotiations([]);
+      setLoadError(res.message || 'Could not load negotiations. Pull down to retry.');
     }
     setLoading(false);
   };
@@ -224,8 +227,8 @@ export default function NegotiationsScreen() {
       return;
     }
 
-    const priceNum = parseFloat(counterPrice);
-    if (isNaN(priceNum) || priceNum <= 0) {
+    const priceNum = Number(counterPrice);
+    if (!Number.isFinite(priceNum) || priceNum < 0.1) {
       Alert.alert('Invalid Price', 'Please enter a valid numeric counter price');
       return;
     }
@@ -233,16 +236,6 @@ export default function NegotiationsScreen() {
     setSubmittingCounter(true);
 
     try {
-      // 1. Emit live WebSocket event for 0ms room broadcast
-      if (isConnected) {
-        sendLiveCounterOffer({
-          negotiationId: activeSession._id,
-          pricePerUnit: priceNum,
-          note: counterNote || `Live counter offer of ₹${counterPrice}/kg`
-        });
-      }
-
-      // 2. Execute REST persistence API
       const res = await apiRequest(
         `/negotiations/${activeSession._id}/counter`,
         {
@@ -256,8 +249,8 @@ export default function NegotiationsScreen() {
       );
 
       setSubmittingCounter(false);
-      if (res.success || isConnected) {
-        Alert.alert('Counter Sent! 🤝', `Your counter-offer of ₹${counterPrice}/kg was broadcasted in real time.`);
+      if (res.success) {
+        Alert.alert('Counter Sent! 🤝', `Your counter-offer of ₹${counterPrice}/kg was sent.`);
         setActiveSession(null);
         fetchNegotiations();
       } else {
@@ -279,20 +272,14 @@ export default function NegotiationsScreen() {
         {
           text: t.negotiations.acceptBtn,
           onPress: async () => {
-            // 1. Broadcast instant deal lock via WebSocket
-            if (isConnected) {
-              acceptLiveDeal(session._id);
-            }
-
-            // 2. Execute REST acceptance API
             const res = await apiRequest(
               `/negotiations/${session._id}/accept`,
-              { method: 'POST' },
+              { method: 'POST', body: JSON.stringify({ expectedPrice: session.currentOfferedPrice }) },
               token
             );
             if (res.success) {
               fetchNegotiations();
-            } else if (!isConnected) {
+            } else {
               Alert.alert('Notice', res.message || 'Could not accept deal');
             }
           }
@@ -311,12 +298,6 @@ export default function NegotiationsScreen() {
           text: 'Reject Deal',
           style: 'destructive',
           onPress: async () => {
-            // 1. Broadcast instant rejection via WebSocket
-            if (isConnected) {
-              rejectLiveDeal(session._id, 'Price not acceptable');
-            }
-
-            // 2. Execute REST rejection API
             const res = await apiRequest(
               `/negotiations/${session._id}/reject`,
               {
@@ -327,6 +308,8 @@ export default function NegotiationsScreen() {
             );
             if (res.success) {
               fetchNegotiations();
+            } else {
+              Alert.alert('Notice', res.message || 'Could not reject deal');
             }
           }
         }
@@ -390,12 +373,12 @@ export default function NegotiationsScreen() {
         <View style={styles.metricGrid}>
           <View style={styles.metricItem}>
             <Text style={styles.metricLabel}>{t.negotiations.originalPrice}</Text>
-            <Text style={styles.metricValue}>₹{item.originalListingPrice}/kg</Text>
+            <Text style={styles.metricValue}>₹{item.originalListingPrice}/{item.listing?.unit || 'KG'}</Text>
           </View>
           <View style={styles.metricItem}>
             <Text style={styles.metricLabel}>{t.negotiations.currentPrice}</Text>
             <Text style={[styles.metricValue, { color: '#10B981', fontWeight: 'bold', fontSize: 16 }]}>
-              ₹{item.currentOfferedPrice}/kg
+              ₹{item.currentOfferedPrice}/{item.listing?.unit || 'KG'}
             </Text>
           </View>
           <View style={styles.metricItem}>
@@ -434,15 +417,19 @@ export default function NegotiationsScreen() {
         {!isAccepted && !isRejected && (
           <View style={styles.actionRow}>
             <TouchableOpacity
-              style={styles.counterBtn}
+              style={[styles.counterBtn, !isMyTurn && { opacity: 0.45 }]}
               onPress={() => handleOpenCounterModal(item)}
+              disabled={!isMyTurn}
+              accessibilityState={{ disabled: !isMyTurn }}
             >
               <Text style={styles.counterBtnText}>💬 {t.negotiations.counterBtn}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.acceptBtn}
+              style={[styles.acceptBtn, !isMyTurn && { opacity: 0.45 }]}
               onPress={() => handleAcceptDeal(item)}
+              disabled={!isMyTurn}
+              accessibilityState={{ disabled: !isMyTurn }}
             >
               <Text style={styles.acceptBtnText}>🤝 {t.negotiations.acceptBtn}</Text>
             </TouchableOpacity>
@@ -516,7 +503,7 @@ export default function NegotiationsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>💬</Text>
-              <Text style={styles.emptyText}>{t.negotiations.noNegotiations}</Text>
+              <Text style={styles.emptyText}>{loadError || t.negotiations.noNegotiations}</Text>
             </View>
           }
         />
@@ -598,13 +585,13 @@ export default function NegotiationsScreen() {
               <View style={styles.celebrationRow}>
                 <Text style={styles.celebrationLabel}>Agreed Price:</Text>
                 <Text style={styles.celebrationHighlight}>
-                  ₹{lockedDealModal?.agreedPricePerUnit} / Kg
+                  ₹{lockedDealModal?.agreedPricePerUnit} / {lockedDealModal?.unit || 'KG'}
                 </Text>
               </View>
               <View style={styles.celebrationRow}>
                 <Text style={styles.celebrationLabel}>Total Volume:</Text>
                 <Text style={styles.celebrationValue}>
-                  {lockedDealModal?.quantity} Kg
+                  {lockedDealModal?.quantity} {lockedDealModal?.unit || 'KG'}
                 </Text>
               </View>
               <View style={[styles.celebrationRow, styles.celebrationTotalRow]}>

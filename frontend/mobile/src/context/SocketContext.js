@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
-  const { token, user, role } = useAuth();
+  const { token } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [activeRooms, setActiveRooms] = useState([]);
   const [latestEvent, setLatestEvent] = useState(null);
@@ -33,6 +33,7 @@ export const SocketProvider = ({ children }) => {
         socket.off('connect', handleConnect);
         socket.off('disconnect', handleDisconnect);
         socket.off('error', handleError);
+        socketService.disconnect();
       };
     } else {
       socketService.disconnect();
@@ -45,12 +46,10 @@ export const SocketProvider = ({ children }) => {
   const joinNegotiationRoom = useCallback(
     (negotiationId) => {
       if (!negotiationId) return;
-      const userId = user?._id || user?.id || 'demo_user';
-      const userRole = role || 'FARMER';
-      socketService.joinRoom(negotiationId, userId, userRole);
+      socketService.joinRoom(negotiationId);
       setActiveRooms((prev) => (prev.includes(negotiationId) ? prev : [...prev, negotiationId]));
     },
-    [user, role]
+    []
   );
 
   // Leave a negotiation room
@@ -59,51 +58,6 @@ export const SocketProvider = ({ children }) => {
     socketService.leaveRoom(negotiationId);
     setActiveRooms((prev) => prev.filter((id) => id !== negotiationId));
   }, []);
-
-  // Send live counter offer
-  const sendLiveCounterOffer = useCallback(
-    ({ negotiationId, pricePerUnit, note }) => {
-      const bidderId = user?._id || user?.id;
-      const bidderRole = role || 'FARMER';
-      socketService.sendCounterOffer({
-        negotiationId,
-        bidderId,
-        bidderRole,
-        pricePerUnit,
-        note
-      });
-    },
-    [user, role]
-  );
-
-  // Accept deal in real-time
-  const acceptLiveDeal = useCallback(
-    (negotiationId) => {
-      const userId = user?._id || user?.id;
-      const userRole = role || 'FARMER';
-      socketService.acceptDeal({
-        negotiationId,
-        userId,
-        userRole
-      });
-    },
-    [user, role]
-  );
-
-  // Reject deal in real-time
-  const rejectLiveDeal = useCallback(
-    (negotiationId, reason) => {
-      const userId = user?._id || user?.id;
-      const userRole = role || 'FARMER';
-      socketService.rejectDeal({
-        negotiationId,
-        userId,
-        userRole,
-        reason
-      });
-    },
-    [user, role]
-  );
 
   return (
     <SocketContext.Provider
@@ -114,10 +68,7 @@ export const SocketProvider = ({ children }) => {
         latestEvent,
         setLatestEvent,
         joinNegotiationRoom,
-        leaveNegotiationRoom,
-        sendLiveCounterOffer,
-        acceptLiveDeal,
-        rejectLiveDeal
+        leaveNegotiationRoom
       }}
     >
       {children}

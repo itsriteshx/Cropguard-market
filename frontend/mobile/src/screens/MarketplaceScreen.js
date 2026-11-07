@@ -88,12 +88,12 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
     if (submittingOffer) return;
     const price = Number(offerPrice);
     const quantity = Number(offerQuantity);
-    if (!offerPrice.trim() || !Number.isFinite(price) || price <= 0) {
-      Alert.alert('Invalid price', 'Enter a price greater than zero.');
+    if (!offerPrice.trim() || !Number.isFinite(price) || price < 0.1) {
+      Alert.alert('Invalid price', 'Enter a price of at least ₹0.10.');
       return;
     }
-    if (!offerQuantity.trim() || !Number.isFinite(quantity) || quantity <= 0 || quantity > selectedListing.quantity) {
-      Alert.alert('Invalid quantity', `Enter a quantity greater than zero and no more than ${selectedListing.quantity} ${selectedListing.unit}.`);
+    if (!offerQuantity.trim() || !Number.isFinite(quantity) || quantity < 1 || quantity > selectedListing.quantity) {
+      Alert.alert('Invalid quantity', `Enter a quantity of at least 1 and no more than ${selectedListing.quantity} ${selectedListing.unit}.`);
       return;
     }
 
