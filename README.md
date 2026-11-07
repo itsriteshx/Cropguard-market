@@ -82,9 +82,9 @@ A dual-platform digital marketplace connecting farmers directly with local consu
 * **Geospatial Discovery:** Automatically tags listings with GPS coordinates and pincode for hyper-local buyer discovery.
 
 ### 2. 🤝 Real-Time Price Negotiation Engine (WebSocket)
-* **Interactive Bidding Room:** Buyers can submit purchase bids; farmers receive instant push alerts without page refresh.
+* **Interactive Bidding Room:** Buyers can submit offers and connected participants receive live updates in the app.
 * **Counter-Offer Negotiation:** Farmers can instantly counter-offer (e.g., Buyer offers ₹24/kg ➔ Farmer counters at ₹27/kg).
-* **Deal Finalization:** Once agreed, the negotiated price is locked into a legally binding digital contract.
+* **Deal Finalization:** The participant whose turn it is can accept the displayed price; order creation is a separate step.
 
 ### 3. 📊 APMC Mandi Price Benchmark (Anti-Exploitation)
 * Displays live benchmark rates from local APMC Agricultural Markets (Agmarknet data standard).
@@ -186,6 +186,12 @@ npx expo start
 ```
 
 Scan the QR code with Expo Go. Restart Expo and fully reload the app after changing the address. Android emulator defaults to `10.0.2.2`; iOS simulator defaults to `localhost`, but neither default points to your computer from a physical phone. A LAN address and HTTP are for a trusted development network only; use HTTPS for deployment.
+
+### Testing negotiations
+
+Run `npm test --workspace=backend` from the repository root for the automated API-controller and authenticated Socket.IO regression tests. These tests use mock database records; they do not replace a MongoDB-backed device test.
+
+For a manual test, sign in with separate farmer and buyer accounts on two devices. Have the farmer publish produce, then the buyer send an offer. Verify the farmer sees it, counters it once, and the buyer sees the updated price. The buyer can accept the displayed price; repeat with a different listing and reject an offer. Check that only the participant whose turn it is can counter or accept, that a disconnected participant can refresh to recover updates, and that accepted or rejected negotiations cannot be changed. Socket notifications require the app to be connected; offers are submitted and saved using the REST API.
 
 ### 3. Web portal
 ```bash

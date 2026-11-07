@@ -40,7 +40,7 @@ const apiCatalog = {
       endpoints: [
         { method: 'POST', path: '/api/negotiations', access: 'Private (BUYER)', desc: 'Submit opening bid/offer on farmer listing' },
         { method: 'POST', path: '/api/negotiations/:id/counter', access: 'Private (Participants)', desc: 'Submit counter-offer (alternates turn between buyer and farmer)' },
-        { method: 'POST', path: '/api/negotiations/:id/accept', access: 'Private (Participants)', desc: 'Lock agreed price and finalize digital agreement' },
+        { method: 'POST', path: '/api/negotiations/:id/accept', access: 'Private (Participants)', desc: 'Accept the displayed offer; JSON body must include expectedPrice' },
         { method: 'POST', path: '/api/negotiations/:id/reject', access: 'Private (Participants)', desc: 'Reject negotiation offer and close session' },
         { method: 'GET', path: '/api/negotiations/my', access: 'Private', desc: 'List active and past negotiation sessions for current user' }
       ]
@@ -72,9 +72,8 @@ const apiCatalog = {
     {
       name: 'Real-Time WebSockets (/negotiation namespace)',
       endpoints: [
-        { method: 'WS', path: 'join_room', access: 'Public', desc: 'Join room_${negotiationId} for live session' },
-        { method: 'WS', path: 'send_counter_offer', access: 'Participants', desc: 'Emit real-time counter offer broadcasted to both parties' },
-        { method: 'WS', path: 'accept_deal', access: 'Participants', desc: 'Emit deal acceptance and receive live deal_locked broadcast' }
+        { method: 'WS', path: 'join_room', access: 'Authenticated participants', desc: 'Subscribe to a negotiation room using a JWT-authenticated socket' },
+        { method: 'WS', path: 'negotiation_created / counter_offer_received / deal_locked / deal_rejected', access: 'Participants', desc: 'Server events after REST actions succeed' }
       ]
     }
   ]

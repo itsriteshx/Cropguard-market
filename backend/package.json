@@ -8,7 +8,8 @@
     "dev": "nodemon src/index.js",
     "seed": "node src/seeds/masterSeeder.js",
     "db:seed": "node src/seeds/masterSeeder.js",
-    "db:health": "node src/utils/dbHealthCheck.js"
+    "db:health": "node src/utils/dbHealthCheck.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
