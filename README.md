@@ -166,7 +166,7 @@ Edit `backend/.env` with a working MongoDB connection string and a private JWT s
 npm run backend
 ```
 
-It listens on port 5001 by default. Check `http://localhost:5001/api/health`; `database` must say `connected` for account and marketplace operations.
+Order creation requires MongoDB Atlas or a replica set because it reserves stock and creates the order in a transaction; a standalone local MongoDB server cannot execute this step. It listens on port 5001 by default. Check `http://localhost:5001/api/health`; `database` must say `connected` for account and marketplace operations.
 
 ### 2. Connect a physical phone
 
@@ -192,6 +192,10 @@ Scan the QR code with Expo Go. Restart Expo and fully reload the app after chang
 Run `npm test --workspace=backend` from the repository root for the automated API-controller and authenticated Socket.IO regression tests. These tests use mock database records; they do not replace a MongoDB-backed device test.
 
 For a manual test, sign in with separate farmer and buyer accounts on two devices. Have the farmer publish produce, then the buyer send an offer. Verify the farmer sees it, counters it once, and the buyer sees the updated price. The buyer can accept the displayed price; repeat with a different listing and reject an offer. Check that only the participant whose turn it is can counter or accept, that a disconnected participant can refresh to recover updates, and that accepted or rejected negotiations cannot be changed. Socket notifications require the app to be connected; offers are submitted and saved using the REST API.
+
+### Testing orders
+
+With the transaction-capable MongoDB backend running, the buyer can place an order from an accepted negotiation. Retrying the same deal should show the existing order. Both accounts can open Orders: the buyer simulates payment, the farmer marks dispatch, and the buyer confirms delivery and simulates settlement. Refresh on the other device to see each change. Verify the farmer ledger and receipt show the demo payment state. No payment is actually transferred. The automated order tests use mocks; a full test requires the configured database and devices.
 
 ### 3. Web portal
 ```bash

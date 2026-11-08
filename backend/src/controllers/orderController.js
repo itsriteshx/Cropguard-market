@@ -421,8 +421,8 @@ const getOrderReceipt = async (req, res, next) => {
         tax: 0,
         grandTotal: order.totalAmount
       },
-      title: req.t ? req.t('receipt.title') : 'Certified Direct Market Access Invoice',
-      declaration: req.t ? req.t('receipt.declaration') : 'Certified 100% direct farmer-to-buyer transaction under Ministry of Agriculture & UASD Dharwad Direct Market Access guidelines.',
+      title: 'Demo order receipt',
+      declaration: 'Demo record only. Payment statuses are simulated and do not confirm a transfer.',
       language: req.language || 'en'
     };
 

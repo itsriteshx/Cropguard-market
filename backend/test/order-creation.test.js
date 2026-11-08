@@ -36,3 +36,26 @@ test('direct orders reject non-buyer roles before starting a transaction', async
   await createOrder({ user: { _id: 'farmer', role: 'FARMER' }, body: { listingId: 'l1' } }, { status(value) { status = value; return this; }, json() {} }, (error) => { throw error; });
   assert.equal(status, 403);
 });
+
+test('order transitions enforce participant roles and state', async () => {
+  const { updateOrderStatus } = require('../src/controllers/orderController');
+  const original = Order.findById;
+  const order = { buyer: { _id: 'buyer' }, farmer: { _id: 'farmer' }, orderStatus: 'PLACED', paymentStatus: 'PENDING', paymentDetails: {}, timeline: [], populate() { return this; }, async save() {} };
+  const call = async (id, nextStatus) => {
+    let status, result;
+    await updateOrderStatus({ params: { id: 'o1' }, user: { _id: id, role: id === 'farmer' ? 'FARMER' : 'BUYER_RETAIL' }, body: { nextStatus } }, { status(s) { status = s; return this; }, json(v) { result = v; return this; } }, (e) => { throw e; });
+    return { status, result };
+  };
+  try {
+    Order.findById = () => order;
+    assert.equal((await call('farmer', 'ESCROW_HELD')).status, 403);
+    assert.equal((await call('buyer', 'DISPATCHED')).status, 400);
+    assert.equal((await call('buyer', 'ESCROW_HELD')).status, 200);
+    assert.equal(order.paymentStatus, 'ESCROW_SECURED');
+    assert.equal((await call('buyer', 'DISPATCHED')).status, 403);
+    assert.equal((await call('farmer', 'DISPATCHED')).status, 200);
+    assert.equal((await call('buyer', 'DELIVERED')).status, 200);
+    assert.equal((await call('farmer', 'SETTLED')).status, 403);
+    assert.equal((await call('buyer', 'SETTLED')).status, 200);
+  } finally { Order.findById = original; }
+});

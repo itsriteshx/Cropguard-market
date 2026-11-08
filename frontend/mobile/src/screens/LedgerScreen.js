@@ -96,19 +96,20 @@ export default function LedgerScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t.ledger.title}</Text>
         <Text style={styles.headerSubtitle}>{t.ledger.subtitle}</Text>
+        <Text style={styles.demoNotice}>Demo only: payment and settlement are simulated. No money is transferred.</Text>
       </View>
 
       {/* KPI Cards Grid */}
       <View style={styles.kpiGrid}>
         <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>💰 {t.ledger.totalEarnings}</Text>
+          <Text style={styles.kpiLabel}>💰 Simulated settled sales</Text>
           <Text style={styles.kpiValue}>
             ₹{ledger?.totalEarnings?.toLocaleString('en-IN') || 0}
           </Text>
         </View>
 
         <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>🔒 {t.ledger.pendingEscrow}</Text>
+          <Text style={styles.kpiLabel}>🔒 Simulated secured amount</Text>
           <Text style={[styles.kpiValue, { color: '#F59E0B' }]}>
             ₹{ledger?.pendingEscrowAmount?.toLocaleString('en-IN') || 0}
           </Text>
@@ -123,12 +124,12 @@ export default function LedgerScreen() {
 
         {/* Highlight Middleman Savings */}
         <View style={[styles.kpiCard, styles.savingsCard]}>
-          <Text style={styles.savingsLabel}>🌟 {t.ledger.middlemanSavings}</Text>
+          <Text style={styles.savingsLabel}>🌟 Estimated fee comparison</Text>
           <Text style={styles.savingsValue}>
             + ₹{ledger?.estimatedMiddlemanSavings?.toLocaleString('en-IN') || 0}
           </Text>
           <Text style={styles.savingsSubtitle}>
-            {t.ledger.middlemanNotice}
+            Illustrative 10% estimate; not a verified saving.
           </Text>
         </View>
       </View>
@@ -141,7 +142,7 @@ export default function LedgerScreen() {
       ) : orders.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyEmoji}>📒</Text>
-          <Text style={styles.emptyText}>No settled transactions in passbook yet.</Text>
+          <Text style={styles.emptyText}>No transactions in the ledger yet.</Text>
         </View>
       ) : (
         orders.map((item, index) => {
@@ -201,7 +202,8 @@ export default function LedgerScreen() {
               <Text style={styles.receiptStatusText}>{selectedReceipt?.orderStatus}</Text>
             </View>
 
-            <Text style={styles.receiptMainTitle}>🌾 {t.ledger.receiptTitle}</Text>
+            <Text style={styles.receiptMainTitle}>🌾 Demo order receipt</Text>
+            <Text style={styles.demoNotice}>Payment status: {selectedReceipt?.paymentStatus?.replace(/_/g, ' ') || 'PENDING'} (simulated)</Text>
             <Text style={styles.receiptDateText}>
               Date: {new Date(selectedReceipt?.issueDate || Date.now()).toLocaleDateString('en-IN')}
             </Text>
@@ -233,18 +235,18 @@ export default function LedgerScreen() {
             <View style={styles.receiptDivider} />
 
             <View style={styles.receiptTotalRow}>
-              <Text style={styles.receiptTotalLabel}>Total Paid (Escrow Settled):</Text>
+              <Text style={styles.receiptTotalLabel}>Order total:</Text>
               <Text style={styles.receiptTotalAmount}>₹{selectedReceipt?.financialBreakdown?.grandTotal}</Text>
             </View>
 
             <View style={styles.middlemanZeroBadge}>
               <Text style={styles.middlemanZeroText}>
-                Middleman Commission Deducted: ₹0.00 (100% Direct to Farmer)
+                Estimated intermediary fee on this demo: ₹0.00
               </Text>
             </View>
 
             <Text style={styles.declarationText}>
-              📜 {selectedReceipt?.declaration}
+              This is a demo record, not proof of payment.
             </Text>
 
             <TouchableOpacity
@@ -261,6 +263,7 @@ export default function LedgerScreen() {
 }
 
 const styles = StyleSheet.create({
+  demoNotice: { color: '#FCD34D', fontSize: 12, marginTop: 8 },
   container: {
     flex: 1,
     backgroundColor: '#0F172A'
