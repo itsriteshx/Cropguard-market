@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ordersService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import ReceiptInvoiceModal from '../components/ReceiptInvoiceModal';
 import {
   Lock,
   Truck,
@@ -258,100 +259,12 @@ export default function OrdersEscrowPage() {
         })}
       </div>
 
-      {/* Printable Certified APMC Receipt Modal */}
+      {/* Official UASD APMC Printable Invoice Modal */}
       {selectedReceipt && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-950 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl text-slate-100 relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🌾</span>
-                <div>
-                  <h3 className="font-extrabold text-sm text-white">CropGuard Direct APMC Certified Invoice</h3>
-                  <p className="text-[10px] text-slate-400">UASD Dharwad / Ministry of Agriculture Protocol</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedReceipt(null)}
-                className="text-slate-400 hover:text-white text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="my-4 space-y-3 text-xs">
-              <div className="flex justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                <span className="text-slate-400">Receipt Ref:</span>
-                <span className="font-mono font-bold text-emerald-400">
-                  {selectedReceipt.orderNumber || selectedReceipt._id}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-slate-300">
-                <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
-                  <div className="text-[10px] uppercase text-slate-500 font-bold">Seller (Farmer)</div>
-                  <div className="font-bold text-white mt-0.5">{selectedReceipt.farmer?.name || selectedReceipt.listing?.farmer?.name || 'Ramesh Patil'}</div>
-                  <div className="text-[11px] text-slate-400">{selectedReceipt.farmer?.location?.district || selectedReceipt.listing?.locationName || 'Dharwad'}</div>
-                </div>
-                <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
-                  <div className="text-[10px] uppercase text-slate-500 font-bold">Buyer (Wholesaler)</div>
-                  <div className="font-bold text-white mt-0.5">{selectedReceipt.buyer?.name || 'Institutional Wholesaler'}</div>
-                  <div className="text-[11px] text-slate-400">{selectedReceipt.buyer?.location?.district || selectedReceipt.buyer?.district || 'Hubballi'}</div>
-                </div>
-              </div>
-
-              <table className="w-full text-left border-collapse border border-slate-800 text-xs">
-                <thead>
-                  <tr className="bg-slate-900 text-slate-400">
-                    <th className="p-2 border border-slate-800">Description</th>
-                    <th className="p-2 border border-slate-800 text-right">Qty</th>
-                    <th className="p-2 border border-slate-800 text-right">Rate</th>
-                    <th className="p-2 border border-slate-800 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="p-2 border border-slate-800 font-semibold">
-                      {selectedReceipt.cropName || selectedReceipt.listing?.cropName || 'Farmgate Produce'}
-                    </td>
-                    <td className="p-2 border border-slate-800 text-right">{selectedReceipt.quantity} qtl</td>
-                    <td className="p-2 border border-slate-800 text-right">₹{selectedReceipt.agreedPrice || selectedReceipt.unitPrice}</td>
-                    <td className="p-2 border border-slate-800 text-right font-bold text-emerald-400">
-                      ₹{selectedReceipt.totalAmount.toLocaleString('en-IN')}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-[11px] space-y-1">
-                <div className="flex justify-between text-slate-300">
-                  <span>Middleman Commission Charged:</span>
-                  <span className="font-bold text-emerald-400">₹0.00 (0% Exemption)</span>
-                </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>Direct Farmer Economic Gain:</span>
-                  <span className="font-bold text-emerald-400">
-                    +₹{(selectedReceipt.middlemanFeeSaved || selectedReceipt.totalAmount * 0.1).toLocaleString('en-IN')} (+10%)
-                  </span>
-                </div>
-                <div className="flex justify-between text-slate-400 text-[10px] pt-1 border-t border-emerald-900/40">
-                  <span>Settlement Status:</span>
-                  <span className="uppercase font-bold text-emerald-300">{selectedReceipt.status}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-              <span className="text-[10px] text-slate-500">Cryptographically Verified Hash</span>
-              <button
-                onClick={() => window.print()}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print / Export PDF</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <ReceiptInvoiceModal
+          order={selectedReceipt}
+          onClose={() => setSelectedReceipt(null)}
+        />
       )}
     </div>
   );
