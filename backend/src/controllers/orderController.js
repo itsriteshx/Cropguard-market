@@ -1,144 +1,82 @@
+const mongoose = require('mongoose');
+const { randomUUID } = require('crypto');
 const Order = require('../models/Order');
 const Negotiation = require('../models/Negotiation');
 const ProduceListing = require('../models/ProduceListing');
 
 // Generate human-readable order number
-const generateOrderNumber = () => {
-  const timestamp = Date.now().toString().slice(-6);
-  const random = Math.floor(1000 + Math.random() * 9000);
-  return `CGM-${timestamp}-${random}`;
-};
+const generateOrderNumber = () => `CGM-${randomUUID().toUpperCase()}`;
 
-/**
- * @desc    Create a new order from an agreed negotiation
- * @route   POST /api/orders
- * @access  Private (BUYER or FARMER participant)
- */
+class OrderError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+
+/** Create an order and reserve its inventory in one MongoDB transaction. */
 const createOrder = async (req, res, next) => {
+  let session;
   try {
-    const {
-      negotiationId,
-      listingId,
-      quantity: reqQuantity,
-      agreedPrice: reqUnitPrice,
-      deliveryAddress,
-      paymentMethod,
-      notes
-    } = req.body;
+    const { negotiationId, listingId, quantity: requestedQuantity, agreedPrice, deliveryAddress, paymentMethod, notes } = req.body;
+    if (!negotiationId && !listingId) throw new OrderError(400, 'Provide a negotiation or listing ID');
+    if (negotiationId && listingId) throw new OrderError(400, 'Provide only one order source');
+    if (!['BUYER_RETAIL', 'BUYER_WHOLESALE', 'ADMIN'].includes(req.user.role)) throw new OrderError(403, 'Only buyers can place orders');
 
-    if (!negotiationId && !listingId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide either negotiationId or listingId to create an order'
-      });
-    }
-
-    let listing, farmerId, buyerId, quantity, unitPrice, totalAmount, linkedNegotiationId = null;
-
-    if (negotiationId) {
-      const negotiation = await Negotiation.findById(negotiationId).populate('listing');
-      if (!negotiation) {
-        return res.status(404).json({
-          success: false,
-          message: 'Negotiation not found'
-        });
+    session = await mongoose.startSession();
+    let result;
+    await session.withTransaction(async () => {
+      // The callback can be retried by MongoDB, so do not send responses here.
+      let negotiation, listing, quantity, unitPrice;
+      const orderId = new mongoose.Types.ObjectId();
+      if (negotiationId) {
+        negotiation = await Negotiation.findById(negotiationId).session(session);
+        if (!negotiation) throw new OrderError(404, 'Negotiation not found');
+        if (String(negotiation.buyer) !== String(req.user._id)) throw new OrderError(403, 'Only the buyer in this negotiation can create its order');
+        if (negotiation.status !== 'ACCEPTED') throw new OrderError(409, 'The negotiation must be accepted first');
+        const existing = await Order.findOne({ negotiation: negotiationId }).session(session);
+        if (existing) { result = { order: existing, created: false }; return; }
+        const claimed = await Negotiation.findOneAndUpdate(
+          { _id: negotiationId, status: 'ACCEPTED', order: null },
+          { $set: { order: orderId } }, { new: true, session }
+        );
+        if (!claimed) throw new OrderError(409, 'This negotiation already has an order');
+        listing = await ProduceListing.findById(negotiation.listing).session(session);
+        quantity = Number(negotiation.quantity);
+        unitPrice = Number(negotiation.agreedPrice);
+      } else {
+        listing = await ProduceListing.findById(listingId).session(session);
+        quantity = requestedQuantity === undefined ? Number(listing?.quantity) : Number(requestedQuantity);
+        unitPrice = agreedPrice === undefined ? Number(listing?.pricePerUnit) : Number(agreedPrice);
       }
+      if (!listing) throw new OrderError(404, 'Produce listing not found');
+      if (String(listing.farmer) === String(req.user._id)) throw new OrderError(403, 'You cannot order your own produce');
+      if (!Number.isFinite(quantity) || quantity < 1 || !Number.isFinite(unitPrice) || unitPrice < 0.1) throw new OrderError(400, 'Enter a valid quantity and price');
+      const totalAmount = Math.round(unitPrice * quantity * 100) / 100;
+      if (!Number.isFinite(totalAmount)) throw new OrderError(400, 'Invalid order total');
 
-      // Must be in ACCEPTED state
-      if (negotiation.status !== 'ACCEPTED') {
-        return res.status(400).json({
-          success: false,
-          message: `Cannot create order. Negotiation status is ${negotiation.status}, not ACCEPTED.`
-        });
-      }
-
-      // Check if order already exists for this negotiation
-      const existingOrder = await Order.findOne({ negotiation: negotiationId });
-      if (existingOrder) {
-        return res.status(400).json({
-          success: false,
-          message: 'An order has already been created for this negotiation',
-          orderId: existingOrder._id,
-          orderNumber: existingOrder.orderNumber
-        });
-      }
-
-      listing = negotiation.listing;
-      quantity = negotiation.quantity;
-      unitPrice = negotiation.agreedPrice || negotiation.currentOfferedPrice;
-      totalAmount = negotiation.agreedTotalAmount || Math.round(unitPrice * quantity * 100) / 100;
-      buyerId = negotiation.buyer;
-      farmerId = negotiation.farmer;
-      linkedNegotiationId = negotiation._id;
-    } else {
-      // Direct wholesale farmgate procurement
-      listing = await ProduceListing.findById(listingId).populate('farmer');
-      if (!listing) {
-        return res.status(404).json({
-          success: false,
-          message: 'Produce listing not found'
-        });
-      }
-
-      quantity = Number(reqQuantity) || listing.quantity;
-      unitPrice = Number(reqUnitPrice) || listing.pricePerUnit;
-      totalAmount = Math.round(unitPrice * quantity * 100) / 100;
-      buyerId = req.user._id;
-      farmerId = listing.farmer?._id || listing.farmer;
-    }
-
-    const orderNumber = generateOrderNumber();
-    const middlemanFeeSaved = Math.round(totalAmount * 0.1);
-
-    const order = await Order.create({
-      orderNumber,
-      negotiation: linkedNegotiationId,
-      listing: listing._id,
-      buyer: buyerId,
-      farmer: farmerId,
-      cropName: listing.cropName,
-      quantity,
-      unit: listing.unit,
-      unitPrice,
-      totalAmount,
-      middlemanFeeSaved,
-      orderStatus: 'PLACED',
-      paymentStatus: 'PENDING',
-      paymentDetails: {
-        paymentMethod: paymentMethod || 'UPI'
-      },
-      deliveryAddress: deliveryAddress || {
-        village: req.user.location?.village || '',
-        district: req.user.location?.district || '',
-        state: req.user.location?.state || '',
-        pincode: req.user.location?.pincode || '',
-        contactPhone: req.user.phone
-      },
-      timeline: [
-        {
-          status: 'PLACED',
-          note: notes || `Order ${orderNumber} created at ₹${unitPrice}/${listing.unit} with direct +10% farmer margin retention`,
-          timestamp: new Date(),
-          updatedBy: req.user._id
-        }
-      ]
+      // Reserve conditionally, including legacy UNDER_NEGOTIATION listings.
+      const reserved = await ProduceListing.findOneAndUpdate(
+        { _id: listing._id, status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] }, quantity: { $gte: quantity } },
+        [{ $set: { quantity: { $subtract: ['$quantity', quantity] }, status: { $cond: [{ $lte: [{ $subtract: ['$quantity', quantity] }, 0] }, 'SOLD', '$status'] } } }],
+        { new: true, session }
+      );
+      if (!reserved) throw new OrderError(409, 'The produce is unavailable or the requested quantity exceeds remaining stock');
+      const orderNumber = generateOrderNumber();
+      const [order] = await Order.create([{
+        _id: orderId, orderNumber, negotiation: negotiation?._id || null, listing: listing._id,
+        buyer: req.user._id, farmer: listing.farmer, cropName: listing.cropName, quantity,
+        unit: listing.unit, unitPrice, totalAmount, middlemanFeeSaved: Math.round(totalAmount * 0.1),
+        orderStatus: 'PLACED', paymentStatus: 'PENDING', paymentDetails: { paymentMethod: paymentMethod || 'UPI' },
+        deliveryAddress: deliveryAddress || { village: req.user.location?.village || '', district: req.user.location?.district || '', state: req.user.location?.state || '', pincode: req.user.location?.pincode || '', contactPhone: req.user.phone },
+        timeline: [{ status: 'PLACED', note: notes || `Order ${orderNumber} placed at ₹${unitPrice}/${listing.unit}`, timestamp: new Date(), updatedBy: req.user._id }]
+      }], { session });
+      result = { order, created: true };
     });
-
-    // Update listing inventory
-    const newQty = Math.max(0, listing.quantity - quantity);
-    listing.quantity = newQty;
-    if (newQty === 0) {
-      listing.status = 'SOLD';
-    }
-    await listing.save();
-
-    return res.status(201).json({
-      success: true,
-      message: 'Order created successfully',
-      order
-    });
+    return res.status(result.created ? 201 : 200).json({ success: true, message: result.created ? 'Order created successfully' : 'Order already exists', order: result.order, created: result.created });
   } catch (error) {
+    if (error instanceof OrderError) return res.status(error.status).json({ success: false, message: error.message });
+    if (error.code === 20 || /Transaction numbers are only allowed/i.test(error.message)) return res.status(503).json({ success: false, message: 'Order creation requires a MongoDB replica set or Atlas cluster' });
     next(error);
+  } finally {
+    if (session) await session.endSession();
   }
 };
 
@@ -229,7 +167,8 @@ const updateOrderStatus = async (req, res, next) => {
         });
       }
     } else if (nextStatus === 'SETTLED') {
-      // Platform automated release or Admin settlement
+      if (!isBuyer && !isAdmin) return res.status(403).json({ success: false, message: 'Only the buyer or an admin can mark settlement' });
+      // Simulated settlement; no payment is transferred.
       order.paymentStatus = 'PAID_TO_FARMER';
       order.paymentDetails.settledAt = new Date();
     } else if (nextStatus === 'CANCELLED') {
@@ -252,6 +191,7 @@ const updateOrderStatus = async (req, res, next) => {
       order
     });
   } catch (error) {
+    if (error.name === 'VersionError') return res.status(409).json({ success: false, message: 'Order changed. Refresh and try again.' });
     next(error);
   }
 };

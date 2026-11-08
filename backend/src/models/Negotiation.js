@@ -68,6 +68,7 @@ const negotiationSchema = new mongoose.Schema(
       enum: ['OPEN', 'COUNTER_OFFERED', 'ACCEPTED', 'REJECTED', 'EXPIRED'],
       default: 'OPEN'
     },
+    order: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', default: null },
     agreedPrice: {
       type: Number,
       default: null
