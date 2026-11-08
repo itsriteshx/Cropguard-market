@@ -18,6 +18,7 @@ import MarketplaceScreen from './src/screens/MarketplaceScreen';
 import SellProduceScreen from './src/screens/SellProduceScreen';
 import NegotiationsScreen from './src/screens/NegotiationsScreen';
 import LedgerScreen from './src/screens/LedgerScreen';
+import OrdersScreen from './src/screens/OrdersScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import AuthScreen from './src/screens/AuthScreen';
 
@@ -45,7 +46,9 @@ function MainApp() {
       case 'SELL':
         return <SellProduceScreen onNavigateToMarket={() => setActiveTab('MARKET')} />;
       case 'NEGOTIATIONS':
-        return <NegotiationsScreen />;
+        return <NegotiationsScreen onNavigateToOrders={() => setActiveTab('ORDERS')} />;
+      case 'ORDERS':
+        return <OrdersScreen />;
       case 'LEDGER':
         return <LedgerScreen />;
       case 'PROFILE':
@@ -57,9 +60,10 @@ function MainApp() {
 
   const navItems = [
     { key: 'MARKET', icon: '🌾', label: t.tabs.market },
-    { key: 'SELL', icon: '➕', label: t.tabs.sell },
+    ...(isFarmer ? [{ key: 'SELL', icon: '➕', label: t.tabs.sell }] : []),
     { key: 'NEGOTIATIONS', icon: '💬', label: t.tabs.negotiations },
-    { key: 'LEDGER', icon: '📒', label: t.tabs.ledger },
+    { key: 'ORDERS', icon: '📦', label: 'Orders' },
+    ...(isFarmer ? [{ key: 'LEDGER', icon: '📒', label: t.tabs.ledger }] : []),
     { key: 'PROFILE', icon: '👤', label: t.tabs.profile }
   ];
 

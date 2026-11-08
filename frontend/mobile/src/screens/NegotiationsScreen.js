@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { apiRequest } from '../config/api';
 
-export default function NegotiationsScreen() {
+export default function NegotiationsScreen({ onNavigateToOrders }) {
   const { t, token, user, role } = useAuth();
   const {
     isConnected,
@@ -27,6 +27,7 @@ export default function NegotiationsScreen() {
   const [negotiations, setNegotiations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [creatingOrder, setCreatingOrder] = useState(null);
   const [loadError, setLoadError] = useState('');
 
   // Counter Offer Modal State
@@ -317,6 +318,20 @@ export default function NegotiationsScreen() {
     );
   };
 
+  const placeOrder = async (session) => {
+    if (creatingOrder) return;
+    setCreatingOrder(session._id);
+    const response = await apiRequest('/orders', { method: 'POST', body: JSON.stringify({ negotiationId: session._id }) }, token);
+    setCreatingOrder(null);
+    if (!response.success) {
+      Alert.alert('Could not place order', response.message || 'Please try again.');
+      return;
+    }
+    Alert.alert(response.created ? 'Order placed' : 'Order already placed', `Order ${response.order.orderNumber} is ready to track. Payment is simulated.`, [
+      { text: 'View orders', onPress: onNavigateToOrders }, { text: 'Close' }
+    ]);
+  };
+
   const renderNegotiationItem = ({ item }) => {
     const isBuyer = user && String(item.buyer?._id || item.buyer) === String(user._id);
     const myRole = isBuyer ? 'BUYER' : 'FARMER';
@@ -412,6 +427,12 @@ export default function NegotiationsScreen() {
             <Text style={styles.acceptedText}>🎉 {t.negotiations.dealLocked} ({t.negotiations.dealAgreedMsg})</Text>
           </View>
         ) : null}
+
+        {isAccepted && isBuyer && (
+          <TouchableOpacity style={styles.acceptBtn} onPress={() => placeOrder(item)} disabled={!!creatingOrder} accessibilityRole="button">
+            <Text style={styles.acceptBtnText}>{creatingOrder === item._id ? 'Placing order…' : 'Place or view order'}</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Action Buttons */}
         {!isAccepted && !isRejected && (
