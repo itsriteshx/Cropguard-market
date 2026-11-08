@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login, register, switchPersona, personas, loading } = useAuth();
+  const { login, register, loading } = useAuth();
 
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [phone, setPhone] = useState('');
@@ -74,13 +74,6 @@ export default function LoginPage() {
         setError(res.message || 'Invalid credentials. Please verify your phone and password.');
       }
     }
-  };
-
-  const handleFillDemo = (demoPhone, demoPass) => {
-    setMode('login');
-    setPhone(demoPhone);
-    setPassword(demoPass);
-    setError('');
   };
 
   return (
@@ -166,24 +159,18 @@ export default function LoginPage() {
             ))}
           </div>
 
-          {/* One-Click Viva Demo Role Fast-Switch */}
-          <div className="p-4 rounded-2xl bg-slate-900/40 border border-emerald-900/40">
-            <div className="text-xs font-bold text-emerald-400 mb-2 flex items-center gap-1.5">
-              <span>⚡ Fast-Track Viva Demo Login (1-Click Evaluation):</span>
+          {/* Institutional Statutory Accreditation Notice */}
+          <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-emerald-950 border border-emerald-800/80 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+              <ShieldCheck className="w-4 h-4" />
             </div>
-            <div className="flex flex-wrap gap-2">
-              {personas.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => switchPersona(p)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 hover:text-white transition-all flex items-center gap-1.5"
-                >
-                  <span>{p.role === 'FARMER' ? '🌾' : p.role === 'ADMIN' ? '🏛️' : '🏢'}</span>
-                  <span>{p.name.split(' ')[0]} ({p.role.split('_')[0]})</span>
-                  <ArrowRight className="w-3 h-3 text-emerald-400 ml-1" />
-                </button>
-              ))}
+            <div>
+              <div className="text-xs font-bold text-white mb-0.5">
+                Statutory Agricultural Regulatory Oversight
+              </div>
+              <div className="text-[11px] text-slate-400 leading-relaxed">
+                Direct farmgate transactions governed under Section 26 of Karnataka APMC Act with ICAR fair-trade protocol.
+              </div>
             </div>
           </div>
         </div>

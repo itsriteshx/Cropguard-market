@@ -69,13 +69,6 @@ export default function AuthModal({ isOpen, onClose }) {
     }
   };
 
-  const handleFillDemo = (demoPhone, demoPass) => {
-    setMode('login');
-    setPhone(demoPhone);
-    setPassword(demoPass);
-    setError('');
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
       <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl p-6 sm:p-8 overflow-hidden">
@@ -255,29 +248,6 @@ export default function AuthModal({ isOpen, onClose }) {
             )}
           </button>
         </form>
-
-        {/* Demo Accounts Quick-Fill for Evaluators / Viva */}
-        <div className="mt-6 pt-4 border-t border-slate-800">
-          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">
-            Quick 1-Click Viva Demo Logins:
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => handleFillDemo('9876543210', 'farmerpassword123')}
-              className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-[11px] font-semibold text-emerald-300 border border-emerald-800/50"
-            >
-              🌾 Ramesh Patil (Farmer)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleFillDemo('9811223344', 'buyerpassword123')}
-              className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-[11px] font-semibold text-indigo-300 border border-indigo-800/50"
-            >
-              🏢 KSCF (Buyer)
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
