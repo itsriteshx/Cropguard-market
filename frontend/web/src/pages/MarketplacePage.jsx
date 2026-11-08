@@ -16,6 +16,14 @@ import {
   Zap,
   Calendar,
   Building2,
+  TrendingUp,
+  Star,
+  Leaf,
+  BarChart3,
+  Lock,
+  Globe,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 
 // Multilingual crop names dictionary for full immersion
@@ -468,216 +476,265 @@ export default function MarketplacePage() {
   }, [listings]);
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* 🌟 HERO SHOWCASE BANNER */}
-      <div className="relative overflow-hidden rounded-3xl border border-emerald-500/25 bg-gradient-to-br from-emerald-950/80 via-slate-900/95 to-slate-950 p-6 sm:p-8 lg:p-10 shadow-2xl">
-        {/* Ambient atmospheric glow elements */}
-        <div className="ambient-glow bg-emerald-500/15 w-96 h-96 -top-24 -left-24" />
-        <div className="ambient-glow bg-amber-500/10 w-80 h-80 -bottom-20 right-10" />
+    <div className="space-y-0 pb-16">
 
-        <div className="relative z-10 max-w-4xl space-y-4">
-          {/* Institutional Trust Badge */}
-          <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold tracking-wide shadow-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <Award className="w-4 h-4 text-emerald-400" />
-            <span>{m.protocolBadge || 'UASD DHARWAD & ICAR PROTOCOL • DIRECT APMC CORRIDOR'}</span>
+      {/* ═══════════════════════════════════════════════════════════════
+          🌟 CINEMATIC HERO — Premium Dark Agricultural Exchange Portal
+          ═══════════════════════════════════════════════════════════════ */}
+      <div className="relative overflow-hidden rounded-3xl mb-8" style={{ minHeight: '480px' }}>
+        {/* Deep layered background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#020c06] via-[#041509] to-[#060d14]" />
+
+        {/* Atmospheric glow spheres */}
+        <div className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full opacity-30"
+          style={{ background: 'radial-gradient(circle, #10b98155 0%, transparent 70%)' }} />
+        <div className="absolute top-20 right-0 w-[380px] h-[380px] rounded-full opacity-20"
+          style={{ background: 'radial-gradient(circle, #059669aa 0%, transparent 70%)' }} />
+        <div className="absolute -bottom-20 left-1/3 w-[300px] h-[300px] rounded-full opacity-15"
+          style={{ background: 'radial-gradient(circle, #f59e0baa 0%, transparent 70%)' }} />
+        <div className="absolute top-1/2 left-1/2 w-[500px] h-[500px] rounded-full opacity-10 -translate-x-1/2 -translate-y-1/2"
+          style={{ background: 'radial-gradient(circle, #34d39944 0%, transparent 70%)' }} />
+
+        {/* Grid overlay texture */}
+        <div className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: 'linear-gradient(#10b98122 1px, transparent 1px), linear-gradient(90deg, #10b98122 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
+
+        {/* Border glow */}
+        <div className="absolute inset-0 rounded-3xl"
+          style={{ boxShadow: 'inset 0 0 0 1px rgba(16,185,129,0.15), inset 0 1px 0 rgba(16,185,129,0.25)' }} />
+
+        <div className="relative z-10 p-8 sm:p-10 lg:p-14 flex flex-col h-full" style={{ minHeight: '480px' }}>
+
+          {/* Top badge row */}
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wider border"
+              style={{ background: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.3)', color: '#6ee7b7' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute" />
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>UASD DHARWAD & ICAR CERTIFIED PLATFORM</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
+              style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.25)', color: '#fcd34d' }}>
+              <Lock className="w-3 h-3" />
+              <span>ZERO MIDDLEMEN • 100% ESCROW PROTECTED</span>
+            </div>
           </div>
 
-          {/* Headline */}
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight">
-            {m.title || 'Direct Farm Produce Procurement'}
-          </h1>
+          {/* Main Headline */}
+          <div className="max-w-4xl mb-8">
+            <h1 className="font-black tracking-tight leading-none mb-5"
+              style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', lineHeight: '1.05' }}>
+              <span className="block text-white">India's Premier</span>
+              <span className="block" style={{
+                background: 'linear-gradient(135deg, #34d399 0%, #10b981 30%, #a7f3d0 55%, #6ee7b7 80%, #34d399 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>
+                Farm-to-Market
+              </span>
+              <span className="block text-white">Exchange Corridor</span>
+            </h1>
 
-          {/* Subtitle */}
-          <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-2xl font-normal">
-            {m.subtitle || 'Source bulk agricultural commodities directly from verified Karnataka FPOs and progressive farmers.'}
-          </p>
+            <p className="text-slate-400 leading-relaxed max-w-2xl" style={{ fontSize: '1rem' }}>
+              Source verified bulk agri commodities <strong className="text-slate-200">directly from UASD-accredited FPOs</strong> across Karnataka.
+              {' '}<span style={{ color: '#34d399' }}>0% broker deduction</span>, APMC-benchmarked prices, instant multi-sig escrow settlement.
+            </p>
+          </div>
 
-          {/* Live Platform Metrics Ribbon */}
-          <div className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-md">
-              <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                <span>🌾</span> {m.liveHarvest || 'Live Harvest'}
+          {/* Premium KPI Cards Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-auto">
+            {[
+              {
+                icon: '🌾', label: m.liveHarvest || 'Live Harvest',
+                value: `${totalVolumeMT} MT`, sub: m.corridorsTag || '8 Karnataka Corridors',
+                accent: '#34d399', bg: 'rgba(16,185,129,0.06)', border: 'rgba(16,185,129,0.15)'
+              },
+              {
+                icon: '⚡', label: m.arhatiyaCuts || 'Arhatiya Cuts',
+                value: '0.0%', sub: m.farmerProfit || '+10% Farmer Profit',
+                accent: '#34d399', bg: 'rgba(16,185,129,0.06)', border: 'rgba(52,211,153,0.2)'
+              },
+              {
+                icon: '🛡️', label: m.escrowSecurity || 'Escrow Security',
+                value: '100%', sub: m.icarProtocol || 'ICAR Mandi Protocol',
+                accent: '#a5b4fc', bg: 'rgba(99,102,241,0.06)', border: 'rgba(99,102,241,0.15)'
+              },
+              {
+                icon: '📍', label: m.hyperLocal || 'Hyper-Local',
+                value: '< 50 km', sub: m.sameDayDispatch || 'Same-Day Dispatch',
+                accent: '#fcd34d', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.15)'
+              },
+            ].map((kpi, i) => (
+              <div key={i} className="rounded-2xl p-4 backdrop-blur-sm"
+                style={{ background: kpi.bg, border: `1px solid ${kpi.border}` }}>
+                <div className="text-xs font-semibold mb-1 flex items-center gap-1.5" style={{ color: 'rgba(148,163,184,0.9)' }}>
+                  <span>{kpi.icon}</span> {kpi.label}
+                </div>
+                <div className="text-xl sm:text-2xl font-black" style={{ color: kpi.accent }}>{kpi.value}</div>
+                <div className="text-[10px] mt-0.5 font-medium" style={{ color: 'rgba(148,163,184,0.7)' }}>{kpi.sub}</div>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-white mt-1">
-                {totalVolumeMT} <span className="text-xs font-normal text-slate-400">MT</span>
-              </div>
-              <div className="text-[10px] text-emerald-400 font-medium mt-0.5">
-                {m.corridorsTag || '8 Karnataka Corridors'}
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-md">
-              <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                <span>⚡</span> {m.arhatiyaCuts || 'Arhatiya Cuts'}
-              </div>
-              <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">
-                0.0%
-              </div>
-              <div className="text-[10px] text-slate-400 font-medium mt-0.5">
-                {m.farmerProfit || '+10% Farmer Profit'}
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-md">
-              <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                <span>🛡️</span> {m.escrowSecurity || 'Escrow Security'}
-              </div>
-              <div className="text-xl sm:text-2xl font-black text-white mt-1">
-                100%
-              </div>
-              <div className="text-[10px] text-emerald-400 font-medium mt-0.5">
-                {m.icarProtocol || 'ICAR Mandi Protocol'}
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-md">
-              <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                <span>📍</span> {m.hyperLocal || 'Hyper-Local'}
-              </div>
-              <div className="text-xl sm:text-2xl font-black text-amber-300 mt-1">
-                &lt; 50 km
-              </div>
-              <div className="text-[10px] text-slate-400 font-medium mt-0.5">
-                {m.sameDayDispatch || 'Same-Day Dispatch'}
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* 🔍 SEARCH, CATEGORY PILLS & CONTROLS */}
-      <div className="space-y-4">
-        {/* Search Bar & Quick Toggles */}
-        <div className="glass-panel rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-lg">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+      {/* ═══════════════════════════════════════════════════════
+          🔥 LIVE TRUST STRIP — Social proof & live stats
+          ═══════════════════════════════════════════════════════ */}
+      <div className="mb-6 rounded-2xl overflow-hidden border border-slate-800/80"
+        style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.04) 0%, rgba(15,23,42,0.6) 50%, rgba(16,185,129,0.04) 100%)' }}>
+        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-3.5">
+          {[
+            { icon: <TrendingUp className="w-3.5 h-3.5" />, label: '8 Active Mandi Corridors', color: '#34d399' },
+            { icon: <Star className="w-3.5 h-3.5" />, label: '340+ Verified UASD Farmers', color: '#fcd34d' },
+            { icon: <Leaf className="w-3.5 h-3.5" />, label: 'GI & Organic Certified Lots', color: '#86efac' },
+            { icon: <BarChart3 className="w-3.5 h-3.5" />, label: 'Live APMC Modal Rate Linked', color: '#a5b4fc' },
+            { icon: <Globe className="w-3.5 h-3.5" />, label: '8 Indian Languages Supported', color: '#67e8f9' },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs font-semibold" style={{ color: item.color }}>
+              {item.icon}
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          🔍 PREMIUM SEARCH, FILTER & CATEGORY SECTION
+          ═══════════════════════════════════════════════════════ */}
+      <div className="space-y-4 mb-6">
+        {/* Search Bar */}
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-emerald-400 absolute left-4 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder={m.searchPlaceholder || 'Search crop name, farmer, or district...'}
+              placeholder={m.searchPlaceholder || 'Search crop name, farmer, or district (e.g. Red Onion, Wheat, Dharwad)...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 bg-slate-900/90 border border-slate-700/80 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+              className="w-full pl-11 pr-11 py-3.5 rounded-2xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+              style={{
+                background: 'rgba(15,23,42,0.8)',
+                border: '1px solid rgba(51,65,85,0.6)',
+                backdropFilter: 'blur(12px)',
+              }}
+              onFocus={e => { e.target.style.borderColor = 'rgba(16,185,129,0.5)'; e.target.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.08)'; }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(51,65,85,0.6)'; e.target.style.boxShadow = 'none'; }}
             />
             {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-              >
+              <button onClick={() => setSearchQuery('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors">
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2.5 w-full md:w-auto justify-between md:justify-end">
-            {/* Organic Toggle Button */}
-            <button
-              onClick={() => setOrganicOnly(!organicOnly)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 ${
-                organicOnly
-                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-700/40 ring-1 ring-emerald-400'
-                  : 'bg-slate-900/80 text-slate-300 border border-slate-700 hover:bg-slate-800'
-              }`}
-            >
-              <CheckCircle2 className={`w-3.5 h-3.5 ${organicOnly ? 'text-white' : 'text-emerald-400'}`} />
+          <div className="flex items-center gap-2.5">
+            <button onClick={() => setOrganicOnly(!organicOnly)}
+              className="px-4 py-3 rounded-2xl text-xs font-bold flex items-center gap-2 transition-all"
+              style={organicOnly
+                ? { background: 'linear-gradient(135deg, #059669, #10b981)', color: 'white', boxShadow: '0 4px 15px rgba(16,185,129,0.3)' }
+                : { background: 'rgba(15,23,42,0.8)', color: '#94a3b8', border: '1px solid rgba(51,65,85,0.6)' }
+              }>
+              <Leaf className={`w-3.5 h-3.5 ${organicOnly ? 'text-white' : 'text-emerald-400'}`} />
               <span>{m.certifiedOrganic || 'Certified Organic'}</span>
             </button>
 
-            {/* Sort Selector */}
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 focus:outline-none focus:border-emerald-500"
-              >
-                <option value="featured">{m.sortFeatured || 'Featured Lots'}</option>
-                <option value="price_asc">{m.sortPriceAsc || 'Price: Low to High'}</option>
-                <option value="price_desc">{m.sortPriceDesc || 'Price: High to Low'}</option>
-                <option value="quantity">{m.sortQuantity || 'Lot Size: Largest'}</option>
+            <div className="flex items-center gap-2 px-3 py-3 rounded-2xl"
+              style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(51,65,85,0.6)' }}>
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+                className="bg-transparent border-none text-xs font-bold text-slate-200 focus:outline-none cursor-pointer">
+                <option value="featured">{m.sortFeatured || 'Featured'}</option>
+                <option value="price_asc">{m.sortPriceAsc || 'Price: Low → High'}</option>
+                <option value="price_desc">{m.sortPriceDesc || 'Price: High → Low'}</option>
+                <option value="quantity">{m.sortQuantity || 'Largest Lots'}</option>
                 <option value="distance">{m.sortDistance || 'Nearest First'}</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* Category Pills Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        {/* Category Pills — Premium Style */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {categories.map((cat) => {
             const isSelected = categoryFilter === cat.id;
             const categoryLabel = m.categories?.[cat.id] || cat.label;
             return (
-              <button
-                key={cat.id}
-                onClick={() => setCategoryFilter(cat.id)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-lg shadow-emerald-600/30 ring-1 ring-emerald-400'
-                    : 'bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 hover:border-slate-700'
-                }`}
-              >
-                <span>{cat.icon}</span>
+              <button key={cat.id} onClick={() => setCategoryFilter(cat.id)}
+                className="px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2"
+                style={isSelected
+                  ? {
+                    background: 'linear-gradient(135deg, #065f46, #059669)',
+                    color: '#a7f3d0',
+                    border: '1px solid rgba(52,211,153,0.4)',
+                    boxShadow: '0 4px 12px rgba(5,150,105,0.25)',
+                  }
+                  : {
+                    background: 'rgba(15,23,42,0.6)',
+                    color: '#64748b',
+                    border: '1px solid rgba(51,65,85,0.5)',
+                  }
+                }>
+                <span style={{ fontSize: '14px' }}>{cat.icon}</span>
                 <span>{categoryLabel}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Results Counter & Active Filters Tag */}
-        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-          <div className="flex items-center gap-2">
+        {/* Results counter */}
+        <div className="flex items-center justify-between text-xs px-1">
+          <div className="flex items-center gap-2 text-slate-400">
             <span>
-              {m.showing || 'Showing'} <strong className="text-white font-bold">{filteredAndSortedListings.length}</strong> {m.showingLots || 'verified wholesale farm lots'}
+              {m.showing || 'Showing'}{' '}
+              <strong className="text-emerald-400 font-bold">{filteredAndSortedListings.length}</strong>
+              {' '}{m.showingLots || 'verified wholesale farm lots'}
             </span>
             {(searchQuery || categoryFilter !== 'ALL' || organicOnly) && (
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setCategoryFilter('ALL');
-                  setOrganicOnly(false);
-                }}
-                className="text-emerald-400 hover:text-emerald-300 font-semibold underline flex items-center gap-1 ml-2"
-              >
-                <RefreshCw className="w-3 h-3" /> {m.resetFilters || 'Reset filters'}
+              <button onClick={() => { setSearchQuery(''); setCategoryFilter('ALL'); setOrganicOnly(false); }}
+                className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 ml-1 underline underline-offset-2">
+                <RefreshCw className="w-3 h-3" /> {m.resetFilters || 'Reset'}
               </button>
             )}
           </div>
-          <span className="hidden sm:inline text-slate-500 text-[11px]">
-            ⚡ {m.verifiedBadge || 'Direct APMC Modal Rates Verified'}
+          <span className="hidden sm:flex items-center gap-1 text-slate-500 text-[11px]">
+            <Zap className="w-3 h-3 text-amber-400" />
+            {m.verifiedBadge || 'Direct APMC Modal Rates Verified'}
           </span>
         </div>
       </div>
 
-      {/* 📦 GRID OF BULK FARM PRODUCE CARDS */}
+      {/* ═══════════════════════════════════════════════════════
+          📦 PREMIUM CROP LISTING CARDS GRID
+          ═══════════════════════════════════════════════════════ */}
       {loading ? (
-        <div className="py-20 text-center space-y-3">
-          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm font-semibold text-slate-400">
-            {m.loading || 'Loading verified wholesale lots...'}
-          </p>
+        <div className="py-24 text-center space-y-4">
+          <div className="relative mx-auto w-14 h-14">
+            <div className="w-14 h-14 rounded-full border-2 border-emerald-500/20 absolute inset-0" />
+            <div className="w-14 h-14 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin absolute inset-0" />
+            <div className="w-5 h-5 rounded-full bg-emerald-500/20 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <p className="text-sm font-semibold text-slate-400">{m.loading || 'Loading verified wholesale lots...'}</p>
         </div>
       ) : filteredAndSortedListings.length === 0 ? (
-        <div className="py-16 text-center space-y-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-          <div className="text-3xl">🌾</div>
-          <h3 className="text-lg font-bold text-white">
-            {m.noLotsFound || 'No Matching Farm Lots Found'}
-          </h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
-            {m.noLotsSub || 'Try adjusting your search keywords or switching category filters to view available mandi harvests.'}
+        <div className="py-20 text-center space-y-4 rounded-3xl border border-slate-800/60"
+          style={{ background: 'rgba(15,23,42,0.5)' }}>
+          <div className="text-5xl">🌾</div>
+          <h3 className="text-xl font-bold text-white">{m.noLotsFound || 'No Matching Farm Lots Found'}</h3>
+          <p className="text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
+            {m.noLotsSub || 'Try adjusting your search keywords or switching category filters.'}
           </p>
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setCategoryFilter('ALL');
-              setOrganicOnly(false);
-            }}
-            className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-500 transition-colors"
-          >
+          <button onClick={() => { setSearchQuery(''); setCategoryFilter('ALL'); setOrganicOnly(false); }}
+            className="px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all"
+            style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}>
             {m.clearFilters || 'Clear All Filters'}
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredAndSortedListings.map((lot) => {
             const price = Number(lot.expectedPrice || lot.pricePerUnit || 2400);
             const totalValue = lot.quantity * price;
@@ -687,156 +744,173 @@ export default function MarketplacePage() {
             const middlemanSaved = Math.round(totalValue * 0.1);
             const localizedCrop = getLocalizedCropName(lot.cropName, language);
             const translatedCategory = m.categories?.[lot.category] || lot.category;
+            const fillPercent = Math.min(95, Math.max(40, (lot.quantity / 300) * 100));
 
             return (
-              <div
-                key={lot._id}
-                className="group relative flex flex-col justify-between rounded-3xl bg-gradient-to-b from-slate-900/90 to-slate-950 border border-slate-800/80 hover:border-emerald-500/50 shadow-xl hover:shadow-2xl hover:shadow-emerald-950/40 transition-all duration-300 overflow-hidden"
+              <div key={lot._id}
+                className="group relative flex flex-col rounded-3xl overflow-hidden transition-all duration-300"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(15,23,42,0.95) 0%, rgba(8,14,26,0.98) 100%)',
+                  border: '1px solid rgba(51,65,85,0.5)',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.border = '1px solid rgba(16,185,129,0.4)';
+                  e.currentTarget.style.boxShadow = '0 8px 32px rgba(16,185,129,0.12), 0 4px 20px rgba(0,0,0,0.4)';
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.border = '1px solid rgba(51,65,85,0.5)';
+                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
               >
-                <div>
-                  {/* CROP PHOTO HEADER WITH ASPECT RATIO */}
-                  <div className="relative h-48 w-full overflow-hidden bg-slate-950">
-                    <img
-                      src={cropImg}
-                      alt={lot.cropName}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                    />
+                {/* Crop Image */}
+                <div className="relative h-52 overflow-hidden">
+                  <img src={cropImg} alt={lot.cropName}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    loading="lazy" />
 
-                    {/* Gradient Overlay for Legibility */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-black/50" />
+                  {/* Multi-layer gradient overlay */}
+                  <div className="absolute inset-0"
+                    style={{ background: 'linear-gradient(to top, rgba(8,14,26,1) 0%, rgba(8,14,26,0.4) 50%, rgba(0,0,0,0.3) 100%)' }} />
 
-                    {/* Top Badges */}
-                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
-                      <span className="px-3 py-1 rounded-full bg-slate-950/80 backdrop-blur-md border border-slate-700/80 text-emerald-300 text-[11px] font-extrabold tracking-wide uppercase">
-                        {translatedCategory}
+                  {/* Top badges */}
+                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
+                    <span className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold tracking-wider uppercase backdrop-blur-md"
+                      style={{ background: 'rgba(8,14,26,0.8)', border: '1px solid rgba(51,65,85,0.7)', color: '#94a3b8' }}>
+                      {translatedCategory}
+                    </span>
+                    {lot.organicCertified ? (
+                      <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold backdrop-blur-md"
+                        style={{ background: 'rgba(5,46,22,0.9)', border: '1px solid rgba(16,185,129,0.6)', color: '#6ee7b7' }}>
+                        <Leaf className="w-3 h-3 text-emerald-400" />
+                        {m.certifiedOrganic || 'Organic'}
                       </span>
-                      {lot.organicCertified ? (
-                        <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-950/90 backdrop-blur-md border border-emerald-500/80 text-emerald-300 text-[11px] font-bold shadow-lg shadow-emerald-950">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>{m.certifiedOrganic || 'Organic Certified'}</span>
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-md border border-slate-700 text-slate-300 text-[11px] font-semibold">
-                          <Award className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{lot.qualityGrade || 'Grade A'}</span>
-                        </span>
-                      )}
+                    ) : (
+                      <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold backdrop-blur-md"
+                        style={{ background: 'rgba(8,14,26,0.8)', border: '1px solid rgba(51,65,85,0.6)', color: '#fcd34d' }}>
+                        <Award className="w-3 h-3 text-amber-400" />
+                        {lot.qualityGrade?.split(' ').slice(0, 2).join(' ') || 'Grade A'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Bottom image meta */}
+                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-10">
+                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] backdrop-blur-md"
+                      style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.08)', color: '#cbd5e1' }}>
+                      <Calendar className="w-3 h-3 text-emerald-400" />
+                      {lot.harvestDate ? new Date(lot.harvestDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Fresh Harvest'}
+                    </span>
+                    {lot.distanceKm && (
+                      <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold backdrop-blur-md"
+                        style={{ background: 'rgba(5,46,22,0.85)', border: '1px solid rgba(16,185,129,0.4)', color: '#6ee7b7' }}>
+                        <MapPin className="w-3 h-3 text-emerald-400" />
+                        {lot.distanceKm} km {m.away || 'away'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Body */}
+                <div className="flex flex-col flex-1 p-5 space-y-4">
+                  {/* Title + Description */}
+                  <div>
+                    <h3 className="text-lg font-black text-white tracking-tight mb-1 transition-colors group-hover:text-emerald-300">
+                      {localizedCrop}
+                    </h3>
+                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                      {lot.description || 'Quality certified wholesale lot ready for bulk dispatch under UASD ICAR Mandi framework.'}
+                    </p>
+                  </div>
+
+                  {/* Farmer Card */}
+                  <div className="flex items-center justify-between p-3 rounded-2xl"
+                    style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(51,65,85,0.5)' }}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black text-white shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #065f46, #059669)' }}>
+                        {lot.farmer?.name?.charAt(0) || 'F'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 text-xs font-bold text-white truncate">
+                          {lot.farmer?.name || 'Verified Producer'}
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-2.5 h-2.5 shrink-0" />
+                          {lot.locationName || lot.farmer?.district || 'Karnataka'}
+                        </div>
+                      </div>
                     </div>
+                    <button onClick={() => setInspectLot(lot)}
+                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold shrink-0 transition-all flex items-center gap-1"
+                      style={{ background: 'rgba(30,41,59,0.8)', color: '#94a3b8', border: '1px solid rgba(51,65,85,0.6)' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = 'white'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.4)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = 'rgba(51,65,85,0.6)'; }}>
+                      <Eye className="w-3 h-3 text-emerald-400" />
+                      {m.specsBtn || 'Specs'}
+                    </button>
+                  </div>
 
-                    {/* Bottom Photo Information: Freshness & Distance */}
-                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] font-medium text-slate-200 z-10">
-                      <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10">
-                        <Calendar className="w-3 h-3 text-emerald-400" />
-                        <span>{m.harvested || 'Harvested'}: {lot.harvestDate ? new Date(lot.harvestDate).toLocaleDateString() : 'Recent'}</span>
-                      </span>
-                      {lot.distanceKm && (
-                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-950/80 backdrop-blur-sm border border-emerald-600/40 text-emerald-300 font-bold">
-                          <MapPin className="w-3 h-3 text-emerald-400" />
-                          <span>{lot.distanceKm} km {m.away || 'away'}</span>
-                        </span>
-                      )}
+                  {/* Pricing Grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-2xl" style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(51,65,85,0.4)' }}>
+                      <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500 mb-1">
+                        {m.lotSize || 'Available Lot'}
+                      </div>
+                      <div className="text-lg font-black text-white">
+                        {lot.quantity} <span className="text-xs text-slate-500 font-normal">{lot.unit || 'Qtl'}</span>
+                      </div>
+                      <div className="mt-2 w-full rounded-full overflow-hidden" style={{ height: '3px', background: 'rgba(51,65,85,0.6)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${fillPercent}%`, background: 'linear-gradient(90deg, #059669, #34d399)' }} />
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-2xl" style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(51,65,85,0.4)' }}>
+                      <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500 mb-1">
+                        {m.farmerRate || 'Farmer Rate'}
+                      </div>
+                      <div className="text-lg font-black" style={{ color: '#34d399' }}>
+                        ₹{price.toLocaleString('en-IN')} <span className="text-xs text-slate-500 font-normal">/ qtl</span>
+                      </div>
+                      <div className="text-[10px] mt-1 font-semibold" style={{ color: '#6ee7b7' }}>
+                        {spreadDelta >= 0 ? `+₹${spreadDelta} ${m.vsMsp || 'vs MSP'}` : 'At Benchmark'}
+                      </div>
                     </div>
                   </div>
 
-                  {/* CARD BODY */}
-                  <div className="p-5 space-y-4">
-                    {/* Crop Name & Quality Grade */}
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-xl font-black text-white tracking-tight group-hover:text-emerald-300 transition-colors">
-                          {localizedCrop}
-                        </h3>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed font-normal">
-                        {lot.description || 'Quality certified wholesale lot ready for bulk dispatch under UASD ICAR Mandi framework.'}
-                      </p>
+                  {/* Value Summary */}
+                  <div className="p-3.5 rounded-2xl" style={{ background: 'rgba(5,46,22,0.3)', border: '1px solid rgba(16,185,129,0.15)' }}>
+                    <div className="flex items-center justify-between text-xs mb-2">
+                      <span className="text-slate-400">{m.totalLotValue || 'Total Lot Value'}</span>
+                      <span className="font-black text-white text-sm">₹{totalValue.toLocaleString('en-IN')}</span>
                     </div>
-
-                    {/* Farmer / FPO Producer Information Box */}
-                    <div className="p-3 rounded-2xl bg-slate-900/70 border border-slate-800/90 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-800 to-green-600 flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm">
-                          {lot.farmer?.name ? lot.farmer.name.charAt(0) : 'F'}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1 text-xs font-bold text-white truncate">
-                            <span>{lot.farmer?.name || m.producer || 'Verified Progressive Farmer'}</span>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          </div>
-                          <div className="text-[10px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                            <Building2 className="w-3 h-3 text-slate-500 shrink-0" />
-                            <span>{lot.farmer?.fpo || lot.locationName || 'UASD Registered FPO'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Quick Inspect Button */}
-                      <button
-                        onClick={() => setInspectLot(lot)}
-                        className="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold shrink-0 transition-colors flex items-center gap-1 border border-slate-700"
-                        title="View Certificate & Quality Specs"
-                      >
-                        <Eye className="w-3 h-3 text-emerald-400" />
-                        <span>{m.specsBtn || 'Specs'}</span>
-                      </button>
-                    </div>
-
-                    {/* Pricing & Volume Economics */}
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <div className="p-3 rounded-2xl bg-slate-900/50 border border-slate-800/70">
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
-                          {m.lotSize || 'Available Lot'}
-                        </span>
-                        <div className="text-lg font-black text-white mt-0.5">
-                          {lot.quantity} <span className="text-xs text-slate-400 font-normal">{lot.unit || 'Quintals'}</span>
-                        </div>
-                        <div className="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-                          <div className="bg-emerald-500 h-full rounded-full w-4/5" />
-                        </div>
-                      </div>
-
-                      <div className="p-3 rounded-2xl bg-slate-900/50 border border-slate-800/70">
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
-                          {m.farmerRate || 'Farmer Rate'}
-                        </span>
-                        <div className="text-lg font-black text-emerald-400 mt-0.5">
-                          ₹{price.toLocaleString('en-IN')}{' '}
-                          <span className="text-xs text-slate-400 font-normal">/ qtl</span>
-                        </div>
-                        <div className="text-[10px] text-emerald-400/90 font-medium mt-1 truncate">
-                          {spreadDelta >= 0 ? `+₹${spreadDelta} ${m.vsMsp || 'vs Mandi MSP'}` : (m.fairBenchmark || 'Fair Benchmark')}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Total Consignment Value & Savings Pill */}
-                    <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-800/40 space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">{m.totalLotValue || m.estimatedTotal || 'Total Lot Value:'}</span>
-                        <span className="font-extrabold text-white text-sm">
-                          ₹{totalValue.toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-emerald-400 font-medium pt-1 border-t border-emerald-900/60">
-                        <span className="flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-amber-400" /> {m.middlemanSavedTag || 'Middleman Fee Saved:'}
-                        </span>
-                        <span className="font-bold text-emerald-300">+₹{middlemanSaved.toLocaleString('en-IN')}</span>
-                      </div>
+                    <div className="flex items-center justify-between text-[11px] pt-2"
+                      style={{ borderTop: '1px solid rgba(16,185,129,0.1)' }}>
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <Zap className="w-3 h-3 text-amber-400" />
+                        {m.middlemanSavedTag || 'Middleman Fee Saved'}
+                      </span>
+                      <span className="font-bold" style={{ color: '#6ee7b7' }}>+₹{middlemanSaved.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* ACTION BUTTON */}
-                <div className="p-5 pt-0">
-                  <button
-                    onClick={() => openProcurementModal(lot)}
-                    className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 transition-all hover:shadow-emerald-600/30 active:scale-[0.99]"
-                  >
+                {/* CTA Button */}
+                <div className="px-5 pb-5">
+                  <button onClick={() => openProcurementModal(lot)}
+                    className="w-full py-3.5 rounded-2xl text-sm font-extrabold flex items-center justify-center gap-2.5 transition-all"
+                    style={{
+                      background: 'linear-gradient(135deg, #065f46 0%, #059669 50%, #10b981 100%)',
+                      color: 'white',
+                      boxShadow: '0 4px 15px rgba(5,150,105,0.25)',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 20px rgba(16,185,129,0.4)'; e.currentTarget.style.transform = 'scale(1.01)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 15px rgba(5,150,105,0.25)'; e.currentTarget.style.transform = 'scale(1)'; }}>
                     <Truck className="w-4 h-4" />
                     <span>{m.procureBtn || 'Initiate Bulk Procurement'}</span>
-                    <ArrowRight className="w-4 h-4 ml-1" />
+                    <ChevronRight className="w-4 h-4 ml-auto" />
                   </button>
                 </div>
               </div>
