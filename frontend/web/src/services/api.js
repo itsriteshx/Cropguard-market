@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Base API configuration (Direct to Express server on port 5001 or through Vite dev proxy)
-const API_BASE = 'http://localhost:5001/api';
+// Base API configuration (Uses Vite proxy in dev or direct host in standalone)
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE,
