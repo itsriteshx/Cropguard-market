@@ -13,10 +13,10 @@ const apiLimiter = rateLimit({
   }
 });
 
-// Strict rate limiter for authentication endpoints (15 attempts per 15 minutes)
+// Authentication rate limiter (Relaxed for dev/viva testing, strict in production)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15,
+  max: process.env.NODE_ENV === 'production' ? 30 : 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

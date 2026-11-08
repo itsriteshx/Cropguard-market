@@ -1,11 +1,36 @@
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 
-// Set EXPO_PUBLIC_API_ORIGIN to the backend origin for a physical device (e.g. http://192.168.1.X:5001).
-// For Android Emulator, localhost is reached via 10.0.2.2.
-const defaultOrigin = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
-let rawOrigin = process.env.EXPO_PUBLIC_API_ORIGIN || defaultOrigin;
+/**
+ * Universal Auto-Host Discovery:
+ * Reads the active host IP from Metro bundler's scriptURL.
+ * - Physical Phone (Expo Go on Android/iOS): Auto-detects Mac's active IP on Wi-Fi or Hotspot!
+ * - iOS Simulator: Connects via localhost:5001
+ * - Android Emulator: Connects via 10.0.2.2:5001
+ * Eliminates having to edit .env every time Wi-Fi or Hotspot changes.
+ */
+const getAutoDetectedHost = () => {
+  try {
+    const scriptURL = NativeModules.SourceCode?.scriptURL;
+    if (scriptURL) {
+      const address = scriptURL.split('://')[1]?.split('/')[0];
+      const host = address?.split(':')[0];
+      if (host && host !== 'localhost' && host !== '127.0.0.1') {
+        return `http://${host}:5001`;
+      }
+    }
+  } catch (e) {}
 
-// If on Android and configured with localhost, convert to 10.0.2.2 for emulator compatibility
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:5001';
+  }
+  return 'http://localhost:5001';
+};
+
+const autoHost = getAutoDetectedHost();
+const envHost = process.env.EXPO_PUBLIC_API_ORIGIN;
+let rawOrigin = (envHost && !envHost.includes('localhost')) ? envHost : autoHost;
+
+// Android emulator fallback
 if (Platform.OS === 'android' && rawOrigin.includes('localhost')) {
   rawOrigin = rawOrigin.replace('localhost', '10.0.2.2');
 }

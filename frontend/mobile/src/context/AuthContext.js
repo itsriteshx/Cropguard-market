@@ -6,11 +6,19 @@ import { translations } from '../i18n/translations';
 
 const AuthContext = createContext();
 const SESSION_KEY = 'cropguard_session_token';
+const USER_KEY = 'cropguard_user_profile';
+
 // Browser storage is scoped to the current tab; native tokens use encrypted storage.
 const sessionStore = {
   get: () => Platform.OS === 'web' ? Promise.resolve(sessionStorage.getItem(SESSION_KEY)) : SecureStore.getItemAsync(SESSION_KEY),
   set: (value) => Platform.OS === 'web' ? Promise.resolve(sessionStorage.setItem(SESSION_KEY, value)) : SecureStore.setItemAsync(SESSION_KEY, value),
   remove: () => Platform.OS === 'web' ? Promise.resolve(sessionStorage.removeItem(SESSION_KEY)) : SecureStore.deleteItemAsync(SESSION_KEY)
+};
+
+const userStore = {
+  get: () => Platform.OS === 'web' ? Promise.resolve(sessionStorage.getItem(USER_KEY)) : SecureStore.getItemAsync(USER_KEY),
+  set: (value) => Platform.OS === 'web' ? Promise.resolve(sessionStorage.setItem(USER_KEY, value)) : SecureStore.setItemAsync(USER_KEY, value),
+  remove: () => Platform.OS === 'web' ? Promise.resolve(sessionStorage.removeItem(USER_KEY)) : SecureStore.deleteItemAsync(USER_KEY)
 };
 
 export const SUPPORTED_LANGUAGES = [
@@ -39,18 +47,45 @@ export const AuthProvider = ({ children }) => {
     try {
       const savedToken = await sessionStore.get();
       if (!savedToken) return;
+
+      // Optimistically restore cached user profile for offline resilience
+      let hasCachedUser = false;
+      try {
+        const cachedUserStr = await userStore.get();
+        if (cachedUserStr) {
+          const cachedUser = JSON.parse(cachedUserStr);
+          if (cachedUser && cachedUser._id) {
+            setToken(savedToken);
+            setUser(cachedUser);
+            setRole(cachedUser.role);
+            setLanguageState(cachedUser.languagePreference || 'en');
+            hasCachedUser = true;
+          }
+        }
+      } catch (e) {
+        // Cache parse issue, ignore
+      }
+
       const result = await apiRequest('/auth/me', {}, savedToken);
       if (result.success && result.user) {
         setToken(savedToken);
         setUser(result.user);
         setRole(result.user.role);
         setLanguageState(result.user.languagePreference || 'en');
+        try {
+          await userStore.set(JSON.stringify(result.user));
+        } catch (e) {}
       } else if (result.httpStatus === 401) {
         await sessionStore.remove();
-      } else {
+        await userStore.remove();
+        setToken(null);
+        setUser(null);
+      } else if (!hasCachedUser) {
+        // Only lock the UI with error screen if we don't have a cached session
         setRestoreError('Could not restore your session. Check your connection and try again.');
       }
     } catch (error) {
+      // If we don't have user in state, report error
       setRestoreError('Could not access your saved session. Please try again.');
     } finally {
       setRestoring(false);
@@ -69,6 +104,7 @@ export const AuthProvider = ({ children }) => {
       if (data.success && data.token && data.user) {
         try {
           await sessionStore.set(data.token);
+          await userStore.set(JSON.stringify(data.user));
         } catch (error) {
           return { success: false, message: 'Could not save your session on this device. Please sign in again.' };
         }
@@ -86,6 +122,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await sessionStore.remove();
+      await userStore.remove();
     } catch (error) {
       return { success: false, message: 'Could not remove the saved session. Please try again.' };
     }

@@ -29,7 +29,28 @@ function MainApp() {
   const [langModalVisible, setLangModalVisible] = useState(false);
 
   if (restoring) return <View style={styles.restoreScreen}><ActivityIndicator size="large" color="#10B981" /><Text style={styles.restoreText}>Restoring your session…</Text></View>;
-  if (restoreError) return <View style={styles.restoreScreen}><Text style={styles.restoreText}>{restoreError}</Text><TouchableOpacity onPress={restoreSession}><Text style={styles.restoreAction}>Try again</Text></TouchableOpacity><TouchableOpacity onPress={async () => { const result = await logout(); if (!result.success) restoreSession(); }}><Text style={styles.restoreAction}>Sign out</Text></TouchableOpacity></View>;
+  if (restoreError && !user) {
+    return (
+      <View style={styles.restoreScreen}>
+        <Text style={styles.restoreText}>🌾 CropGuard Market</Text>
+        <Text style={[styles.restoreText, { color: '#94A3B8', fontSize: 13 }]}>{restoreError}</Text>
+        <View style={{ gap: 12, marginTop: 16, width: '100%', maxWidth: 280 }}>
+          <TouchableOpacity
+            style={{ backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+            onPress={restoreSession}
+          >
+            <Text style={{ color: '#0F172A', fontWeight: 'bold' }}>🔄 Reconnect Backend</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ backgroundColor: '#1E293B', paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#334155' }}
+            onPress={async () => { await logout(); }}
+          >
+            <Text style={{ color: '#F87171', fontWeight: '600' }}>Sign Out & Re-login</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
   if (!user) return <AuthScreen />;
 
   const isFarmer = role === 'FARMER';

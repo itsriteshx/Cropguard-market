@@ -18,21 +18,28 @@ export const SocketProvider = ({ children }) => {
       const handleConnect = () => setIsConnected(true);
       const handleDisconnect = () => setIsConnected(false);
       const handleError = (err) => {
-        console.warn('[SocketContext] Socket warning:', err?.message || err);
+        // Softly handle connection hiccups without bubbling uncaught emitter errors
+        setIsConnected(false);
       };
 
-      socket.on('connect', handleConnect);
-      socket.on('disconnect', handleDisconnect);
-      socket.on('error', handleError);
+      if (socket && typeof socket.on === 'function') {
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
+        socket.on('connect_error', handleError);
+        socket.on('error', handleError);
 
-      if (socket.connected) {
-        setIsConnected(true);
+        if (socket.connected) {
+          setIsConnected(true);
+        }
       }
 
       return () => {
-        socket.off('connect', handleConnect);
-        socket.off('disconnect', handleDisconnect);
-        socket.off('error', handleError);
+        if (socket && typeof socket.off === 'function') {
+          socket.off('connect', handleConnect);
+          socket.off('disconnect', handleDisconnect);
+          socket.off('connect_error', handleError);
+          socket.off('error', handleError);
+        }
         socketService.disconnect();
       };
     } else {
