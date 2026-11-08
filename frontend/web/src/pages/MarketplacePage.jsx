@@ -8,21 +8,93 @@ import {
   Truck,
   ArrowRight,
   ShieldCheck,
-  Sparkles,
   SlidersHorizontal,
   Eye,
   X,
   Award,
-  Info,
-  Scale,
-  Check,
   RefreshCw,
   Zap,
-  TrendingUp,
-  ChevronRight,
   Calendar,
   Building2,
 } from 'lucide-react';
+
+// Multilingual crop names dictionary for full immersion
+const LOCALIZED_CROPS = {
+  hi: {
+    'Red Onion (Garva Special)': 'लाल प्याज (गारवा स्पेशल)',
+    'Sharbati Golden Wheat': 'शरबती सुनहरा गेहूं (UASD)',
+    'Roma Plum Tomatoes': 'रोमा प्लम टमाटर (ग्रेड A)',
+    'Byadagi Stemless Chilli': 'ब्याडगी डंठल-रहित लाल मिर्च (GI)',
+    'Yellow Soybean (JS-335)': 'पीली सोयाबीन (JS-335)',
+    'Salem Golden Turmeric': 'सलेम गोल्डन हल्दी (4.2% करक्यूमिन)',
+    'Shimla Green Bell Peppers': 'शिमला हरी मिर्च (पॉलीहाउस)',
+    'Kagzi Seedless Lemons': 'कागजी बीज-रहित नींबू',
+  },
+  kn: {
+    'Red Onion (Garva Special)': 'ಕೆಂಪು ಈರುಳ್ಳಿ (ಗಾರ್ವಾ ಸ್ಪೆಷಲ್)',
+    'Sharbati Golden Wheat': 'ಶರ್ಬತಿ ಗೋಧಿ (UASD ಪ್ರಮಾಣಿತ)',
+    'Roma Plum Tomatoes': 'ರೋಮಾ ಪ್ಲಮ್ ಟೊಮೆಟೊ (ಗ್ರೇಡ್ A)',
+    'Byadagi Stemless Chilli': 'ಬ್ಯಾಡಗಿ ತೊಟ್ಟು ರಹಿತ ಮೆಣಸಿನಕಾಯಿ (GI)',
+    'Yellow Soybean (JS-335)': 'ಹಳದಿ ಸೋಯಾಬೀನ್ (JS-335)',
+    'Salem Golden Turmeric': 'ಸೇಲಂ ಅರಿಶಿನ (4.2% ಕರ್ಕ್ಯುಮಿನ್)',
+    'Shimla Green Bell Peppers': 'ದಪ್ಪ ಮೆಣಸಿನಕಾಯಿ (ಕ್ಯಾಪ್ಸಿಕಂ)',
+    'Kagzi Seedless Lemons': 'ಕಾಗಜಿ ನಿಂಬೆಹಣ್ಣು',
+  },
+  mr: {
+    'Red Onion (Garva Special)': 'लाल कांदा (गारवा स्पेशल)',
+    'Sharbati Golden Wheat': 'शरबती सुवर्ण गहू (UASD)',
+    'Roma Plum Tomatoes': 'रोमा प्लम टोमॅटो (ग्रेड A)',
+    'Byadagi Stemless Chilli': 'ब्याडगी देठ विरहित मिरची (GI)',
+    'Yellow Soybean (JS-335)': 'पिवळी सोयाबीन (JS-335)',
+    'Salem Golden Turmeric': 'सलेम हळद (4.2% करक्युमिन)',
+    'Shimla Green Bell Peppers': 'ढोबळी मिरची (पॉलीहाऊस)',
+    'Kagzi Seedless Lemons': 'कागदी लिंबू',
+  },
+  te: {
+    'Red Onion (Garva Special)': 'ఎర్ర ఉల్లిపాయ (గర్వా స్పెషల్)',
+    'Sharbati Golden Wheat': 'శర్బతి గోధుమలు (UASD ధృవీకరించినవి)',
+    'Roma Plum Tomatoes': 'రోమా ప్లమ్ టమోటాలు (గ్రేడ్ A)',
+    'Byadagi Stemless Chilli': 'బ్యాడగి తొడిమ లేని మిర్చి (GI)',
+    'Yellow Soybean (JS-335)': 'పసుపు సోయాబీన్ (JS-335)',
+    'Salem Golden Turmeric': 'సేలం పసుపు (4.2% కర్కుమిన్)',
+    'Shimla Green Bell Peppers': 'బెంగళూరు క్యాప్సికమ్',
+    'Kagzi Seedless Lemons': 'కాగ్జీ నిమ్మకాయలు',
+  },
+  ta: {
+    'Red Onion (Garva Special)': 'சிவப்பு வெங்காயம் (கார்வா ஸ்பெஷல்)',
+    'Sharbati Golden Wheat': 'ஷர்பதி தங்க கோதுமை (UASD)',
+    'Roma Plum Tomatoes': 'ரோமா தக்காளி (கிரேடு A)',
+    'Byadagi Stemless Chilli': 'பியாடகி காம்பில்லா மிளகாய் (GI)',
+    'Yellow Soybean (JS-335)': 'மஞ்சள் சோயாபீன் (JS-335)',
+    'Salem Golden Turmeric': 'சேலம் மஞ்சள் (4.2% குர்குமின்)',
+    'Shimla Green Bell Peppers': 'குடைமிளகாய் (பச்சை)',
+    'Kagzi Seedless Lemons': 'காக்ஸி எலுமிச்சை',
+  },
+  gu: {
+    'Red Onion (Garva Special)': 'લાલ ડુંગળી (ગારવા સ્પેશિયલ)',
+    'Sharbati Golden Wheat': 'શરબતી ઘઉં (UASD પ્રમાણિત)',
+    'Roma Plum Tomatoes': 'રોમા પ્લમ ટમેટા (ગ્રેડ A)',
+    'Byadagi Stemless Chilli': 'બ્યાડગી મરચાં (GI ટેગ)',
+    'Yellow Soybean (JS-335)': 'પીળી સોયાબીન (JS-335)',
+    'Salem Golden Turmeric': 'સેલમ હળદર (4.2% કરક્યુમિન)',
+    'Shimla Green Bell Peppers': 'શિમલા મરચાં (કેપ્સિકમ)',
+    'Kagzi Seedless Lemons': 'કાગઝી લીંબુ',
+  },
+  pa: {
+    'Red Onion (Garva Special)': 'ਲਾਲ ਪਿਆਜ਼ (ਗਾਰਵਾ ਸਪੈਸ਼ਲ)',
+    'Sharbati Golden Wheat': 'ਸ਼ਰਬਤੀ ਸੁਨਹਿਰੀ ਕਣਕ (UASD)',
+    'Roma Plum Tomatoes': 'ਰੋਮਾ ਪਲਮ ਟਮਾਟਰ (ਗ੍ਰੇਡ A)',
+    'Byadagi Stemless Chilli': 'ਬਿਆਡਗੀ ਲਾਲ ਮਿਰਚ (GI)',
+    'Yellow Soybean (JS-335)': 'ਪੀਲੀ ਸੋਇਆਬੀਨ (JS-335)',
+    'Salem Golden Turmeric': 'ਸਲੇਮ ਹਲਦੀ (4.2% ਕਰਕਿਊਮਿਨ)',
+    'Shimla Green Bell Peppers': 'ਸ਼ਿਮਲਾ ਮਿਰਚ',
+    'Kagzi Seedless Lemons': 'ਕਾਗਜ਼ੀ ਨਿੰਬੂ',
+  },
+};
+
+const getLocalizedCropName = (cropName, lang) => {
+  return LOCALIZED_CROPS[lang]?.[cropName] || cropName;
+};
 
 // Fallback high-resolution agricultural crop photography mapper
 const getCropImage = (cropName = '', category = '', customImages = []) => {
@@ -255,7 +327,7 @@ const DEFAULT_FALLBACK_LISTINGS = [
 ];
 
 export default function MarketplacePage() {
-  const { activePersona, t } = useAuth();
+  const { activePersona, t, language } = useAuth();
   const m = t.marketplace || {};
   const modalText = m.modal || {};
 
@@ -408,60 +480,67 @@ export default function MarketplacePage() {
           <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold tracking-wide shadow-md">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             <Award className="w-4 h-4 text-emerald-400" />
-            <span>UASD DHARWAD & ICAR PROTOCOL • DIRECT APMC CORRIDOR</span>
+            <span>{m.protocolBadge || 'UASD DHARWAD & ICAR PROTOCOL • DIRECT APMC CORRIDOR'}</span>
           </div>
 
           {/* Headline */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight">
-            Direct Farm Produce <span className="text-gradient-emerald">Procurement</span>
+            {m.title || 'Direct Farm Produce Procurement'}
           </h1>
 
           {/* Subtitle */}
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-2xl font-normal">
-            Source bulk agricultural commodities directly from verified Karnataka FPOs and progressive farmers.
-            Guaranteed <span className="text-emerald-400 font-semibold">0% middleman deduction</span>, APMC benchmark modal price protection, and automated digital escrow.
+            {m.subtitle || 'Source bulk agricultural commodities directly from verified Karnataka FPOs and progressive farmers.'}
           </p>
 
           {/* Live Platform Metrics Ribbon */}
           <div className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-md">
               <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                <span>🌾</span> Live Harvest
+                <span>🌾</span> {m.liveHarvest || 'Live Harvest'}
               </div>
               <div className="text-xl sm:text-2xl font-black text-white mt-1">
                 {totalVolumeMT} <span className="text-xs font-normal text-slate-400">MT</span>
               </div>
-              <div className="text-[10px] text-emerald-400 font-medium mt-0.5">8 Karnataka Corridors</div>
+              <div className="text-[10px] text-emerald-400 font-medium mt-0.5">
+                {m.corridorsTag || '8 Karnataka Corridors'}
+              </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-md">
               <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                <span>⚡</span> Arhatiya Cuts
+                <span>⚡</span> {m.arhatiyaCuts || 'Arhatiya Cuts'}
               </div>
               <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">
                 0.0%
               </div>
-              <div className="text-[10px] text-slate-400 font-medium mt-0.5">+10% Farmer Profit</div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                {m.farmerProfit || '+10% Farmer Profit'}
+              </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-md">
               <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                <span>🛡️</span> Escrow Security
+                <span>🛡️</span> {m.escrowSecurity || 'Escrow Security'}
               </div>
               <div className="text-xl sm:text-2xl font-black text-white mt-1">
                 100%
               </div>
-              <div className="text-[10px] text-emerald-400 font-medium mt-0.5">ICAR Mandi Protocol</div>
+              <div className="text-[10px] text-emerald-400 font-medium mt-0.5">
+                {m.icarProtocol || 'ICAR Mandi Protocol'}
+              </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-md">
               <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                <span>📍</span> Hyper-Local
+                <span>📍</span> {m.hyperLocal || 'Hyper-Local'}
               </div>
               <div className="text-xl sm:text-2xl font-black text-amber-300 mt-1">
                 &lt; 50 km
               </div>
-              <div className="text-[10px] text-slate-400 font-medium mt-0.5">Same-Day Dispatch</div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                {m.sameDayDispatch || 'Same-Day Dispatch'}
+              </div>
             </div>
           </div>
         </div>
@@ -475,7 +554,7 @@ export default function MarketplacePage() {
             <Search className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search crop name, farmer, or district (e.g. Red Onion, Wheat, Dharwad, Byadagi)..."
+              placeholder={m.searchPlaceholder || 'Search crop name, farmer, or district...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-10 py-2.5 bg-slate-900/90 border border-slate-700/80 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
@@ -501,7 +580,7 @@ export default function MarketplacePage() {
               }`}
             >
               <CheckCircle2 className={`w-3.5 h-3.5 ${organicOnly ? 'text-white' : 'text-emerald-400'}`} />
-              <span>Certified Organic</span>
+              <span>{m.certifiedOrganic || 'Certified Organic'}</span>
             </button>
 
             {/* Sort Selector */}
@@ -512,11 +591,11 @@ export default function MarketplacePage() {
                 onChange={(e) => setSortBy(e.target.value)}
                 className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 focus:outline-none focus:border-emerald-500"
               >
-                <option value="featured">Featured Lots</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
-                <option value="quantity">Lot Size: Largest</option>
-                <option value="distance">Nearest First</option>
+                <option value="featured">{m.sortFeatured || 'Featured Lots'}</option>
+                <option value="price_asc">{m.sortPriceAsc || 'Price: Low to High'}</option>
+                <option value="price_desc">{m.sortPriceDesc || 'Price: High to Low'}</option>
+                <option value="quantity">{m.sortQuantity || 'Lot Size: Largest'}</option>
+                <option value="distance">{m.sortDistance || 'Nearest First'}</option>
               </select>
             </div>
           </div>
@@ -526,6 +605,7 @@ export default function MarketplacePage() {
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
           {categories.map((cat) => {
             const isSelected = categoryFilter === cat.id;
+            const categoryLabel = m.categories?.[cat.id] || cat.label;
             return (
               <button
                 key={cat.id}
@@ -537,7 +617,7 @@ export default function MarketplacePage() {
                 }`}
               >
                 <span>{cat.icon}</span>
-                <span>{cat.label}</span>
+                <span>{categoryLabel}</span>
               </button>
             );
           })}
@@ -547,7 +627,7 @@ export default function MarketplacePage() {
         <div className="flex items-center justify-between text-xs text-slate-400 px-1">
           <div className="flex items-center gap-2">
             <span>
-              Showing <strong className="text-white font-bold">{filteredAndSortedListings.length}</strong> verified wholesale farm lots
+              {m.showing || 'Showing'} <strong className="text-white font-bold">{filteredAndSortedListings.length}</strong> {m.showingLots || 'verified wholesale farm lots'}
             </span>
             {(searchQuery || categoryFilter !== 'ALL' || organicOnly) && (
               <button
@@ -558,12 +638,12 @@ export default function MarketplacePage() {
                 }}
                 className="text-emerald-400 hover:text-emerald-300 font-semibold underline flex items-center gap-1 ml-2"
               >
-                <RefreshCw className="w-3 h-3" /> Reset filters
+                <RefreshCw className="w-3 h-3" /> {m.resetFilters || 'Reset filters'}
               </button>
             )}
           </div>
           <span className="hidden sm:inline text-slate-500 text-[11px]">
-            ⚡ Direct APMC Modal Rates Verified
+            ⚡ {m.verifiedBadge || 'Direct APMC Modal Rates Verified'}
           </span>
         </div>
       </div>
@@ -572,14 +652,18 @@ export default function MarketplacePage() {
       {loading ? (
         <div className="py-20 text-center space-y-3">
           <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm font-semibold text-slate-400">Loading verified wholesale lots...</p>
+          <p className="text-sm font-semibold text-slate-400">
+            {m.loading || 'Loading verified wholesale lots...'}
+          </p>
         </div>
       ) : filteredAndSortedListings.length === 0 ? (
         <div className="py-16 text-center space-y-3 rounded-2xl bg-slate-900/60 border border-slate-800">
           <div className="text-3xl">🌾</div>
-          <h3 className="text-lg font-bold text-white">No Matching Farm Lots Found</h3>
+          <h3 className="text-lg font-bold text-white">
+            {m.noLotsFound || 'No Matching Farm Lots Found'}
+          </h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Try adjusting your search keywords or switching category filters to view available mandi harvests.
+            {m.noLotsSub || 'Try adjusting your search keywords or switching category filters to view available mandi harvests.'}
           </p>
           <button
             onClick={() => {
@@ -589,7 +673,7 @@ export default function MarketplacePage() {
             }}
             className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-500 transition-colors"
           >
-            Clear All Filters
+            {m.clearFilters || 'Clear All Filters'}
           </button>
         </div>
       ) : (
@@ -601,6 +685,8 @@ export default function MarketplacePage() {
             const spreadDelta = price - benchmark;
             const cropImg = getCropImage(lot.cropName, lot.category, lot.images);
             const middlemanSaved = Math.round(totalValue * 0.1);
+            const localizedCrop = getLocalizedCropName(lot.cropName, language);
+            const translatedCategory = m.categories?.[lot.category] || lot.category;
 
             return (
               <div
@@ -623,12 +709,12 @@ export default function MarketplacePage() {
                     {/* Top Badges */}
                     <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
                       <span className="px-3 py-1 rounded-full bg-slate-950/80 backdrop-blur-md border border-slate-700/80 text-emerald-300 text-[11px] font-extrabold tracking-wide uppercase">
-                        {lot.category}
+                        {translatedCategory}
                       </span>
                       {lot.organicCertified ? (
                         <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-950/90 backdrop-blur-md border border-emerald-500/80 text-emerald-300 text-[11px] font-bold shadow-lg shadow-emerald-950">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Organic Certified</span>
+                          <span>{m.certifiedOrganic || 'Organic Certified'}</span>
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-md border border-slate-700 text-slate-300 text-[11px] font-semibold">
@@ -642,12 +728,12 @@ export default function MarketplacePage() {
                     <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] font-medium text-slate-200 z-10">
                       <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10">
                         <Calendar className="w-3 h-3 text-emerald-400" />
-                        <span>Harvested: {lot.harvestDate ? new Date(lot.harvestDate).toLocaleDateString() : 'Recent'}</span>
+                        <span>{m.harvested || 'Harvested'}: {lot.harvestDate ? new Date(lot.harvestDate).toLocaleDateString() : 'Recent'}</span>
                       </span>
                       {lot.distanceKm && (
                         <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-950/80 backdrop-blur-sm border border-emerald-600/40 text-emerald-300 font-bold">
                           <MapPin className="w-3 h-3 text-emerald-400" />
-                          <span>{lot.distanceKm} km away</span>
+                          <span>{lot.distanceKm} km {m.away || 'away'}</span>
                         </span>
                       )}
                     </div>
@@ -659,7 +745,7 @@ export default function MarketplacePage() {
                     <div>
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="text-xl font-black text-white tracking-tight group-hover:text-emerald-300 transition-colors">
-                          {lot.cropName}
+                          {localizedCrop}
                         </h3>
                       </div>
                       <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed font-normal">
@@ -675,7 +761,7 @@ export default function MarketplacePage() {
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1 text-xs font-bold text-white truncate">
-                            <span>{lot.farmer?.name || 'Verified Progressive Farmer'}</span>
+                            <span>{lot.farmer?.name || m.producer || 'Verified Progressive Farmer'}</span>
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           </div>
                           <div className="text-[10px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
@@ -692,7 +778,7 @@ export default function MarketplacePage() {
                         title="View Certificate & Quality Specs"
                       >
                         <Eye className="w-3 h-3 text-emerald-400" />
-                        <span>Specs</span>
+                        <span>{m.specsBtn || 'Specs'}</span>
                       </button>
                     </div>
 
@@ -700,7 +786,7 @@ export default function MarketplacePage() {
                     <div className="grid grid-cols-2 gap-3 pt-1">
                       <div className="p-3 rounded-2xl bg-slate-900/50 border border-slate-800/70">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
-                          Available Lot
+                          {m.lotSize || 'Available Lot'}
                         </span>
                         <div className="text-lg font-black text-white mt-0.5">
                           {lot.quantity} <span className="text-xs text-slate-400 font-normal">{lot.unit || 'Quintals'}</span>
@@ -712,14 +798,14 @@ export default function MarketplacePage() {
 
                       <div className="p-3 rounded-2xl bg-slate-900/50 border border-slate-800/70">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
-                          Farmer Rate
+                          {m.farmerRate || 'Farmer Rate'}
                         </span>
                         <div className="text-lg font-black text-emerald-400 mt-0.5">
                           ₹{price.toLocaleString('en-IN')}{' '}
                           <span className="text-xs text-slate-400 font-normal">/ qtl</span>
                         </div>
                         <div className="text-[10px] text-emerald-400/90 font-medium mt-1 truncate">
-                          {spreadDelta >= 0 ? `+₹${spreadDelta} vs Mandi MSP` : 'Fair Benchmark'}
+                          {spreadDelta >= 0 ? `+₹${spreadDelta} ${m.vsMsp || 'vs Mandi MSP'}` : (m.fairBenchmark || 'Fair Benchmark')}
                         </div>
                       </div>
                     </div>
@@ -727,14 +813,14 @@ export default function MarketplacePage() {
                     {/* Total Consignment Value & Savings Pill */}
                     <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-800/40 space-y-1">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Total Lot Value:</span>
+                        <span className="text-slate-400">{m.totalLotValue || m.estimatedTotal || 'Total Lot Value:'}</span>
                         <span className="font-extrabold text-white text-sm">
                           ₹{totalValue.toLocaleString('en-IN')}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px] text-emerald-400 font-medium pt-1 border-t border-emerald-900/60">
                         <span className="flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-amber-400" /> Middleman Fee Saved:
+                          <Zap className="w-3 h-3 text-amber-400" /> {m.middlemanSavedTag || 'Middleman Fee Saved:'}
                         </span>
                         <span className="font-bold text-emerald-300">+₹{middlemanSaved.toLocaleString('en-IN')}</span>
                       </div>
@@ -749,7 +835,7 @@ export default function MarketplacePage() {
                     className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 transition-all hover:shadow-emerald-600/30 active:scale-[0.99]"
                   >
                     <Truck className="w-4 h-4" />
-                    <span>Initiate Bulk Procurement</span>
+                    <span>{m.procureBtn || 'Initiate Bulk Procurement'}</span>
                     <ArrowRight className="w-4 h-4 ml-1" />
                   </button>
                 </div>
@@ -766,9 +852,11 @@ export default function MarketplacePage() {
             <div className="flex items-start justify-between">
               <div>
                 <span className="px-2.5 py-1 rounded-lg bg-emerald-950 text-emerald-400 text-xs font-bold border border-emerald-800">
-                  {inspectLot.category}
+                  {m.categories?.[inspectLot.category] || inspectLot.category}
                 </span>
-                <h2 className="text-2xl font-black text-white mt-2">{inspectLot.cropName}</h2>
+                <h2 className="text-2xl font-black text-white mt-2">
+                  {getLocalizedCropName(inspectLot.cropName, language)}
+                </h2>
                 <p className="text-xs text-slate-400">{inspectLot.locationName || 'Dharwad Mandi Corridor'}</p>
               </div>
               <button
@@ -782,7 +870,9 @@ export default function MarketplacePage() {
             {/* Quality Metrics */}
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
-                <span className="text-slate-400 text-[10px] uppercase font-bold">Certification Status</span>
+                <span className="text-slate-400 text-[10px] uppercase font-bold">
+                  {m.certStatus || 'Certification Status'}
+                </span>
                 <div className="font-bold text-white flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                   <span>{inspectLot.qualityGrade || 'Grade A'}</span>
@@ -790,21 +880,27 @@ export default function MarketplacePage() {
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
-                <span className="text-slate-400 text-[10px] uppercase font-bold">Moisture Content</span>
+                <span className="text-slate-400 text-[10px] uppercase font-bold">
+                  {m.moistureContent || 'Moisture Content'}
+                </span>
                 <div className="font-bold text-amber-300">
-                  {inspectLot.moistureContent || '11.0%'} (Safe Storage)
+                  {inspectLot.moistureContent || '11.0%'} ({m.safeStorage || 'Safe Storage'})
                 </div>
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
-                <span className="text-slate-400 text-[10px] uppercase font-bold">APMC Mandi Modal Rate</span>
+                <span className="text-slate-400 text-[10px] uppercase font-bold">
+                  {modalText.modalRate || 'APMC Mandi Modal Rate'}
+                </span>
                 <div className="font-bold text-slate-200">
                   ₹{inspectLot.benchmarkRate || inspectLot.expectedPrice} / qtl
                 </div>
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
-                <span className="text-slate-400 text-[10px] uppercase font-bold">FPO Organization</span>
+                <span className="text-slate-400 text-[10px] uppercase font-bold">
+                  {m.fpoOrg || 'FPO Organization'}
+                </span>
                 <div className="font-bold text-emerald-400 truncate">
                   {inspectLot.farmer?.fpo || 'UASD Certified FPO'}
                 </div>
@@ -813,7 +909,9 @@ export default function MarketplacePage() {
 
             {/* Full Description */}
             <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1 text-xs text-slate-300 leading-relaxed">
-              <span className="text-slate-400 text-[10px] uppercase font-bold block mb-1">Lot Agronomic Summary</span>
+              <span className="text-slate-400 text-[10px] uppercase font-bold block mb-1">
+                {m.lotSummary || 'Lot Agronomic Summary'}
+              </span>
               <p>{inspectLot.description}</p>
             </div>
 
@@ -842,7 +940,7 @@ export default function MarketplacePage() {
               className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950"
             >
               <Truck className="w-4 h-4" />
-              <span>Proceed to Bulk Procurement</span>
+              <span>{m.proceedProcure || modalText.confirm || 'Proceed to Bulk Procurement'}</span>
             </button>
           </div>
         </div>
@@ -856,7 +954,7 @@ export default function MarketplacePage() {
               <div>
                 <h2 className="text-xl font-black text-white">{modalText.title || 'Procure Bulk Farm Lot'}</h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Direct procurement under UASD ICAR Mandi Guidelines (Escrow Protected)
+                  {modalText.subtitle || 'Direct procurement under UASD ICAR Mandi Guidelines (Escrow Protected)'}
                 </p>
               </div>
               <button
@@ -873,24 +971,26 @@ export default function MarketplacePage() {
                   ✓
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-white">Escrow Contract Registered!</h3>
+                  <h3 className="text-xl font-black text-white">
+                    {modalText.successTitle || m.escrowContractRegistered || 'Escrow Contract Registered!'}
+                  </h3>
                   <p className="text-xs text-slate-300 max-w-sm mx-auto mt-1 leading-relaxed">
-                    A legally binding procurement contract has been generated under Karnataka APMC rules.
+                    {modalText.successMsg || m.escrowRegisteredSub || 'A legally binding procurement contract has been generated under Karnataka APMC rules.'}
                   </p>
                 </div>
 
                 <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-1 font-mono text-left max-w-sm mx-auto">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Contract ID:</span>
+                    <span className="text-slate-500">{m.contractId || 'Contract ID:'}</span>
                     <span className="text-emerald-400 font-bold">{escrowContractId}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Locked Value:</span>
+                    <span className="text-slate-500">{m.lockedValue || 'Locked Value:'}</span>
                     <span className="text-white font-bold">₹{(orderQuantity * offerPrice).toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Status:</span>
-                    <span className="text-amber-400 font-semibold">HELD IN ESCROW</span>
+                    <span className="text-slate-500">{m.status || 'Status:'}</span>
+                    <span className="text-amber-400 font-semibold">{m.heldInEscrow || 'HELD IN ESCROW'}</span>
                   </div>
                 </div>
 
@@ -898,7 +998,7 @@ export default function MarketplacePage() {
                   onClick={() => setSelectedLot(null)}
                   className="mt-4 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-900"
                 >
-                  Return to Marketplace
+                  {modalText.returnBtn || 'Return to Marketplace'}
                 </button>
               </div>
             ) : (
@@ -906,15 +1006,17 @@ export default function MarketplacePage() {
                 {/* Lot Overview Bar */}
                 <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Crop Commodity:</span>
-                    <span className="font-extrabold text-white">{selectedLot.cropName}</span>
+                    <span className="text-slate-400">{modalText.crop || 'Crop Commodity:'}</span>
+                    <span className="font-extrabold text-white">
+                      {getLocalizedCropName(selectedLot.cropName, language)}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Registered Farmer:</span>
+                    <span className="text-slate-400">{modalText.farmer || 'Registered Farmer:'}</span>
                     <span className="font-semibold text-emerald-400">{selectedLot.farmer?.name}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">APMC Mandi Modal Rate:</span>
+                    <span className="text-slate-400">{modalText.modalRate || 'APMC Mandi Modal Rate:'}</span>
                     <span className="text-slate-300 font-mono">₹{selectedLot.expectedPrice} / qtl</span>
                   </div>
                 </div>
@@ -922,8 +1024,8 @@ export default function MarketplacePage() {
                 {/* Procurement Quantity Input */}
                 <div>
                   <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5">
-                    <label>Procurement Quantity (Quintals)</label>
-                    <span className="text-slate-400 text-[11px] font-normal">Max available: {selectedLot.quantity}</span>
+                    <label>{modalText.qtyLabel || 'Procurement Quantity (Quintals)'}</label>
+                    <span className="text-slate-400 text-[11px] font-normal">Max: {selectedLot.quantity}</span>
                   </div>
                   <input
                     type="number"
@@ -938,7 +1040,7 @@ export default function MarketplacePage() {
                 {/* Offered Rate Input */}
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                    Contract Procurement Rate (₹ per Quintal)
+                    {modalText.rateLabel || m.contractRate || 'Contract Procurement Rate (₹ per Quintal)'}
                   </label>
                   <input
                     type="number"
@@ -952,17 +1054,17 @@ export default function MarketplacePage() {
                 {/* Live Escrow Calculation Box */}
                 <div className="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-800/50 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-300">
-                    <span>Base Consignment Value:</span>
+                    <span>{m.baseValue || modalText.totalValue || 'Base Consignment Value:'}</span>
                     <span className="font-bold text-white">
                       ₹{(Number(orderQuantity) * Number(offerPrice)).toLocaleString('en-IN')}
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-400">
-                    <span>Escrow Platform Fee:</span>
-                    <span className="text-emerald-400 font-bold">₹0 (Zero Fee Protocol)</span>
+                    <span>{modalText.savedCommission || 'Escrow Platform Fee:'}</span>
+                    <span className="text-emerald-400 font-bold">{m.zeroFee || '₹0 (Zero Fee Protocol)'}</span>
                   </div>
                   <div className="flex justify-between text-emerald-400 font-bold pt-1.5 border-t border-emerald-900/60 text-sm">
-                    <span>Total Escrow Deposit:</span>
+                    <span>{m.totalEscrowDeposit || modalText.totalValue || 'Total Escrow Deposit:'}</span>
                     <span className="text-emerald-300 font-black">
                       ₹{(Number(orderQuantity) * Number(offerPrice)).toLocaleString('en-IN')}
                     </span>
@@ -975,7 +1077,7 @@ export default function MarketplacePage() {
                     onClick={() => setSelectedLot(null)}
                     className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
                   >
-                    Cancel
+                    {modalText.cancel || 'Cancel'}
                   </button>
                   <button
                     onClick={handlePlaceBulkOrder}
@@ -985,12 +1087,12 @@ export default function MarketplacePage() {
                     {procurementStatus === 'submitting' ? (
                       <>
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Locking Escrow...</span>
+                        <span>{m.lockingEscrow || modalText.confirming || 'Locking Escrow...'}</span>
                       </>
                     ) : (
                       <>
                         <ShieldCheck className="w-4 h-4" />
-                        <span>Deposit & Lock Escrow</span>
+                        <span>{m.depositEscrowBtn || modalText.confirm || 'Deposit & Lock Escrow'}</span>
                       </>
                     )}
                   </button>

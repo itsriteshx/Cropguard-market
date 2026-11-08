@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ordersService, auditService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -10,6 +11,8 @@ import {
 } from 'lucide-react';
 
 export default function ComplianceAuditPage() {
+  const { t } = useAuth();
+  const c = t.compliance || {};
   const [ledgerData, setLedgerData] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
   const [summaryMetrics, setSummaryMetrics] = useState(null);
@@ -168,14 +171,13 @@ export default function ComplianceAuditPage() {
       <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-900 border border-emerald-800/40 rounded-2xl p-6 relative overflow-hidden shadow-xl">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/60 border border-emerald-700/60 text-emerald-300 text-xs font-semibold mb-3">
-            <ShieldCheck className="w-3.5 h-3.5" /> UASD Dharwad & ICAR Statutory Audit Panel
+            <ShieldCheck className="w-3.5 h-3.5" /> {c.tag || 'UASD Dharwad & ICAR Statutory Audit Panel'}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Fair-Trade Compliance & Middleman Elimination Audit
+            {c.title || 'Fair-Trade Compliance & Middleman Elimination Audit'}
           </h1>
           <p className="text-slate-300 text-sm mt-2 leading-relaxed">
-            Statutory monitoring ensuring 100% adherence to direct farmgate procurement norms.
-            Monitors arhatiya commission elimination and farmer price enhancement metrics in real time.
+            {c.subtitle || 'Statutory monitoring ensuring 100% adherence to direct farmgate procurement norms. Monitors arhatiya commission elimination and farmer price enhancement metrics in real time.'}
           </p>
         </div>
 
@@ -199,7 +201,7 @@ export default function ComplianceAuditPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-1">
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Total Direct Trade Volume
+            {c.totalVolume || 'Total Direct Trade Volume'}
           </div>
           <div className="text-2xl font-black text-white">
             ₹{totalVolume.toLocaleString('en-IN')}
@@ -211,7 +213,7 @@ export default function ComplianceAuditPage() {
 
         <div className="glass-panel p-5 rounded-2xl border border-emerald-800/60 bg-emerald-950/20 space-y-1">
           <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-            Middleman Margin Eliminated
+            {c.middlemanEliminated || 'Middleman Margin Eliminated'}
           </div>
           <div className="text-2xl font-black text-emerald-300">
             +₹{totalSaved.toLocaleString('en-IN')}
@@ -223,7 +225,7 @@ export default function ComplianceAuditPage() {
 
         <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-1">
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Average Farmgate Realization
+            {c.farmgateRealization || 'Average Farmgate Realization'}
           </div>
           <div className="text-2xl font-black text-white">
             ₹{(ledgerData?.averageRatePerQuintal || 2525).toLocaleString('en-IN')} / qtl
@@ -235,7 +237,7 @@ export default function ComplianceAuditPage() {
 
         <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-1">
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Verified Statutory Audits
+            {c.complianceScore || 'Statutory Compliance Score'}
           </div>
           <div className="text-2xl font-black text-green-400">
             {verifiedCount} Verified Logs
@@ -342,7 +344,7 @@ export default function ComplianceAuditPage() {
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Scale className="w-5 h-5 text-emerald-400" />
-              Statutory Direct Market Access Checklist
+              {c.checklistTitle || 'Statutory Direct Market Access Checklist'}
             </h3>
             <p className="text-xs text-slate-400">
               Audited according to UASD Dharwad & ICAR Fair Price Guidelines

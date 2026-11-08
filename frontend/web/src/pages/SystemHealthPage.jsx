@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { systemService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import {
   Server,
   Database,
@@ -13,6 +14,8 @@ import {
 } from 'lucide-react';
 
 export default function SystemHealthPage() {
+  const { t } = useAuth();
+  const s = t.system || {};
   const [health, setHealth] = useState(null);
   const [docs, setDocs] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -102,14 +105,13 @@ export default function SystemHealthPage() {
       <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-900 border border-emerald-800/40 rounded-2xl p-6 relative overflow-hidden shadow-xl">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/60 border border-emerald-700/60 text-emerald-300 text-xs font-semibold mb-3">
-            <Server className="w-3.5 h-3.5" /> Node.js & Express Architecture Gateway
+            <Server className="w-3.5 h-3.5" /> {s.tag || 'Node.js & Express Architecture Gateway'}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Backend Gateway Health & API Registry
+            {s.title || 'Backend Gateway Health & API Registry'}
           </h1>
           <p className="text-slate-300 text-sm mt-2 leading-relaxed">
-            Real-time diagnostics for Express gateway on port 5001, MongoDB Atlas cluster (Mumbai),
-            and Socket.io /negotiation real-time bargaining namespace.
+            {s.subtitle || 'Real-time diagnostics for Express gateway on port 5001, MongoDB Atlas cluster (Mumbai), and Socket.io /negotiation real-time bargaining namespace.'}
           </p>
         </div>
       </div>
@@ -190,7 +192,7 @@ export default function SystemHealthPage() {
           <div className="flex items-center gap-2">
             <Code className="w-5 h-5 text-emerald-400" />
             <div>
-              <h3 className="text-base font-bold text-white">Full Microservices & Endpoint Registry</h3>
+              <h3 className="text-base font-bold text-white">{s.registryTitle || 'Full Microservices & Endpoint Registry'}</h3>
               <p className="text-xs text-slate-400">
                 Audited backend endpoints verified with JWT authentication and rate limiting
               </p>
@@ -202,7 +204,7 @@ export default function SystemHealthPage() {
             className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-2"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Re-Ping Gateway</span>
+            <span>{s.rePing || 'Re-Ping Gateway'}</span>
           </button>
         </div>
 

@@ -38,7 +38,8 @@ const STAGES = [
 ];
 
 export default function OrdersEscrowPage() {
-  const { activePersona } = useAuth();
+  const { activePersona, t } = useAuth();
+  const o = t.orders || {};
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
@@ -121,14 +122,13 @@ export default function OrdersEscrowPage() {
       <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-900 border border-emerald-800/40 rounded-2xl p-6 relative overflow-hidden shadow-xl">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/60 border border-emerald-700/60 text-emerald-300 text-xs font-semibold mb-3">
-            <Lock className="w-3.5 h-3.5" /> Direct Escrow & 5-Stage Settlement State Machine
+            <Lock className="w-3.5 h-3.5" /> {o.tag || 'Direct Escrow & 5-Stage Settlement State Machine'}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Wholesale Procurement & Escrow Ledger
+            {o.title || 'Wholesale Procurement & Escrow Ledger'}
           </h1>
           <p className="text-slate-300 text-sm mt-2 leading-relaxed">
-            Eliminates payment defaults and delays. Buyer funds remain securely locked in Escrow
-            until verified crop delivery, triggering immediate instant settlement to the farmer.
+            {o.subtitle || 'Eliminates payment defaults and delays. Buyer funds remain securely locked in Escrow until verified crop delivery, triggering immediate instant settlement to the farmer.'}
           </p>
         </div>
       </div>
@@ -136,7 +136,7 @@ export default function OrdersEscrowPage() {
       {/* Pipeline Summary Bar */}
       <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-          <span>Active Escrow Contracts:</span>
+          <span>{o.activeContracts || 'Active Escrow Contracts'}:</span>
           <span className="px-2.5 py-0.5 rounded-full bg-emerald-900/60 border border-emerald-700/50 text-emerald-300">
             {orders.length}
           </span>
@@ -146,7 +146,7 @@ export default function OrdersEscrowPage() {
           onClick={loadOrders}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold transition-colors"
         >
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh Orders
+          <RefreshCw className="w-3.5 h-3.5" /> {o.refresh || 'Refresh Orders'}
         </button>
       </div>
 
@@ -187,7 +187,7 @@ export default function OrdersEscrowPage() {
                     ₹{order.totalAmount.toLocaleString('en-IN')}
                   </div>
                   <div className="text-[11px] text-emerald-300 font-medium">
-                    +₹{(order.middlemanFeeSaved || order.totalAmount * 0.1).toLocaleString('en-IN')} Saved Commission
+                    +₹{(order.middlemanFeeSaved || order.totalAmount * 0.1).toLocaleString('en-IN')} {o.savedCommission || 'Saved Commission'}
                   </div>
                 </div>
               </div>
@@ -211,7 +211,7 @@ export default function OrdersEscrowPage() {
                       }`}
                     >
                       <Icon className="w-4 h-4 mx-auto mb-1" />
-                      <div className="text-[10px] font-bold truncate">{stage.label}</div>
+                      <div className="text-[10px] font-bold truncate">{o.stages?.[stage.key] || stage.label}</div>
                     </div>
                   );
                 })}
@@ -235,7 +235,7 @@ export default function OrdersEscrowPage() {
                     className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold flex items-center justify-center gap-1.5 transition-colors"
                   >
                     <Printer className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Certified Receipt</span>
+                    <span>{o.receiptBtn || 'Certified Receipt'}</span>
                   </button>
 
                   {/* Advance State Machine Button */}
@@ -246,7 +246,7 @@ export default function OrdersEscrowPage() {
                       className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-emerald-950/40"
                     >
                       <span>
-                        {updatingId === order._id ? 'Updating...' : `Advance to ${nextStatus}`}
+                        {updatingId === order._id ? 'Updating...' : `${o.advanceBtn || 'Advance to'} ${o.stages?.[nextStatus] || nextStatus}`}
                       </span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>

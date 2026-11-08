@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { mandiService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import {
   TrendingUp,
   BarChart3,
@@ -38,6 +39,8 @@ const HISTORICAL_PRICE_TRENDS = [
 ];
 
 export default function MandiAnalyticsPage() {
+  const { t } = useAuth();
+  const m = t.mandi || {};
   const [mandiRates, setMandiRates] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -133,14 +136,13 @@ export default function MandiAnalyticsPage() {
       <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-900 border border-emerald-800/40 rounded-2xl p-6 relative overflow-hidden shadow-xl">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/60 border border-emerald-700/60 text-emerald-300 text-xs font-semibold mb-3">
-            <TrendingUp className="w-3.5 h-3.5" /> UASD Dharwad APMC Price Intelligence Pipeline
+            <TrendingUp className="w-3.5 h-3.5" /> {m.tag || 'UASD Dharwad APMC Price Intelligence Pipeline'}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Live Mandi Rate & Fair-Price Corridor Monitor
+            {m.title || 'Live Mandi Rate & Fair-Price Corridor Monitor'}
           </h1>
           <p className="text-slate-300 text-sm mt-2 leading-relaxed">
-            Real-time APMC price benchmarks prevent predatory buyer bidding. Direct market price
-            discovery eliminates unfair discounts forced on local farmers across Karnataka & Maharashtra.
+            {m.subtitle || 'Real-time APMC price benchmarks prevent predatory buyer bidding. Direct market price discovery eliminates unfair discounts forced on local farmers across Karnataka & Maharashtra.'}
           </p>
         </div>
 
@@ -163,7 +165,7 @@ export default function MandiAnalyticsPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-panel p-4 rounded-xl border border-slate-800">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">APMC Mandis & Districts</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{m.trackedMandis || 'APMC Mandis Tracked'}</div>
           <div className="text-2xl font-extrabold text-white mt-1">
             {totalDistrictsTracked} Districts
           </div>
@@ -171,7 +173,7 @@ export default function MandiAnalyticsPage() {
         </div>
 
         <div className="glass-panel p-4 rounded-xl border border-slate-800">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Corridor Inflow Volume</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{m.modalSpread || m.mandiSpread || 'Corridor Inflow Volume'}</div>
           <div className="text-2xl font-extrabold text-emerald-400 mt-1">
             {totalCorridorArrivals.toLocaleString('en-IN')} <span className="text-xs font-normal text-slate-400">qtl</span>
           </div>
@@ -179,13 +181,13 @@ export default function MandiAnalyticsPage() {
         </div>
 
         <div className="glass-panel p-4 rounded-xl border border-slate-800">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Fair Trade Index</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{m.fairTradeIndex || 'Fair Trade Index'}</div>
           <div className="text-2xl font-extrabold text-green-400 mt-1">98.4%</div>
           <div className="text-[11px] text-emerald-400 mt-1">+12.4% farmer price realization</div>
         </div>
 
         <div className="glass-panel p-4 rounded-xl border border-slate-800">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Middleman Margin Kept</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{m.middlemanKept || 'Middleman Margin Kept'}</div>
           <div className="text-2xl font-extrabold text-emerald-400 mt-1">+10.0%</div>
           <div className="text-[11px] text-slate-400 mt-1">Zero commission agent deductions</div>
         </div>
@@ -197,8 +199,8 @@ export default function MandiAnalyticsPage() {
         <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-white text-base">APMC Price Spread by Commodity</h3>
-              <p className="text-xs text-slate-400">Min vs Modal vs Max Rate (₹ per Quintal)</p>
+              <h3 className="font-bold text-white text-base">{m.spreadChartTitle || 'APMC Price Spread by Commodity'}</h3>
+              <p className="text-xs text-slate-400">{m.spreadChartSub || 'Min vs Modal vs Max Rate (₹ per Quintal)'}</p>
             </div>
             <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
               Live Mandi Rates
@@ -353,10 +355,10 @@ export default function MandiAnalyticsPage() {
           </div>
           <div>
             <h3 className="text-lg font-bold text-white">
-              Anti-Exploitation Price Corridor Simulator
+              {m.simTitle || 'Anti-Exploitation Price Corridor Simulator'}
             </h3>
             <p className="text-xs text-slate-400">
-              Evaluate buyer bids against UASD ICAR statutory fair-trade price boundaries in real time
+              {m.simSubtitle || 'Evaluate buyer bids against UASD ICAR statutory fair-trade price boundaries in real time'}
             </p>
           </div>
         </div>
@@ -364,16 +366,16 @@ export default function MandiAnalyticsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1.5">
-              Select Monitored Commodity
+              {m.selectCrop || 'Select Monitored Commodity'}
             </label>
             <select
               value={selectedCrop}
               onChange={(e) => setSelectedCrop(e.target.value)}
               className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500 capitalize"
             >
-              {mandiRates.map((m, idx) => (
-                <option key={idx} value={m.crop}>
-                  {m.crop} ({m.market})
+              {mandiRates.map((mItem, idx) => (
+                <option key={idx} value={mItem.crop}>
+                  {mItem.crop} ({mItem.market})
                 </option>
               ))}
             </select>
@@ -381,7 +383,7 @@ export default function MandiAnalyticsPage() {
 
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1.5">
-              Simulated Wholesaler Offer (₹ / qtl)
+              {m.simOffer || 'Simulated Wholesaler Offer (₹ / qtl)'}
             </label>
             <input
               type="number"
@@ -393,7 +395,7 @@ export default function MandiAnalyticsPage() {
 
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1.5">
-              Corridor Evaluation Result
+              {m.simResult || 'Corridor Evaluation Result'}
             </label>
             <div
               className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-bold ${
@@ -405,12 +407,12 @@ export default function MandiAnalyticsPage() {
               {isExploitative ? (
                 <>
                   <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400" />
-                  <span>Exploitative Bid! (&gt;10% below APMC modal)</span>
+                  <span>{m.exploitativeBid || 'Exploitative Bid! (>10% below APMC modal)'}</span>
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
-                  <span>Fair Price Corridor Approved (UASD Compliant)</span>
+                  <span>{m.approvedBid || 'Fair Price Corridor Approved (UASD Compliant)'}</span>
                 </>
               )}
             </div>
