@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import MarketplacePage from './pages/MarketplacePage';
@@ -7,9 +7,16 @@ import MandiAnalyticsPage from './pages/MandiAnalyticsPage';
 import OrdersEscrowPage from './pages/OrdersEscrowPage';
 import ComplianceAuditPage from './pages/ComplianceAuditPage';
 import SystemHealthPage from './pages/SystemHealthPage';
+import LoginPage from './pages/LoginPage';
 
 function DashboardContent() {
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('marketplace');
+
+  // Gatekeeper: If user is not authenticated, show direct Sign-In / Register Page first!
+  if (!currentUser) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">

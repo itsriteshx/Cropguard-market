@@ -178,13 +178,24 @@ export const AuthProvider = ({ children }) => {
     setActivePersona(DEMO_PERSONAS[0]);
   };
 
-  // Authenticate when persona switches
+  // Authenticate when persona switches or 1-click Viva login
   const switchPersona = async (persona) => {
-    // If switching persona, clear custom user
-    localStorage.removeItem('cropguard_web_user');
-    setCurrentUser(null);
-    setActivePersona(persona);
     setLoading(true);
+    const demoUser = {
+      _id: 'demo_' + persona.role.toLowerCase(),
+      name: persona.name,
+      role: persona.role,
+      badge: persona.badge,
+      district: persona.district,
+      phone: persona.phone,
+      isDemo: true,
+      initials: persona.initials || 'DM',
+    };
+
+    setCurrentUser(demoUser);
+    setActivePersona(persona);
+    localStorage.setItem('cropguard_web_user', JSON.stringify(demoUser));
+
     try {
       const data = await authService.login(persona.phone, persona.password);
       if (data && data.token) {
@@ -205,9 +216,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    if (!currentUser) {
-      switchPersona(DEMO_PERSONAS[0]);
-    } else {
+    // If a saved session exists, verify or keep active
+    if (currentUser) {
       setBackendOnline(true);
     }
   }, []);
