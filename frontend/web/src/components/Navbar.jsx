@@ -1,9 +1,24 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, Activity, Building2, UserCheck, ChevronDown, Sparkles, Globe, Check } from 'lucide-react';
+import { ShieldCheck, Activity, Building2, UserCheck, ChevronDown, Sparkles, Globe, Check, LogIn, LogOut, User } from 'lucide-react';
+import AuthModal from './AuthModal';
 
 export default function Navbar({ onTabChange, activeTab }) {
-  const { activePersona, switchPersona, personas, backendOnline, language, setLanguage, languages, t } = useAuth();
+  const {
+    activePersona,
+    switchPersona,
+    personas,
+    backendOnline,
+    language,
+    setLanguage,
+    languages,
+    t,
+    currentUser,
+    isCustomUser,
+    logout,
+    authModalOpen,
+    setAuthModalOpen
+  } = useAuth();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
 
   const activeLang = languages.find((l) => l.code === language) || languages[0];
@@ -126,49 +141,97 @@ export default function Navbar({ onTabChange, activeTab }) {
               <span className="md:hidden">{backendOnline ? 'Live' : 'Demo'}</span>
             </div>
 
-            {/* Persona Switcher Dropdown */}
-            <div className="relative group">
-              <button className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-left transition-colors">
-                <div className="w-7 h-7 rounded-lg bg-emerald-900/60 border border-emerald-600/50 flex items-center justify-center text-xs font-bold text-emerald-300">
-                  {activePersona.initials}
-                </div>
-                <div className="hidden md:block text-left">
-                  <div className="text-xs font-bold text-slate-200 line-clamp-1">{activePersona.name}</div>
-                  <div className="text-[10px] text-emerald-400 font-medium">{activePersona.badge}</div>
-                </div>
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              </button>
+            {/* Custom User Badge OR Persona Switcher */}
+            {isCustomUser && currentUser ? (
+              <div className="relative group">
+                <button className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 text-left transition-colors shadow-sm">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-xs font-bold text-white shadow">
+                    {(currentUser.name || 'U')[0].toUpperCase()}
+                  </div>
+                  <div className="hidden md:block text-left">
+                    <div className="text-xs font-bold text-white line-clamp-1">{currentUser.name}</div>
+                    <div className="text-[10px] text-emerald-400 font-semibold">{currentUser.role}</div>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                </button>
 
-              {/* Persona Menu */}
-              <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-2 hidden group-hover:block hover:block z-50">
-                <div className="px-3 py-2 text-[10px] uppercase font-bold tracking-wider text-slate-400 border-b border-slate-800">
-                  {n.switchRole || 'Switch Active Role Persona'}
-                </div>
-                {personas.map((persona) => (
+                {/* User Dropdown */}
+                <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-2 hidden group-hover:block hover:block z-50">
+                  <div className="px-3 py-2 border-b border-slate-800">
+                    <div className="text-xs font-bold text-white">{currentUser.name}</div>
+                    <div className="text-[11px] text-slate-400">{currentUser.phone}</div>
+                    <div className="inline-block mt-1 px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 text-[10px] font-bold border border-emerald-800">
+                      {currentUser.role} • Verified
+                    </div>
+                  </div>
                   <button
-                    key={persona.id}
-                    onClick={() => switchPersona(persona)}
-                    className={`w-full text-left p-2.5 rounded-xl mt-1 flex items-start gap-2.5 transition-colors ${
-                      activePersona.id === persona.id
-                        ? 'bg-emerald-950/60 border border-emerald-800/80 text-emerald-200'
-                        : 'hover:bg-slate-800/80 text-slate-300'
-                    }`}
+                    onClick={logout}
+                    className="w-full text-left p-2.5 rounded-xl mt-1 flex items-center gap-2 hover:bg-red-950/50 text-red-400 text-xs font-bold transition-colors"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
-                      {persona.initials}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold line-clamp-1">{persona.name}</div>
-                      <div className="text-[11px] text-slate-400">{persona.badge}</div>
-                      <div className="text-[10px] text-slate-500">{persona.district}</div>
-                    </div>
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
                   </button>
-                ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAuthModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-xs font-bold text-white shadow-md shadow-emerald-950 transition-all"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
+
+                {/* Persona Switcher Dropdown for Evaluators */}
+                <div className="relative group">
+                  <button className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-left transition-colors">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-900/60 border border-emerald-600/50 flex items-center justify-center text-xs font-bold text-emerald-300">
+                      {activePersona.initials}
+                    </div>
+                    <div className="hidden md:block text-left">
+                      <div className="text-xs font-bold text-slate-200 line-clamp-1">{activePersona.name}</div>
+                      <div className="text-[10px] text-emerald-400 font-medium">{activePersona.badge}</div>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  </button>
+
+                  {/* Persona Menu */}
+                  <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-2 hidden group-hover:block hover:block z-50">
+                    <div className="px-3 py-2 text-[10px] uppercase font-bold tracking-wider text-slate-400 border-b border-slate-800 flex justify-between items-center">
+                      <span>{n.switchRole || 'Switch Role Persona'}</span>
+                      <span className="text-[9px] text-emerald-400 font-mono">Viva Demo</span>
+                    </div>
+                    {personas.map((persona) => (
+                      <button
+                        key={persona.id}
+                        onClick={() => switchPersona(persona)}
+                        className={`w-full text-left p-2.5 rounded-xl mt-1 flex items-start gap-2.5 transition-colors ${
+                          activePersona.id === persona.id
+                            ? 'bg-emerald-950/60 border border-emerald-800/80 text-emerald-200'
+                            : 'hover:bg-slate-800/80 text-slate-300'
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+                          {persona.initials}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold line-clamp-1">{persona.name}</div>
+                          <div className="text-[11px] text-slate-400">{persona.badge}</div>
+                          <div className="text-[10px] text-slate-500">{persona.district}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
       {/* APMC Live Benchmark Ticker */}
       <div className="bg-slate-950 border-t border-slate-800/60 px-4 py-1.5 overflow-x-auto text-[11px] text-slate-400 flex items-center gap-6">
