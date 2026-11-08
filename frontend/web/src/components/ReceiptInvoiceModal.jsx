@@ -133,7 +133,15 @@ export default function ReceiptInvoiceModal({ order, onClose }) {
   const { matrix, size } = generateQrMatrix(receiptNumber + digitalHash);
 
   const handlePrint = () => {
-    window.print();
+    const originalTitle = document.title;
+    try {
+      document.title = `CropGuard-APMC-Invoice-${receiptNumber}`;
+      window.print();
+    } finally {
+      setTimeout(() => {
+        document.title = originalTitle;
+      }, 1000);
+    }
   };
 
   const handleDownloadSummary = () => {

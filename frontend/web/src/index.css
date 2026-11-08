@@ -78,3 +78,95 @@
   filter: blur(80px);
   pointer-events: none;
 }
+
+/* ==========================================================================
+   STATUTORY PRINT STYLESHEET (A4 Direct Mandi APMC Tax Invoice)
+   ========================================================================== */
+@page {
+  size: A4 portrait;
+  margin: 10mm 12mm 12mm 12mm;
+}
+
+@media print {
+  /* Hide full UI chrome and navigation elements */
+  nav,
+  aside,
+  header,
+  footer,
+  .print\\:hidden,
+  [role="dialog"] > div > div:first-child:not(#cropguard-printable-invoice) {
+    display: none !important;
+  }
+
+  /* Reset document and viewport for clean paper rendering */
+  html,
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #root,
+  main {
+    position: static !important;
+    overflow: visible !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Remove modal backdrops and fixed positioning during print */
+  .fixed.inset-0 {
+    position: static !important;
+    overflow: visible !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  /* Printable invoice page styling */
+  #cropguard-printable-invoice {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  #cropguard-printable-invoice * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Avoid broken page breaks inside cards and tables */
+  #cropguard-printable-invoice tr,
+  #cropguard-printable-invoice table,
+  #cropguard-printable-invoice .grid > div,
+  #cropguard-printable-invoice .p-4,
+  #cropguard-printable-invoice .rounded-2xl {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Crisp monochrome borders for paper ink economy */
+  #cropguard-printable-invoice .border,
+  #cropguard-printable-invoice .border-b,
+  #cropguard-printable-invoice .border-t,
+  #cropguard-printable-invoice td,
+  #cropguard-printable-invoice th {
+    border-color: #cbd5e1 !important;
+  }
+}
