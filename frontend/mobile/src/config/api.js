@@ -56,7 +56,14 @@ export const apiRequest = async (endpoint, options = {}, token = null) => {
   try {
     const res = await fetch(url, { ...options, headers, signal: controller.signal });
     clearTimeout(timeoutId);
-    const data = await res.json();
+    let data;
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      data = { success: false, message: text || `HTTP error ${res.status}` };
+    }
     return { ...data, httpStatus: res.status };
   } catch (error) {
     clearTimeout(timeoutId);

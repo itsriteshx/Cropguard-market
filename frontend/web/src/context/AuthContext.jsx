@@ -178,7 +178,7 @@ export const AuthProvider = ({ children }) => {
     setActivePersona(DEMO_PERSONAS[0]);
   };
 
-  // Authenticate when persona switches or 1-click Viva login
+  // Authenticate when switching user profile session
   const switchPersona = async (persona) => {
     setLoading(true);
     const demoUser = {
@@ -216,10 +216,35 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    // If a saved session exists, verify or keep active
-    if (currentUser) {
-      setBackendOnline(true);
-    }
+    // Listen for 401 unauthorized signals from API interceptor
+    const handleAuthExpired = () => {
+      logout();
+    };
+    window.addEventListener('cropguard_auth_expired', handleAuthExpired);
+
+    // Verify saved session against backend on boot
+    const verifySavedSession = async () => {
+      const savedToken = localStorage.getItem('cropguard_web_token');
+      if (!savedToken) {
+        setBackendOnline(true);
+        return;
+      }
+      try {
+        const res = await authService.getMe();
+        if (res && res.user) {
+          setCurrentUser(res.user);
+          localStorage.setItem('cropguard_web_user', JSON.stringify(res.user));
+          setBackendOnline(true);
+        }
+      } catch (err) {
+        if (err.response?.status === 401) {
+          logout();
+        }
+      }
+    };
+    verifySavedSession();
+
+    return () => window.removeEventListener('cropguard_auth_expired', handleAuthExpired);
   }, []);
 
   return (

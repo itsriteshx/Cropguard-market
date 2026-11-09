@@ -8,17 +8,61 @@ const AuthContext = createContext();
 const SESSION_KEY = 'cropguard_session_token';
 const USER_KEY = 'cropguard_user_profile';
 
-// Browser storage is scoped to the current tab; native tokens use encrypted storage.
+// Safe storage adapter with cross-platform fallback
 const sessionStore = {
-  get: () => Platform.OS === 'web' ? Promise.resolve(sessionStorage.getItem(SESSION_KEY)) : SecureStore.getItemAsync(SESSION_KEY),
-  set: (value) => Platform.OS === 'web' ? Promise.resolve(sessionStorage.setItem(SESSION_KEY, value)) : SecureStore.setItemAsync(SESSION_KEY, value),
-  remove: () => Platform.OS === 'web' ? Promise.resolve(sessionStorage.removeItem(SESSION_KEY)) : SecureStore.deleteItemAsync(SESSION_KEY)
+  get: async () => {
+    try {
+      return Platform.OS === 'web' ? sessionStorage.getItem(SESSION_KEY) : await SecureStore.getItemAsync(SESSION_KEY);
+    } catch (e) {
+      return null;
+    }
+  },
+  set: async (value) => {
+    try {
+      if (Platform.OS === 'web') {
+        sessionStorage.setItem(SESSION_KEY, value);
+      } else {
+        await SecureStore.setItemAsync(SESSION_KEY, value);
+      }
+    } catch (e) {}
+  },
+  remove: async () => {
+    try {
+      if (Platform.OS === 'web') {
+        sessionStorage.removeItem(SESSION_KEY);
+      } else {
+        await SecureStore.deleteItemAsync(SESSION_KEY);
+      }
+    } catch (e) {}
+  }
 };
 
 const userStore = {
-  get: () => Platform.OS === 'web' ? Promise.resolve(sessionStorage.getItem(USER_KEY)) : SecureStore.getItemAsync(USER_KEY),
-  set: (value) => Platform.OS === 'web' ? Promise.resolve(sessionStorage.setItem(USER_KEY, value)) : SecureStore.setItemAsync(USER_KEY, value),
-  remove: () => Platform.OS === 'web' ? Promise.resolve(sessionStorage.removeItem(USER_KEY)) : SecureStore.deleteItemAsync(USER_KEY)
+  get: async () => {
+    try {
+      return Platform.OS === 'web' ? sessionStorage.getItem(USER_KEY) : await SecureStore.getItemAsync(USER_KEY);
+    } catch (e) {
+      return null;
+    }
+  },
+  set: async (value) => {
+    try {
+      if (Platform.OS === 'web') {
+        sessionStorage.setItem(USER_KEY, value);
+      } else {
+        await SecureStore.setItemAsync(USER_KEY, value);
+      }
+    } catch (e) {}
+  },
+  remove: async () => {
+    try {
+      if (Platform.OS === 'web') {
+        sessionStorage.removeItem(USER_KEY);
+      } else {
+        await SecureStore.deleteItemAsync(USER_KEY);
+      }
+    } catch (e) {}
+  }
 };
 
 export const SUPPORTED_LANGUAGES = [

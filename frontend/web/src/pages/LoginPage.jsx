@@ -29,13 +29,24 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  const handlePhoneChange = (val) => {
+    let clean = val.replace(/\D/g, '');
+    if (clean.length === 12 && clean.startsWith('91')) clean = clean.slice(2);
+    if (clean.length === 11 && clean.startsWith('0')) clean = clean.slice(1);
+    if (clean.length > 10) clean = clean.slice(0, 10);
+    setPhone(clean);
+    if (error) setError('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
-    if (!/^[6-9]\d{9}$/.test(phone.trim())) {
-      setError('Please provide a valid 10-digit Indian mobile number.');
+    const cleanPhone = phone.replace(/\D/g, '').replace(/^91/, '').replace(/^0/, '');
+
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setError('Please provide a valid 10-digit Indian mobile number (e.g. 9876543210).');
       return;
     }
     if (password.length < 6) {
@@ -51,7 +62,7 @@ export default function LoginPage() {
 
       const res = await register({
         name: name.trim(),
-        phone: phone.trim(),
+        phone: cleanPhone,
         password,
         role,
         location: {
@@ -67,7 +78,7 @@ export default function LoginPage() {
         setError(res.message || 'Registration failed. Please try again.');
       }
     } else {
-      const res = await login(phone.trim(), password);
+      const res = await login(cleanPhone, password);
       if (res.success) {
         setSuccessMsg(`Signed in as ${res.user?.name || 'User'}! Redirecting...`);
       } else {
@@ -252,10 +263,10 @@ export default function LoginPage() {
                   <input
                     type="tel"
                     required
-                    maxLength={10}
+                    maxLength={16}
                     placeholder="10-digit Indian mobile (e.g. 8340476122)"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
                     className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl text-white text-xs font-mono outline-none transition-colors"
                   />
                 </div>

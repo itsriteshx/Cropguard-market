@@ -28,16 +28,27 @@ export default function AuthScreen() {
   const [role, setRole] = useState('FARMER');
   const [error, setError] = useState('');
 
+  const handlePhoneChange = (text) => {
+    let clean = text.replace(/\D/g, '');
+    if (clean.length === 12 && clean.startsWith('91')) clean = clean.slice(2);
+    if (clean.length === 11 && clean.startsWith('0')) clean = clean.slice(1);
+    if (clean.length > 10) clean = clean.slice(0, 10);
+    setPhone(clean);
+    if (error) setError('');
+  };
+
   const submit = async () => {
     if (loading) return;
     if (register && !name.trim()) return setError('Please enter your full name.');
-    if (!/^[6-9]\d{9}$/.test(phone.trim())) return setError('Enter a valid 10-digit Indian mobile number.');
+
+    const cleanPhone = phone.replace(/\D/g, '').replace(/^91/, '').replace(/^0/, '');
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) return setError('Enter a valid 10-digit Indian mobile number (e.g. 9876543210).');
     if (password.length < 6) return setError('Password must have at least 6 characters.');
     setError('');
 
     const fields = register
-      ? { name: name.trim(), phone: phone.trim(), password, role }
-      : { phone: phone.trim(), password };
+      ? { name: name.trim(), phone: cleanPhone, password, role }
+      : { phone: cleanPhone, password };
 
     const result = await authenticate(register ? 'register' : 'login', fields);
     if (!result.success) {
@@ -89,12 +100,12 @@ export default function AuthScreen() {
               <Text style={styles.label}>Mobile Number</Text>
               <TextInput
                 style={styles.input}
-                placeholder="10-digit mobile number"
+                placeholder="10-digit mobile (e.g. 9876543210)"
                 placeholderTextColor="#64748b"
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={handlePhoneChange}
                 keyboardType="phone-pad"
-                maxLength={10}
+                maxLength={16}
                 autoComplete="tel"
               />
             </View>

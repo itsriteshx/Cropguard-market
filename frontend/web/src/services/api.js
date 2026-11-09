@@ -24,8 +24,20 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    const status = error.response?.status;
+    const url = error.config?.url || '';
     const message = error.response?.data?.message || error.message || 'API Request Failed';
     console.warn('[CropGuard API Warning]:', message);
+
+    // If token is invalid or expired on protected routes, auto-clear stale auth state
+    if (status === 401 && !url.includes('/auth/login') && !url.includes('/auth/register')) {
+      localStorage.removeItem('cropguard_web_token');
+      localStorage.removeItem('cropguard_web_user');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('cropguard_auth_expired', { detail: { message } }));
+      }
+    }
+
     return Promise.reject(error);
   }
 );

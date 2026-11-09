@@ -2,6 +2,22 @@ const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 
 /**
+ * Normalizes Indian mobile number by removing non-digits, country code (+91/91),
+ * and leading zero to yield a consistent 10-digit format.
+ */
+const sanitizePhone = (val) => {
+  if (!val) return '';
+  let cleaned = String(val).trim().replace(/\D/g, '');
+  if (cleaned.length === 12 && cleaned.startsWith('91')) {
+    cleaned = cleaned.slice(2);
+  }
+  if (cleaned.length === 11 && cleaned.startsWith('0')) {
+    cleaned = cleaned.slice(1);
+  }
+  return cleaned;
+};
+
+/**
  * @desc    Register a new user (Farmer, Retail Buyer, Wholesale Buyer)
  * @route   POST /api/auth/register
  * @access  Public
@@ -18,11 +34,14 @@ const register = async (req, res, next) => {
       location
     } = req.body;
 
+    const cleanPhone = sanitizePhone(phone);
+    const cleanEmail = email && typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : undefined;
+
     // Validate required fields
-    if (!name || !phone || !password) {
+    if (!name || !cleanPhone || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide name, phone number, and password'
+        message: 'Please provide name, valid phone number, and password'
       });
     }
 
@@ -33,7 +52,7 @@ const register = async (req, res, next) => {
     }
 
     // Check if phone number already registered
-    const existingPhone = await User.findOne({ phone });
+    const existingPhone = await User.findOne({ phone: cleanPhone });
     if (existingPhone) {
       return res.status(400).json({
         success: false,
@@ -42,8 +61,8 @@ const register = async (req, res, next) => {
     }
 
     // Check if email already registered (if email is provided)
-    if (email) {
-      const existingEmail = await User.findOne({ email });
+    if (cleanEmail) {
+      const existingEmail = await User.findOne({ email: cleanEmail });
       if (existingEmail) {
         return res.status(400).json({
           success: false,
@@ -54,9 +73,9 @@ const register = async (req, res, next) => {
 
     // Create user
     const user = await User.create({
-      name,
-      phone,
-      email,
+      name: name.trim(),
+      phone: cleanPhone,
+      email: cleanEmail,
       password,
       role: role || 'FARMER',
       languagePreference: languagePreference || 'en',
@@ -99,9 +118,11 @@ const login = async (req, res, next) => {
   try {
     const { phone, email, password } = req.body;
 
+    const cleanPhone = phone ? sanitizePhone(phone) : '';
+    const cleanEmail = email && typeof email === 'string' ? email.trim().toLowerCase() : '';
+
     // Must provide either phone or email, and password
-    const identifier = phone || email;
-    if (!identifier || !password) {
+    if ((!cleanPhone && !cleanEmail) || !password) {
       return res.status(400).json({
         success: false,
         message: 'Please provide phone number (or email) and password'
@@ -109,7 +130,7 @@ const login = async (req, res, next) => {
     }
 
     // Find user by phone or email and include password for check
-    const query = phone ? { phone } : { email };
+    const query = cleanPhone ? { phone: cleanPhone } : { email: cleanEmail };
     const user = await User.findOne(query).select('+password');
 
     if (!user) {

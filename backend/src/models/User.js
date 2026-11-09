@@ -1,6 +1,19 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+// Helper: normalize Indian phone number
+const sanitizePhone = (val) => {
+  if (!val) return '';
+  let cleaned = String(val).trim().replace(/\D/g, '');
+  if (cleaned.length === 12 && cleaned.startsWith('91')) {
+    cleaned = cleaned.slice(2);
+  }
+  if (cleaned.length === 11 && cleaned.startsWith('0')) {
+    cleaned = cleaned.slice(1);
+  }
+  return cleaned;
+};
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -14,6 +27,7 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Please provide a phone number'],
       unique: true,
       trim: true,
+      set: sanitizePhone,
       match: [/^[6-9]\d{9}$/, 'Please provide a valid 10-digit Indian mobile number']
     },
     email: {
@@ -21,6 +35,7 @@ const userSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
       sparse: true,
+      set: (val) => (val && typeof val === 'string' && val.trim() ? val.trim().toLowerCase() : undefined),
       match: [
         /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
         'Please provide a valid email address'
