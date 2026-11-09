@@ -21,8 +21,8 @@ const { width } = Dimensions.get('window');
 
 // High-resolution agricultural crop photography mapper (Exact same as Web)
 const getCropImage = (cropName = '', category = '', customImages = []) => {
-  if (customImages && customImages.length > 0 && typeof customImages[0] === 'string' && customImages[0].startsWith('http')) {
-    return customImages[0];
+  if (customImages && customImages.length > 0 && typeof customImages[0] === 'string') {
+    return resolveMediaUrl(customImages[0]);
   }
   const name = (cropName || '').toLowerCase();
   if (name.includes('onion')) {
@@ -61,216 +61,27 @@ const getCropImage = (cropName = '', category = '', customImages = []) => {
   return 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80';
 };
 
-// 8 UASD Mandi Certified Lots (Exact match with Web)
-const DEFAULT_FALLBACK_LISTINGS = [
-  {
-    _id: 'lot_03_tomato',
-    cropName: 'Roma Plum Tomatoes',
-    category: 'Vegetables',
-    quantity: 85,
-    unit: 'Quintal',
-    pricePerUnit: 1950,
-    expectedPrice: 1950,
-    benchmarkRate: 1850,
-    qualityGrade: 'Processing Grade A',
-    organicCertified: false,
-    harvestDate: '2026-11-03',
-    moistureContent: '89.0%',
-    description: 'Firm texture Roma plum tomatoes ideal for ketchup, puree processing, and cold chain dispatch.',
-    farmer: {
-      name: 'Mallikarjun Gaddi',
-      phone: '9448123987',
-      district: 'Belagavi',
-      fpo: 'Bailhongal Agro Producers Org',
-      isVerified: true
-    },
-    location: { village: 'Bailhongal', district: 'Belagavi', state: 'Karnataka' },
-    distanceKm: 42.0
-  },
-  {
-    _id: 'lot_04_chilli',
-    cropName: 'Byadagi Stemless Chilli',
-    category: 'Spices',
-    quantity: 45,
-    unit: 'Quintal',
-    pricePerUnit: 18500,
-    expectedPrice: 18500,
-    benchmarkRate: 17800,
-    qualityGrade: 'GI Tagged Export Grade',
-    organicCertified: true,
-    harvestDate: '2026-10-18',
-    moistureContent: '8.5%',
-    description: 'Authentic GI Tagged Byadagi chilli, high ASTA color index (150+), low pungency, deep ruby sheen.',
-    farmer: {
-      name: 'Suresh Nayak',
-      phone: '9900112233',
-      district: 'Haveri',
-      fpo: 'Byadagi Spice Growers Collective',
-      isVerified: true
-    },
-    location: { village: 'Byadagi APMC', district: 'Haveri', state: 'Karnataka' },
-    distanceKm: 68.5
-  },
-  {
-    _id: 'lot_01_onion',
-    cropName: 'Red Onion (Garva Special)',
-    category: 'Vegetables',
-    quantity: 120,
-    unit: 'Quintal',
-    pricePerUnit: 2450,
-    expectedPrice: 2450,
-    benchmarkRate: 2350,
-    qualityGrade: 'Organic Grade A',
-    organicCertified: true,
-    harvestDate: '2026-10-25',
-    moistureContent: '11.4%',
-    description: 'Certified organic winter onion harvest, zero chemical curing, high shelf life for long haul storage.',
-    farmer: {
-      name: 'Ramesh Patil',
-      phone: '9845112233',
-      district: 'Dharwad',
-      fpo: 'Malaprabha Farmers Producer Co.',
-      isVerified: true
-    },
-    location: { village: 'Navalgund Taluk', district: 'Dharwad', state: 'Karnataka' },
-    distanceKm: 18.4
-  },
-  {
-    _id: 'lot_02_wheat',
-    cropName: 'Sharbati Golden Wheat',
-    category: 'Grains',
-    quantity: 250,
-    unit: 'Quintal',
-    pricePerUnit: 2800,
-    expectedPrice: 2800,
-    benchmarkRate: 2710,
-    qualityGrade: 'Grade A - Certified',
-    organicCertified: false,
-    harvestDate: '2026-10-22',
-    moistureContent: '10.2%',
-    description: 'Golden luster Sharbati grain with 13.5% natural protein content, UASD certified seed protocol.',
-    farmer: {
-      name: 'Basavaraj Pujar',
-      phone: '9845012345',
-      district: 'Hubballi',
-      fpo: 'Kundgol Grain Producers Union',
-      isVerified: true
-    },
-    location: { village: 'Kundgol', district: 'Hubballi', state: 'Karnataka' },
-    distanceKm: 26.2
-  },
-  {
-    _id: 'lot_05_soybean',
-    cropName: 'Yellow Soybean (JS-335)',
-    category: 'Oilseeds',
-    quantity: 180,
-    unit: 'Quintal',
-    pricePerUnit: 4650,
-    expectedPrice: 4650,
-    benchmarkRate: 4520,
-    qualityGrade: 'Premium Oil Extraction',
-    organicCertified: false,
-    harvestDate: '2026-10-28',
-    moistureContent: '9.8%',
-    description: 'High oil yield (20.5%) yellow soybean lot, machine cleaned and destoned, zero foreign dockage.',
-    farmer: {
-      name: 'Ningappa Biradar',
-      phone: '9880554433',
-      district: 'Kalaburagi',
-      fpo: 'Aland Taluk Oilseed FPO',
-      isVerified: true
-    },
-    location: { village: 'Aland Taluk', district: 'Kalaburagi', state: 'Karnataka' },
-    distanceKm: 95.0
-  },
-  {
-    _id: 'lot_06_turmeric',
-    cropName: 'Salem Golden Turmeric',
-    category: 'Spices',
-    quantity: 60,
-    unit: 'Quintal',
-    pricePerUnit: 12400,
-    expectedPrice: 12400,
-    benchmarkRate: 11900,
-    qualityGrade: 'Curcumin 4.2%',
-    organicCertified: true,
-    harvestDate: '2026-10-15',
-    moistureContent: '9.0%',
-    description: 'Sun dried organic turmeric fingers, lab verified 4.2% bioactive curcumin, pesticide residue free.',
-    farmer: {
-      name: 'Chennappa Gowda',
-      phone: '9740223344',
-      district: 'Chamarajanagar',
-      fpo: 'Gundlupet Organic Spices Trust',
-      isVerified: true
-    },
-    location: { village: 'Gundlupet', district: 'Chamarajanagar', state: 'Karnataka' },
-    distanceKm: 120.0
-  },
-  {
-    _id: 'lot_07_capsicum',
-    cropName: 'Shimla Green Bell Peppers',
-    category: 'Vegetables',
-    quantity: 75,
-    unit: 'Quintal',
-    pricePerUnit: 3200,
-    expectedPrice: 3200,
-    benchmarkRate: 3050,
-    qualityGrade: 'Polyhouse Crisp Grade A',
-    organicCertified: false,
-    harvestDate: '2026-11-04',
-    moistureContent: '92.5%',
-    description: 'Naturally ventilated polyhouse harvest, thick walled vibrant green peppers, graded for bulk shelves.',
-    farmer: {
-      name: 'Anand Kulkarni',
-      phone: '9611223344',
-      district: 'Hassan',
-      fpo: 'Malnad Protected Cultivation FPO',
-      isVerified: true
-    },
-    location: { village: 'Sakleshpur', district: 'Hassan', state: 'Karnataka' },
-    distanceKm: 54.0
-  },
-  {
-    _id: 'lot_08_lemon',
-    cropName: 'Kagzi Seedless Lemons',
-    category: 'Fruits',
-    quantity: 90,
-    unit: 'Quintal',
-    pricePerUnit: 3800,
-    expectedPrice: 3800,
-    benchmarkRate: 3650,
-    qualityGrade: 'Export Grade Citrus',
-    organicCertified: true,
-    harvestDate: '2026-11-02',
-    moistureContent: '88.0%',
-    description: 'Thin skinned high juice yield Kagzi lemons, hand picked and wax coated for extended wholesale shelf life.',
-    farmer: {
-      name: 'Jagadish Hiremath',
-      phone: '9480112233',
-      district: 'Vijayapura',
-      fpo: 'Krishna Basin Citrus Collective',
-      isVerified: true
-    },
-    location: { village: 'Sindagi', district: 'Vijayapura', state: 'Karnataka' },
-    distanceKm: 82.0
-  }
-];
-
 const CATEGORIES = [
   { key: 'ALL', label: 'All Crops', icon: '🌾' },
   { key: 'Vegetables', label: 'Vegetables', icon: '🥬' },
   { key: 'Grains', label: 'Grains', icon: '🌾' },
   { key: 'Spices', label: 'Spices', icon: '🌶️' },
   { key: 'Oilseeds', label: 'Oilseeds', icon: '🌻' },
-  { key: 'Fruits', label: 'Fruits', icon: '🍎' }
+  { key: 'Fruits', label: 'Fruits', icon: '🍎' },
+  { key: 'Pulses', label: 'Pulses', icon: '🫘' },
+  { key: 'Other', label: 'Other', icon: '🌱' }
 ];
 
 export default function MarketplaceScreen({ onNavigateToNegotiations }) {
   const { t, token, user, role } = useAuth();
 
-  const [listings, setListings] = useState(DEFAULT_FALLBACK_LISTINGS);
-  const [loading, setLoading] = useState(false);
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(0);
+  const requestId = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -290,48 +101,32 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
   }, [searchQuery]);
 
   useEffect(() => {
-    fetchListings();
+    fetchListings(1);
+    return () => { requestId.current += 1; };
   }, [selectedCategory, debouncedSearch]);
 
-  const fetchListings = async (refresh = false) => {
-    if (refresh) setRefreshing(true);
-    try {
-      const params = [`status=AVAILABLE`];
-      if (selectedCategory !== 'ALL') params.push(`category=${encodeURIComponent(selectedCategory)}`);
-      if (debouncedSearch) params.push(`search=${encodeURIComponent(debouncedSearch)}`);
-      const res = await apiRequest(`/listings?${params.join('&')}`);
-
-      if (res && res.success && Array.isArray(res.listings) && res.listings.length > 0) {
-        setListings(res.listings);
-      } else {
-        // Filter fallback listings by category and search
-        let filtered = DEFAULT_FALLBACK_LISTINGS;
-        if (selectedCategory !== 'ALL') {
-          filtered = filtered.filter(
-            (item) => (item.category || '').toLowerCase() === selectedCategory.toLowerCase()
-          );
-        }
-        if (debouncedSearch) {
-          const q = debouncedSearch.toLowerCase();
-          filtered = filtered.filter(
-            (item) =>
-              (item.cropName || '').toLowerCase().includes(q) ||
-              (item.description || '').toLowerCase().includes(q) ||
-              (item.location?.district || '').toLowerCase().includes(q)
-          );
-        }
-        setListings(filtered);
-      }
-    } catch (e) {
-      // Offline fallback
-      setListings(DEFAULT_FALLBACK_LISTINGS);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const fetchListings = async (nextPage = 1, refresh = false) => {
+    const id = ++requestId.current;
+    if (nextPage > 1) setLoadingMore(true);
+    else if (refresh) setRefreshing(true);
+    else setLoading(true);
+    setLoadError('');
+    const params = ['status=AVAILABLE', `page=${nextPage}`, 'limit=10'];
+    if (selectedCategory !== 'ALL') params.push(`category=${encodeURIComponent(selectedCategory)}`);
+    if (debouncedSearch) params.push(`search=${encodeURIComponent(debouncedSearch)}`);
+    const res = await apiRequest(`/listings?${params.join('&')}`);
+    if (id !== requestId.current) return;
+    if (res.success && Array.isArray(res.listings)) {
+      setListings((prev) => nextPage === 1 ? res.listings : [...prev, ...res.listings.filter((item) => !prev.some((old) => old._id === item._id))]);
+      setPage(res.page); setPages(res.pages);
+    } else {
+      if (nextPage === 1) setListings([]);
+      setLoadError(res.message || 'Could not load listings.');
     }
+    setLoading(false); setLoadingMore(false); setRefreshing(false);
   };
 
-  const onRefresh = () => fetchListings(true);
+  const onRefresh = () => fetchListings(1, true);
 
   const handleOpenOfferModal = (listing) => {
     setSelectedListing(listing);
@@ -345,11 +140,11 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
     const price = Number(offerPrice);
     const quantity = Number(offerQuantity);
     if (!offerPrice.trim() || !Number.isFinite(price) || price < 0.1) {
-      Alert.alert('Invalid Price', 'Enter a valid price in ₹ per quintal.');
+      Alert.alert('Invalid Price', 'Enter a price of at least ₹0.10 per selected unit.');
       return;
     }
     if (!offerQuantity.trim() || !Number.isFinite(quantity) || quantity < 1 || quantity > selectedListing.quantity) {
-      Alert.alert('Invalid Quantity', `Enter a quantity between 1 and ${selectedListing.quantity} ${selectedListing.unit || 'Quintal'}.`);
+      Alert.alert('Invalid Quantity', `Enter a quantity between 1 and ${selectedListing.quantity} ${selectedListing.unit || 'unit'}.`);
       return;
     }
 
@@ -371,8 +166,8 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
     setSubmittingOffer(false);
     if (res && res.success) {
       Alert.alert(
-        'Offer Locked into Escrow! 🎉',
-        `Contract offer of ₹${offerPrice}/${selectedListing.unit || 'Quintal'} for ${offerQuantity} ${selectedListing.unit || 'Quintal'} sent to ${selectedListing.farmer?.name || 'Farmer'}.`,
+        'Offer sent',
+        `Offer of ₹${offerPrice}/${selectedListing.unit || 'unit'} for ${offerQuantity} ${selectedListing.unit || 'unit'} sent to ${selectedListing.farmer?.name || 'Farmer'}.`,
         [
           {
             text: 'View in Bargaining Room',
@@ -385,12 +180,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
         ]
       );
     } else {
-      // Demo simulated success if listing is local fallback
-      Alert.alert(
-        'Escrow Contract Created! 🤝',
-        `APMC statutory order draft generated for ₹${(price * quantity).toLocaleString('en-IN')}. Zero broker commission applied.`,
-        [{ text: 'Great!', onPress: () => setSelectedListing(null) }]
-      );
+      Alert.alert('Offer not sent', res?.message || 'Please check your connection and try again.');
     }
   };
 
@@ -400,7 +190,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
       <View style={styles.corridorBar}>
         <View style={styles.livePulseDot} />
         <Text style={styles.corridorBarText}>
-          UASD Mandi Corridor: Onion ₹2,450/qtl • Wheat ₹2,800/qtl • Tomato ₹1,950/qtl
+          Browse produce listed by farmers
         </Text>
       </View>
 
@@ -446,10 +236,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
   const renderListingCard = ({ item }) => {
     const isOwner = user && item.farmer && String(item.farmer._id) === String(user._id);
     const imageUrl = getCropImage(item.cropName, item.category, item.images);
-    const price = item.expectedPrice || item.pricePerUnit || 2400;
-    const benchmark = item.benchmarkRate || Math.round(price * 0.95);
-    const mspDiff = price - benchmark;
-    const distance = item.distanceKm || 38;
+    const price = item.pricePerUnit ?? item.expectedPrice ?? 0;
 
     const initial = (item.farmer?.name || 'F')[0].toUpperCase();
 
@@ -463,6 +250,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
             resizeMode="cover"
           />
           <View style={styles.imageScrim} />
+          {!item.images?.length && <Text style={{ color: '#fff', position: 'absolute', right: 8, bottom: 8, backgroundColor: '#0f172a', padding: 4, fontSize: 10 }}>Illustrative image</Text>}
 
           {/* Top Badges */}
           <View style={styles.imageTopRow}>
@@ -472,11 +260,11 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 
             {item.organicCertified ? (
               <View style={styles.organicBadge}>
-                <Text style={styles.organicBadgeText}>🌿 Certified Organic</Text>
+                <Text style={styles.organicBadgeText}>🌿 Organic (farmer listed)</Text>
               </View>
             ) : (
               <View style={styles.qualityBadge}>
-                <Text style={styles.qualityBadgeText}>⭐ {item.qualityGrade || 'Processing Grade'}</Text>
+                <Text style={styles.qualityBadgeText}>⭐ {item.qualityGrade || 'Not provided'}</Text>
               </View>
             )}
           </View>
@@ -485,12 +273,10 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
           <View style={styles.imageBottomRow}>
             <View style={styles.dateBadge}>
               <Text style={styles.dateBadgeText}>
-                📅 {item.harvestDate ? new Date(item.harvestDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Live'}
+                📅 {item.harvestDate ? new Date(item.harvestDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Date not provided'}
               </Text>
             </View>
-            <View style={styles.distanceBadge}>
-              <Text style={styles.distanceBadgeText}>📍 {distance} km away</Text>
-            </View>
+
           </View>
         </View>
 
@@ -503,7 +289,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 
           {/* Subtitle / Description */}
           <Text style={styles.cropDescription} numberOfLines={2}>
-            {item.description || 'Verified bulk harvest lot direct from Karnataka APMC accredited FPO corridor.'}
+            {item.description || 'No description provided.'}
           </Text>
 
           {/* Farmer Info Pill with Specs Button */}
@@ -514,10 +300,10 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
               </View>
               <View>
                 <Text style={styles.farmerNameText} numberOfLines={1}>
-                  {item.farmer?.name || 'Patil Farmer'}
+                  {item.farmer?.name || 'Unknown farmer'}
                 </Text>
                 <Text style={styles.farmerLocationText}>
-                  📍 {item.location?.village || item.farmer?.district || 'Dharwad'}, {item.location?.state || 'KA'}
+                  📍 {[item.location?.village, item.location?.district, item.location?.state].filter(Boolean).join(', ') || 'Location not provided'}
                 </Text>
               </View>
             </View>
@@ -536,7 +322,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
             <View style={styles.metricColumn}>
               <Text style={styles.metricSmallLabel}>LOT SIZE</Text>
               <Text style={styles.metricBigQty}>
-                {item.quantity} <Text style={{ fontSize: 11, color: '#94a3b8' }}>{item.unit || 'Quintal'}</Text>
+                {item.quantity} <Text style={{ fontSize: 11, color: '#94a3b8' }}>{item.unit || 'unit'}</Text>
               </Text>
               <View style={styles.lotIndicator} />
             </View>
@@ -546,11 +332,9 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
               <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
                 <Text style={styles.currencySign}>₹</Text>
                 <Text style={styles.priceValueText}>{price.toLocaleString('en-IN')}</Text>
-                <Text style={styles.priceUnitText}> / qtl</Text>
+                <Text style={styles.priceUnitText}> / {item.unit || 'unit'}</Text>
               </View>
-              <Text style={styles.mspText}>
-                {mspDiff >= 0 ? `+₹${mspDiff} vs Mandi MSP` : 'Benchmarked APMC'}
-              </Text>
+
             </View>
           </View>
 
@@ -560,21 +344,13 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
               <View style={styles.ownerPill}>
                 <Text style={styles.ownerPillText}>🌾 Your Active Harvest Listing</Text>
               </View>
-            ) : !['BUYER_RETAIL', 'BUYER_WHOLESALE'].includes(role) ? (
+            ) : !['BUYER_RETAIL', 'BUYER_WHOLESALE'].includes(role) ? null : (
               <TouchableOpacity
                 style={styles.offerButton}
                 onPress={() => handleOpenOfferModal(item)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.offerButtonText}>🤝 Deposit & Lock Escrow</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.offerButton}
-                onPress={() => handleOpenOfferModal(item)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.offerButtonText}>🤝 Make Counter Offer</Text>
+                <Text style={styles.offerButtonText}>🤝 Make offer</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -590,6 +366,8 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
         keyExtractor={(item) => item._id}
         renderItem={renderListingCard}
         ListHeaderComponent={renderHeader}
+        ListEmptyComponent={<Text style={{ color: '#cbd5e1', textAlign: 'center', padding: 20 }}>{loading ? 'Loading listings…' : loadError ? 'Could not load listings.' : 'No listings found.'}</Text>}
+        ListFooterComponent={<View style={{ padding: 18, alignItems: 'center', gap: 8 }}>{!!loadError && <Text style={{ color: '#fca5a5' }}>{loadError}</Text>}{(loadError || page < pages) && <TouchableOpacity style={styles.offerButton} disabled={loadingMore} onPress={() => fetchListings(loadError && listings.length === 0 ? 1 : page + 1)}><Text style={styles.offerButtonText}>{loadingMore ? 'Loading…' : loadError ? 'Try again' : 'Load more'}</Text></TouchableOpacity>}</View>}
         contentContainerStyle={styles.listPadding}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -631,30 +409,30 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
                 </View>
                 <View style={styles.specRow}>
                   <Text style={styles.specTitle}>Quality Grade:</Text>
-                  <Text style={styles.specValue}>{listingDetails?.qualityGrade || 'Grade A Certified'}</Text>
+                  <Text style={styles.specValue}>{listingDetails?.qualityGrade || 'Not provided'}</Text>
                 </View>
                 <View style={styles.specRow}>
                   <Text style={styles.specTitle}>Available Quantity:</Text>
-                  <Text style={styles.specValue}>{listingDetails?.quantity} {listingDetails?.unit || 'Quintal'}</Text>
+                  <Text style={styles.specValue}>{listingDetails?.quantity} {listingDetails?.unit || 'unit'}</Text>
                 </View>
                 <View style={styles.specRow}>
                   <Text style={styles.specTitle}>Asking Rate:</Text>
                   <Text style={[styles.specValue, { color: '#34d399', fontWeight: '800' }]}>
-                    ₹{(listingDetails?.expectedPrice || listingDetails?.pricePerUnit || 0).toLocaleString('en-IN')} / Quintal
+                    ₹{(listingDetails?.expectedPrice || listingDetails?.pricePerUnit || 0).toLocaleString('en-IN')} / {listingDetails?.unit || 'unit'}
                   </Text>
                 </View>
                 <View style={styles.specRow}>
                   <Text style={styles.specTitle}>Moisture Content:</Text>
-                  <Text style={styles.specValue}>{listingDetails?.moistureContent || '10.5%'}</Text>
+                  <Text style={styles.specValue}>{listingDetails?.moistureContent || 'Not provided'}</Text>
                 </View>
                 <View style={styles.specRow}>
                   <Text style={styles.specTitle}>FPO / Producer:</Text>
-                  <Text style={styles.specValue}>{listingDetails?.farmer?.fpo || listingDetails?.farmer?.name || 'UASD FPO'}</Text>
+                  <Text style={styles.specValue}>{listingDetails?.farmer?.fpo || listingDetails?.farmer?.name || 'Not provided'}</Text>
                 </View>
                 <View style={styles.specRow}>
                   <Text style={styles.specTitle}>Location Corridor:</Text>
                   <Text style={styles.specValue}>
-                    {listingDetails?.location?.village || listingDetails?.locationName || 'Dharwad APMC, Karnataka'}
+                    {[listingDetails?.location?.village, listingDetails?.location?.district, listingDetails?.location?.state].filter(Boolean).join(', ') || 'Not provided'}
                   </Text>
                 </View>
               </View>
@@ -662,7 +440,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
               <View style={styles.descBox}>
                 <Text style={styles.descTitle}>Institutional Harvest Note:</Text>
                 <Text style={styles.descText}>
-                  "{listingDetails?.description || 'Harvested under ICAR scientific protocol with zero chemical curing.'}"
+                  "{listingDetails?.description || 'No description provided.'}"
                 </Text>
               </View>
             </ScrollView>
@@ -688,9 +466,9 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
           <View style={styles.offerModalContainer}>
             <View style={styles.detailHeader}>
               <View>
-                <Text style={styles.detailCropName}>Place Escrow Procurement Offer</Text>
+                <Text style={styles.detailCropName}>Make an offer</Text>
                 <Text style={styles.offerModalSub}>
-                  {selectedListing?.cropName} • Asking: ₹{selectedListing?.expectedPrice || selectedListing?.pricePerUnit}/qtl
+                  {selectedListing?.cropName} • Asking: ₹{selectedListing?.expectedPrice || selectedListing?.pricePerUnit}/{selectedListing?.unit || 'unit'}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setSelectedListing(null)} style={styles.closeIconBtn}>
@@ -700,7 +478,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 
             <View style={{ gap: 12, marginVertical: 14 }}>
               <View>
-                <Text style={styles.inputHeading}>Procurement Price (₹ per Quintal)</Text>
+                <Text style={styles.inputHeading}>Offer Price (₹ per {selectedListing?.unit || 'unit'})</Text>
                 <TextInput
                   style={styles.modalField}
                   keyboardType="numeric"
@@ -712,7 +490,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
               </View>
 
               <View>
-                <Text style={styles.inputHeading}>Order Quantity (Quintals)</Text>
+                <Text style={styles.inputHeading}>Quantity ({selectedListing?.unit || 'unit'})</Text>
                 <TextInput
                   style={styles.modalField}
                   keyboardType="numeric"
@@ -731,12 +509,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
                     ₹{((Number(offerPrice) || 0) * (Number(offerQuantity) || 0)).toLocaleString('en-IN')}
                   </Text>
                 </View>
-                <View style={styles.specRow}>
-                  <Text style={styles.specTitle}>Middleman Brokerage:</Text>
-                  <Text style={[styles.specValue, { color: '#34d399', fontWeight: 'bold' }]}>
-                    ₹0 (Zero Fee Protocol)
-                  </Text>
-                </View>
+
               </View>
             </View>
 
@@ -756,7 +529,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
                 {submittingOffer ? (
                   <ActivityIndicator color="#ffffff" size="small" />
                 ) : (
-                  <Text style={styles.submitOfferText}>Lock Escrow & Submit</Text>
+                  <Text style={styles.submitOfferText}>Send offer</Text>
                 )}
               </TouchableOpacity>
             </View>
