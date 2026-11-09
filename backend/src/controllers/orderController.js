@@ -65,7 +65,7 @@ const createOrder = async (req, res, next) => {
         _id: orderId, orderNumber, negotiation: negotiation?._id || null, listing: listing._id,
         buyer: req.user._id, farmer: listing.farmer, cropName: listing.cropName, quantity,
         unit: listing.unit, unitPrice, totalAmount, middlemanFeeSaved: Math.round(totalAmount * 0.1),
-        orderStatus: 'PLACED', paymentStatus: 'PENDING', paymentDetails: { paymentMethod: paymentMethod || 'UPI' },
+        stockReserved: true, orderStatus: 'PLACED', paymentStatus: 'PENDING', paymentDetails: { paymentMethod: paymentMethod || 'UPI' },
         deliveryAddress: deliveryAddress || { village: req.user.location?.village || '', district: req.user.location?.district || '', state: req.user.location?.state || '', pincode: req.user.location?.pincode || '', contactPhone: req.user.phone },
         timeline: [{ status: 'PLACED', note: notes || `Order ${orderNumber} placed at ₹${unitPrice}/${listing.unit}`, timestamp: new Date(), updatedBy: req.user._id }]
       }], { session });
@@ -140,6 +140,36 @@ const updateOrderStatus = async (req, res, next) => {
       });
     }
 
+    if (nextStatus === 'CANCELLED') {
+      let session;
+      try {
+        session = await mongoose.startSession();
+        let cancelled;
+        await session.withTransaction(async () => {
+          cancelled = await Order.findOneAndUpdate(
+            { _id: order._id, orderStatus: currentStatus, __v: order.__v ?? 0 },
+            { $set: { orderStatus: 'CANCELLED', paymentStatus: order.paymentStatus === 'ESCROW_SECURED' ? 'REFUNDED' : 'PENDING' }, $push: { timeline: { status: 'CANCELLED', note: note || `Order cancelled from ${currentStatus}`, timestamp: new Date(), updatedBy: req.user._id } }, $inc: { __v: 1 } },
+            { new: true, session, runValidators: true }
+          );
+          if (!cancelled) throw new OrderError(409, 'Order changed. Refresh and try again.');
+          if (!order.stockReserved) return; // Older or seeded orders have no confirmed reservation.
+          const restored = await ProduceListing.findOneAndUpdate(
+            { _id: order.listing },
+            [{ $set: { quantity: { $add: ['$quantity', order.quantity] }, status: { $cond: [{ $eq: ['$status', 'SOLD'] }, 'AVAILABLE', '$status'] } } }],
+            { new: true, session }
+          );
+          if (!restored) throw new OrderError(409, 'Produce listing is missing; cancellation could not restore stock');
+        });
+        return res.status(200).json({ success: true, message: order.stockReserved ? 'Order cancelled and stock restored' : 'Order cancelled; no recorded stock reservation to restore', order: cancelled });
+      } catch (error) {
+        if (error instanceof OrderError) return res.status(error.status).json({ success: false, message: error.message });
+        if (error.code === 20 || /Transaction numbers are only allowed/i.test(error.message)) return res.status(503).json({ success: false, message: 'Cancellation requires a MongoDB replica set or Atlas cluster' });
+        throw error;
+      } finally {
+        if (session) await session.endSession();
+      }
+    }
+
     // Role-specific transition rules
     if (nextStatus === 'ESCROW_HELD') {
       if (!isBuyer && !isAdmin) {
@@ -172,8 +202,6 @@ const updateOrderStatus = async (req, res, next) => {
       // Simulated settlement; no payment is transferred.
       order.paymentStatus = 'PAID_TO_FARMER';
       order.paymentDetails.settledAt = new Date();
-    } else if (nextStatus === 'CANCELLED') {
-      order.paymentStatus = order.paymentStatus === 'ESCROW_SECURED' ? 'REFUNDED' : 'PENDING';
     }
 
     order.orderStatus = nextStatus;

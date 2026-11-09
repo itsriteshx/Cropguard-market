@@ -59,3 +59,23 @@ test('order transitions enforce participant roles and state', async () => {
     assert.equal((await call('buyer', 'SETTLED')).status, 200);
   } finally { Order.findById = original; }
 });
+
+test('cancellation restores stock once and rolls back if the listing is missing', async () => {
+  const { updateOrderStatus } = require('../src/controllers/orderController');
+  const originalSession = mongoose.startSession, originalFind = Order.findById, originalUpdate = Order.findOneAndUpdate, originalListing = Listing.findOneAndUpdate;
+  let order = { _id: 'o1', __v: 0, listing: 'l1', quantity: 4, stockReserved: true, buyer: { _id: 'buyer' }, farmer: { _id: 'farmer' }, orderStatus: 'PLACED', paymentStatus: 'PENDING', timeline: [] };
+  let quantity = 6, missing = false;
+  try {
+    mongoose.startSession = async () => ({ withTransaction: async (fn) => { const before = { ...order }; const qty = quantity; try { await fn(); } catch (error) { order = before; quantity = qty; throw error; } }, endSession: async () => {} });
+    Order.findById = () => ({ populate() { return this; }, then(resolve) { resolve({ ...order }); } });
+    Order.findOneAndUpdate = async (filter, update) => {
+      if (order.orderStatus !== filter.orderStatus || order.__v !== filter.__v) return null;
+      order = { ...order, ...update.$set, __v: order.__v + 1 }; return order;
+    };
+    Listing.findOneAndUpdate = async () => { if (missing) return null; quantity += order.quantity; return { quantity }; };
+    const call = async () => { let status; await updateOrderStatus({ params: { id: 'o1' }, user: { _id: 'buyer', role: 'BUYER_RETAIL' }, body: { nextStatus: 'CANCELLED' } }, { status(s) { status = s; return this; }, json() {} }, (e) => { throw e; }); return status; };
+    missing = true; assert.equal(await call(), 409); assert.equal(order.orderStatus, 'PLACED'); assert.equal(quantity, 6);
+    missing = false; assert.equal(await call(), 200); assert.equal(order.orderStatus, 'CANCELLED'); assert.equal(quantity, 10);
+    assert.equal(await call(), 400); assert.equal(quantity, 10);
+  } finally { mongoose.startSession = originalSession; Order.findById = originalFind; Order.findOneAndUpdate = originalUpdate; Listing.findOneAndUpdate = originalListing; }
+});
