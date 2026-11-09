@@ -17,18 +17,18 @@ import { apiRequest } from '../config/api';
 
 const labels = {
   PLACED: 'Placed',
-  ESCROW_HELD: 'Payment Escrow Secured',
+  ESCROW_HELD: 'Simulated payment secured',
   DISPATCHED: 'Dispatched',
   DELIVERED: 'Delivered',
-  SETTLED: 'Settled to Producer',
+  SETTLED: 'Simulated settlement',
   CANCELLED: 'Cancelled'
 };
 
 const payments = {
   PENDING: 'Pending',
-  ESCROW_SECURED: 'Escrow Secured',
-  PAID_TO_FARMER: 'Settled 100% to Farmer',
-  REFUNDED: 'Refunded'
+  ESCROW_SECURED: 'Simulated: secured',
+  PAID_TO_FARMER: 'Simulated: settled',
+  REFUNDED: 'Simulated: refunded'
 };
 
 export default function OrdersScreen() {
@@ -63,81 +63,24 @@ export default function OrdersScreen() {
 
   const handleOpenReceipt = async (order) => {
     setLoadingReceipt(true);
-    try {
-      const response = await apiRequest(`/orders/${order._id}/receipt`, {}, token);
-      if (response.success && response.receipt) {
-        setSelectedReceipt(response.receipt);
-        setLoadingReceipt(false);
-        return;
-      }
-    } catch {
-      // Ignore network errors and use offline fallback
-    }
-
-    // Offline-resilient fallback synthesis
-    const qty = order.quantity || 1;
-    const rate = order.unitPrice || 0;
-    const total = order.totalAmount || qty * rate;
-    const middlemanCut = Math.round(total * 0.1);
-
-    setSelectedReceipt({
-      receiptNumber: `REC-${order.orderNumber || order._id.slice(-8)}`,
-      issueDate: order.createdAt || new Date(),
-      orderNumber: order.orderNumber || order._id,
-      orderStatus: order.orderStatus,
-      paymentStatus: order.paymentStatus,
-      seller: {
-        name: order.farmer?.name || 'Ramesh Patil',
-        phone: order.farmer?.phone || '',
-        location: order.farmer?.location?.district || 'Navalgund, Dharwad'
-      },
-      buyer: {
-        name: order.buyer?.name || 'Institutional Wholesaler',
-        location: order.deliveryAddress?.district || 'Hubballi Mandi Terminal'
-      },
-      items: [
-        {
-          description: order.cropName,
-          quantity: qty,
-          unit: order.unit,
-          unitRate: rate,
-          total: total
-        }
-      ],
-      financialBreakdown: {
-        subtotal: total,
-        intermediaryCommissionFee: 0,
-        intermediaryCommissionSaved: middlemanCut,
-        grandTotal: total
-      },
-      verification: {
-        digitalKhataAuditId: `AUD-KHATA-${String(order.orderNumber || order._id).slice(-6).toUpperCase()}`,
-        shortHash: 'E8A9B2C4F1A09D3B',
-        qrPayload: `https://cropguard.agri.gov.in/verify?receipt=REC-${order.orderNumber || order._id}`
-      }
-    });
+    const response = await apiRequest(`/orders/${order._id}/receipt`, {}, token);
     setLoadingReceipt(false);
+    if (response.success && response.receipt) setSelectedReceipt(response.receipt);
+    else Alert.alert('Receipt unavailable', response.message || 'Please reconnect and try again.');
   };
 
   const handleShareReceipt = async (receipt) => {
     if (!receipt) return;
     try {
-      const cropDesc = receipt.items?.[0]?.description || 'Agri Commodity';
-      const qtyStr = `${receipt.items?.[0]?.quantity} ${receipt.items?.[0]?.unit}`;
-      const totalStr = `₹${Number(receipt.financialBreakdown?.grandTotal || 0).toLocaleString('en-IN')}`;
-      const savedStr = `₹${Number(receipt.financialBreakdown?.intermediaryCommissionSaved || 0).toLocaleString('en-IN')}`;
-      const auditRef = receipt.verification?.digitalKhataAuditId || 'AUD-KHATA';
-
-      const shareText = `🌾 *CropGuard Mandi Direct Tax Invoice*
-📜 Ref: ${receipt.receiptNumber}
-🔒 Audit ID: ${auditRef}
-👨‍🌾 Seller: ${receipt.seller?.name || 'Producer'} (${receipt.seller?.location || 'Dharwad'})
-🏢 Buyer: ${receipt.buyer?.name || 'Wholesaler'}
-📦 Lot: ${cropDesc} • ${qtyStr}
-💰 Total Settled: ${totalStr}
-⚡ 0% Middleman Cut (Saved: +${savedStr})
-⚖️ Governed under Section 26, Karnataka APMC Act
-🔗 Verify: ${receipt.verification?.qrPayload || 'https://cropguard.agri.gov.in'}`;
+      const item = receipt.items?.[0];
+      const shareText = `CropGuard demo order receipt
+Ref: ${receipt.receiptNumber}
+Farmer: ${receipt.seller?.name || 'Unknown'}
+Buyer: ${receipt.buyer?.name || 'Unknown'}
+Produce: ${item?.description || 'Unknown'} · ${item?.quantity ?? '?'} ${item?.unit || ''}
+Order total: ₹${Number(receipt.financialBreakdown?.grandTotal ?? 0).toLocaleString('en-IN')}
+Payment status: ${receipt.paymentStatus || 'Unknown'} (simulated)
+Demo only: no payment is transferred.`;
 
       await Share.share({
         message: shareText,
@@ -152,7 +95,7 @@ export default function OrdersScreen() {
     Alert.alert(
       label,
       nextStatus === 'ESCROW_HELD' || nextStatus === 'SETTLED'
-        ? 'This updates the smart escrow state machine. Continue?'
+        ? 'This is a simulation. No money is transferred. Continue?'
         : 'Update the status of this order?',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -182,13 +125,13 @@ export default function OrdersScreen() {
     const farmer = String(item.farmer?._id || item.farmer) === String(user?._id);
     const action =
       item.orderStatus === 'PLACED' && buyer
-        ? ['ESCROW_HELD', 'Secure Escrow Payment']
+        ? ['ESCROW_HELD', 'Simulate payment']
         : item.orderStatus === 'ESCROW_HELD' && farmer
         ? ['DISPATCHED', 'Mark Dispatched']
         : item.orderStatus === 'DISPATCHED' && buyer
         ? ['DELIVERED', 'Confirm Delivery']
         : item.orderStatus === 'DELIVERED' && buyer
-        ? ['SETTLED', 'Release Farmer Escrow']
+        ? ['SETTLED', 'Simulate settlement']
         : null;
 
     return (
@@ -221,7 +164,7 @@ export default function OrdersScreen() {
             onPress={() => handleOpenReceipt(item)}
             accessibilityRole="button"
           >
-            <Text style={styles.receiptButtonText}>🧾 Official Bill & Share</Text>
+            <Text style={styles.receiptButtonText}>🧾 Demo receipt & share</Text>
           </TouchableOpacity>
 
           {action && (
@@ -241,9 +184,9 @@ export default function OrdersScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>📦 Wholesale Orders & Escrow</Text>
+      <Text style={styles.header}>📦 My orders</Text>
       <Text style={styles.notice}>
-        UASD Direct Corridor: Escrow locked until produce delivery is verified. 0% broker deductions.
+        Demo only: payment and settlement states are simulated. No money is transferred.
       </Text>
 
       {!!error && (
@@ -265,7 +208,7 @@ export default function OrdersScreen() {
           }
           ListEmptyComponent={
             <Text style={styles.emptyText}>
-              {error ? 'Orders could not be loaded.' : 'No active orders yet. Accepted deals are placed directly into escrow.'}
+              {error ? 'Orders could not be loaded.' : 'No active orders yet. Buyers can place orders from accepted deals.'}
             </Text>
           }
         />
@@ -282,21 +225,14 @@ export default function OrdersScreen() {
           <View style={styles.receiptCard}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.receiptBadgeHeader}>
-                <Text style={styles.receiptBadgeText}>🌾 APMC Direct Mandi Bill</Text>
+                <Text style={styles.receiptBadgeText}>🌾 Demo order receipt</Text>
                 <Text style={styles.receiptStatusText}>{selectedReceipt?.orderStatus}</Text>
               </View>
 
               <Text style={styles.receiptRefText}>{selectedReceipt?.receiptNumber}</Text>
-              <Text style={styles.receiptSubtext}>Form 8-A Direct Trading • UASD Dharwad Protocol</Text>
+              <Text style={styles.receiptSubtext}>Payment status: {selectedReceipt?.paymentStatus || 'Unknown'} (simulated)</Text>
 
               <View style={styles.receiptDivider} />
-
-              <View style={styles.receiptRow}>
-                <Text style={styles.receiptColLabel}>Audit Khata ID:</Text>
-                <Text style={styles.receiptColValHighlight}>
-                  {selectedReceipt?.verification?.digitalKhataAuditId || 'AUD-KHATA'}
-                </Text>
-              </View>
 
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptColLabel}>Producer (Seller):</Text>
@@ -305,7 +241,7 @@ export default function OrdersScreen() {
 
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptColLabel}>Location:</Text>
-                <Text style={styles.receiptColVal}>{selectedReceipt?.seller?.location || 'Dharwad, KA'}</Text>
+                <Text style={styles.receiptColVal}>{selectedReceipt?.seller?.location || 'Not provided'}</Text>
               </View>
 
               <View style={styles.receiptRow}>
@@ -326,28 +262,11 @@ export default function OrdersScreen() {
                 </View>
               ))}
 
-              <View style={styles.middlemanZeroBadge}>
-                <Text style={styles.middlemanZeroText}>
-                  Middleman Brokerage: ₹0.00 (0% Exemption)
-                </Text>
-                <Text style={styles.middlemanSavingsText}>
-                  Direct Producer Realization: +₹{Number(selectedReceipt?.financialBreakdown?.intermediaryCommissionSaved || 0).toLocaleString('en-IN')} (+10%)
-                </Text>
-              </View>
-
               <View style={styles.receiptTotalRow}>
-                <Text style={styles.receiptTotalLabel}>Net Escrow Settlement:</Text>
-                <Text style={styles.receiptTotalAmount}>
-                  ₹{Number(selectedReceipt?.financialBreakdown?.grandTotal || 0).toLocaleString('en-IN')}
-                </Text>
+                <Text style={styles.receiptTotalLabel}>Order total:</Text>
+                <Text style={styles.receiptTotalAmount}>₹{Number(selectedReceipt?.financialBreakdown?.grandTotal ?? 0).toLocaleString('en-IN')}</Text>
               </View>
-
-              <View style={styles.hashBox}>
-                <Text style={styles.hashTitle}>Cryptographic SHA-256 Signature:</Text>
-                <Text style={styles.hashText}>
-                  {selectedReceipt?.verification?.hash || 'f8b2c4e1a09d3b76e5c821f92a3e0b4c8d7e6f1a9b2c3d4e5f6a7b8c9d0e1f2a'}
-                </Text>
-              </View>
+              <Text style={styles.receiptSubtext}>Demo record only. No payment is transferred.</Text>
 
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity

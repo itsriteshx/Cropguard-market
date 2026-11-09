@@ -236,7 +236,7 @@ export default function OrdersEscrowPage() {
                     className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold flex items-center justify-center gap-1.5 transition-colors"
                   >
                     <Printer className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{o.receiptBtn || 'Certified Receipt'}</span>
+                    <span>{'Demo receipt'}</span>
                   </button>
 
                   {/* Advance State Machine Button */}

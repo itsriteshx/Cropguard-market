@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const Order = require('../src/models/Order');
 const { getOrderReceipt } = require('../src/controllers/orderController');
 
-test('getOrderReceipt enriches receipt with APMC exemption, SHA-256 hash, and 10% middleman commission saved', async () => {
+test('receipt provides participant data and clearly labels simulated payment', async () => {
   const originalFindById = Order.findById;
   const mockOrder = {
     _id: '672000000000000000000123',
@@ -82,29 +82,15 @@ test('getOrderReceipt enriches receipt with APMC exemption, SHA-256 hash, and 10
     assert.equal(receipt.orderNumber, 'CGM-987654321');
     assert.equal(receipt.language, 'hi');
 
-    // Check financial breakdown & 10% middleman savings
     assert.equal(receipt.financialBreakdown.subtotal, 245000);
-    assert.equal(receipt.financialBreakdown.intermediaryCommissionFee, 0);
-    assert.equal(receipt.financialBreakdown.intermediaryCommissionSaved, 24500); // 10% of 245,000
-    assert.equal(receipt.financialBreakdown.farmerRealizationRate, '100%');
     assert.equal(receipt.financialBreakdown.grandTotal, 245000);
-
-    // Check statutory APMC compliance
-    assert.ok(receipt.apmcCompliance.governingAct.includes('Karnataka Agricultural Produce Marketing'));
-    assert.equal(receipt.apmcCompliance.mandiFeeLevied, 0);
-    assert.equal(receipt.apmcCompliance.arhatiyaCommissionDeducted, 0);
-    assert.ok(receipt.apmcCompliance.accreditationAuthority.includes('UASD'));
-
-    // Check verification payload & SHA-256 signature
-    assert.ok(receipt.verification.hash.length === 64); // SHA-256 hex string length
-    assert.equal(receipt.verification.shortHash.length, 16);
-    assert.ok(receipt.verification.qrPayload.startsWith('https://cropguard.agri.gov.in/verify?receipt=REC-CGM-987654321'));
-    assert.equal(receipt.verification.digitalKhataAuditId, 'AUD-KHATA-000123');
-
-    // 3. Farmer can also fetch receipt
+    assert.equal(receipt.simulated, true);
+    assert.equal(receipt.paymentStatus, 'ESCROW_SECURED');
+    assert.match(receipt.declaration, /simulated/);
+    assert.equal(receipt.verification, undefined);
+    assert.equal(receipt.apmcCompliance, undefined);
     const farmerCall = await call('672000000000000000000001', 'FARMER');
     assert.equal(farmerCall.status, 200);
-    assert.equal(farmerCall.result.receipt.verification.hash, receipt.verification.hash);
   } finally {
     Order.findById = originalFindById;
   }
