@@ -7,7 +7,8 @@ import {
   Modal,
   ScrollView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -43,7 +44,7 @@ function MainApp() {
           </TouchableOpacity>
           <TouchableOpacity
             style={{ backgroundColor: '#1E293B', paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#334155' }}
-            onPress={async () => { await logout(); }}
+            onPress={async () => { const result = await logout(); if (!result.success) Alert.alert('Sign out failed', result.message); }}
           >
             <Text style={{ color: '#F87171', fontWeight: '600' }}>Sign Out & Re-login</Text>
           </TouchableOpacity>

@@ -3,67 +3,27 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { apiRequest } from '../config/api';
 import { translations } from '../i18n/translations';
+import { createSessionManager } from '../auth/sessionManager';
 
 const AuthContext = createContext();
 const SESSION_KEY = 'cropguard_session_token';
-const USER_KEY = 'cropguard_user_profile';
-
-// Safe storage adapter with cross-platform fallback
+const LEGACY_PROFILE_KEY = 'cropguard_user_profile';
+// Storage errors must reach the caller: otherwise logout can appear to succeed
+// while the old token remains on the device.
 const sessionStore = {
-  get: async () => {
-    try {
-      return Platform.OS === 'web' ? sessionStorage.getItem(SESSION_KEY) : await SecureStore.getItemAsync(SESSION_KEY);
-    } catch (e) {
-      return null;
-    }
-  },
-  set: async (value) => {
-    try {
-      if (Platform.OS === 'web') {
-        sessionStorage.setItem(SESSION_KEY, value);
-      } else {
-        await SecureStore.setItemAsync(SESSION_KEY, value);
-      }
-    } catch (e) {}
-  },
+  get: () => Platform.OS === 'web' ? Promise.resolve(sessionStorage.getItem(SESSION_KEY)) : SecureStore.getItemAsync(SESSION_KEY),
+  set: (value) => Platform.OS === 'web' ? Promise.resolve(sessionStorage.setItem(SESSION_KEY, value)) : SecureStore.setItemAsync(SESSION_KEY, value),
   remove: async () => {
-    try {
-      if (Platform.OS === 'web') {
-        sessionStorage.removeItem(SESSION_KEY);
-      } else {
-        await SecureStore.deleteItemAsync(SESSION_KEY);
-      }
-    } catch (e) {}
+    if (Platform.OS === 'web') {
+      sessionStorage.removeItem(LEGACY_PROFILE_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
+    } else {
+      await SecureStore.deleteItemAsync(LEGACY_PROFILE_KEY);
+      await SecureStore.deleteItemAsync(SESSION_KEY);
+    }
   }
 };
-
-const userStore = {
-  get: async () => {
-    try {
-      return Platform.OS === 'web' ? sessionStorage.getItem(USER_KEY) : await SecureStore.getItemAsync(USER_KEY);
-    } catch (e) {
-      return null;
-    }
-  },
-  set: async (value) => {
-    try {
-      if (Platform.OS === 'web') {
-        sessionStorage.setItem(USER_KEY, value);
-      } else {
-        await SecureStore.setItemAsync(USER_KEY, value);
-      }
-    } catch (e) {}
-  },
-  remove: async () => {
-    try {
-      if (Platform.OS === 'web') {
-        sessionStorage.removeItem(USER_KEY);
-      } else {
-        await SecureStore.deleteItemAsync(USER_KEY);
-      }
-    } catch (e) {}
-  }
-};
+const sessionManager = createSessionManager(sessionStore, apiRequest);
 
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', label: 'English', native: 'English', flag: '🌐', region: 'Pan-India' },
@@ -89,43 +49,17 @@ export const AuthProvider = ({ children }) => {
     setRestoring(true);
     setRestoreError('');
     try {
-      const savedToken = await sessionStore.get();
-      if (!savedToken) return;
-
-      // Optimistically restore cached user profile for offline resilience
-      let hasCachedUser = false;
-      try {
-        const cachedUserStr = await userStore.get();
-        if (cachedUserStr) {
-          const cachedUser = JSON.parse(cachedUserStr);
-          if (cachedUser && cachedUser._id) {
-            setToken(savedToken);
-            setUser(cachedUser);
-            setRole(cachedUser.role);
-            setLanguageState(cachedUser.languagePreference || 'en');
-            hasCachedUser = true;
-          }
-        }
-      } catch (e) {
-        // Cache parse issue, ignore
-      }
-
-      const result = await apiRequest('/auth/me', {}, savedToken);
-      if (result.success && result.user) {
-        setToken(savedToken);
-        setUser(result.user);
-        setRole(result.user.role);
-        setLanguageState(result.user.languagePreference || 'en');
-        try {
-          await userStore.set(JSON.stringify(result.user));
-        } catch (e) {}
-      } else if (result.httpStatus === 401) {
-        await sessionStore.remove();
-        await userStore.remove();
+      const restored = await sessionManager.restore();
+      if (restored.state === 'authenticated') {
+        setToken(restored.token);
+        setUser(restored.user);
+        setRole(restored.user.role);
+        setLanguageState(restored.user.languagePreference || 'en');
+      } else if (restored.state === 'signedOut') {
         setToken(null);
         setUser(null);
-      } else if (!hasCachedUser) {
-        // Only lock the UI with error screen if we don't have a cached session
+        setRole(null);
+      } else {
         setRestoreError('Could not restore your session. Check your connection and try again.');
       }
     } catch (error) {
@@ -147,8 +81,7 @@ export const AuthProvider = ({ children }) => {
       });
       if (data.success && data.token && data.user) {
         try {
-          await sessionStore.set(data.token);
-          await userStore.set(JSON.stringify(data.user));
+          await sessionManager.save(data.token);
         } catch (error) {
           return { success: false, message: 'Could not save your session on this device. Please sign in again.' };
         }
@@ -165,8 +98,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await sessionStore.remove();
-      await userStore.remove();
+      await sessionManager.clear();
     } catch (error) {
       return { success: false, message: 'Could not remove the saved session. Please try again.' };
     }
