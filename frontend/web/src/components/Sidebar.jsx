@@ -84,7 +84,7 @@ export default function Sidebar({ activeTab, onTabChange }) {
       <div className="mt-8 pt-4 border-t border-slate-800/80 px-2 space-y-3">
         <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] space-y-1.5">
           <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-            <Award className="w-4 h-4" /> {t.nav?.compliantBadge || 'ICAR & UASD Compliant'}
+            <Award className="w-4 h-4" /> {t.nav?.compliantBadge || 'Illustrative Price Analysis'}
           </div>
           <p className="text-slate-400 text-[10px] leading-relaxed">
             {t.nav?.complianceNotice || 'Eliminates APMC commission agents (arhatiyas) to transfer +10% economic value directly to farmers.'}

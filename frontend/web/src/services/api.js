@@ -84,17 +84,30 @@ export const mandiService = {
     const res = await apiClient.get('/mandi-rates', { params });
     return res.data;
   },
+
   getBenchmark: async (cropName, state = 'Karnataka') => {
     const res = await apiClient.get('/mandi-rates/benchmark', {
       params: { cropName, state },
     });
     return res.data;
   },
-  getAnalytics: async () => {
-    const res = await apiClient.get('/mandi-rates/analytics');
+
+  getAnalytics: async (params = {}) => {
+    const res = await apiClient.get('/mandi-rates/analytics', { params });
+    return res.data;
+  },
+
+  getPriceTrends: async (params = {}) => {
+    const res = await apiClient.get('/mandi-rates/analytics/trends', { params });
+    return res.data;
+  },
+
+  getMarketComparison: async (params = {}) => {
+    const res = await apiClient.get('/mandi-rates/analytics/markets', { params });
     return res.data;
   },
 };
+
 
 // Bulk Orders & Escrow
 export const ordersService = {
