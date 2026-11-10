@@ -13,23 +13,6 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
-// Minimal fallback order for offline dev preview
-const DEFAULT_FALLBACK_ORDERS = [
-  {
-    _id: 'default_ord_001',
-    orderNumber: 'CG-ORD-2026-1001',
-    cropName: 'Red Onion (Garva Special)',
-    farmer: { name: 'Ramesh Patil', phone: '9876543210', district: 'Dharwad' },
-    buyer: { name: 'Karnataka State Co-op Federation', phone: '9811223344', district: 'Dharwad' },
-    quantity: 120,
-    agreedPrice: 2450,
-    totalAmount: 294000,
-    middlemanFeeSaved: 29400,
-    status: 'ESCROW_HELD',
-    createdAt: '2026-10-29T10:30:00Z',
-  },
-];
-
 const STAGES = [
   { key: 'PLACED', label: '1. Placed', icon: Clock },
   { key: 'ESCROW_HELD', label: '2. Escrow Locked', icon: Lock },
@@ -39,25 +22,42 @@ const STAGES = [
 ];
 
 export default function OrdersEscrowPage() {
-  const { activePersona, t } = useAuth();
+  const { t, currentUser } = useAuth();
   const o = t.orders || {};
+  const userRole = currentUser?.role;
+  const isBuyerOrAdmin = ['BUYER_RETAIL', 'BUYER_WHOLESALE', 'ADMIN'].includes(userRole);
+  const isFarmerOrAdmin = ['FARMER', 'ADMIN'].includes(userRole);
+
+  const canAdvanceTo = (nextStatus) => {
+    if (!nextStatus) return false;
+    if (nextStatus === 'DISPATCHED') return isFarmerOrAdmin;
+    return isBuyerOrAdmin;
+  };
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
 
   const loadOrders = async () => {
     setLoading(true);
+    setError('');
     try {
       const data = await ordersService.getAll();
-      if (data && data.orders && data.orders.length > 0) {
-        setOrders(data.orders);
+      if (data && data.success && Array.isArray(data.orders)) {
+        const normalized = data.orders.map((ord) => ({
+          ...ord,
+          status: ord.orderStatus || ord.status,
+          agreedPrice: ord.unitPrice ?? ord.agreedPrice ?? 0,
+        }));
+        setOrders(normalized);
       } else {
-        setOrders(DEFAULT_FALLBACK_ORDERS);
+        setOrders([]);
       }
     } catch (err) {
-      console.warn('Orders API error, using fallback:', err.message);
-      setOrders(DEFAULT_FALLBACK_ORDERS);
+      setError(err.response?.data?.message || err.message || 'Unable to load orders from API');
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -69,17 +69,19 @@ export default function OrdersEscrowPage() {
 
   const handleAdvanceStatus = async (order, nextStatus) => {
     setUpdatingId(order._id);
+    setActionError('');
     try {
-      await ordersService.updateStatus(order._id, nextStatus);
-      // Update local state
+      const res = await ordersService.updateStatus(order._id, nextStatus);
+      const updated = res?.order;
       setOrders((prev) =>
-        prev.map((o) => (o._id === order._id ? { ...o, status: nextStatus } : o))
+        prev.map((item) =>
+          item._id === order._id
+            ? { ...item, ...(updated || {}), status: updated?.orderStatus || nextStatus }
+            : item
+        )
       );
     } catch (err) {
-      console.warn('Advance status fallback:', err.message);
-      setOrders((prev) =>
-        prev.map((o) => (o._id === order._id ? { ...o, status: nextStatus } : o))
-      );
+      setActionError(err.response?.data?.message || err.message || 'Order status update failed');
     } finally {
       setUpdatingId(null);
     }
@@ -151,9 +153,29 @@ export default function OrdersEscrowPage() {
         </button>
       </div>
 
+      {error && (
+        <div className="p-4 rounded-xl bg-red-950/50 border border-red-800 text-red-300 text-xs flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={loadOrders} className="px-3 py-1 rounded-lg bg-red-900/60 hover:bg-red-800 font-bold">Retry</button>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-800 text-amber-300 text-xs">
+          {actionError}
+        </div>
+      )}
+
       {/* Orders List */}
       <div className="space-y-4">
-        {orders.map((order) => {
+        {loading ? (
+          <div className="py-12 text-center text-sm text-slate-400">Loading your live orders from MongoDB...</div>
+        ) : orders.length === 0 ? (
+          <div className="py-12 text-center text-sm text-slate-400 border border-slate-800 rounded-2xl">
+            No active orders yet for this account. Initiate procurement from the Marketplace tab to create a live order.
+          </div>
+        ) : (
+        orders.map((order) => {
           const nextStatus = getNextStatus(order.status);
           const currentStageIndex = STAGES.findIndex((s) => s.key === order.status);
 
@@ -239,8 +261,19 @@ export default function OrdersEscrowPage() {
                     <span>{'Demo receipt'}</span>
                   </button>
 
-                  {/* Advance State Machine Button */}
-                  {nextStatus && (
+                  {/* Cancel Order (restores reserved stock on backend) */}
+                  {['PLACED', 'ESCROW_HELD'].includes(order.status) && (
+                    <button
+                      onClick={() => handleAdvanceStatus(order, 'CANCELLED')}
+                      disabled={updatingId === order._id}
+                      className="px-3 py-2 rounded-xl bg-red-950/60 hover:bg-red-900/60 text-red-300 border border-red-800 font-bold text-xs transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
+
+                  {/* Role-authorized Next Stage Transition Button */}
+                  {nextStatus && canAdvanceTo(nextStatus) && (
                     <button
                       onClick={() => handleAdvanceStatus(order, nextStatus)}
                       disabled={updatingId === order._id}
@@ -256,7 +289,8 @@ export default function OrdersEscrowPage() {
               </div>
             </div>
           );
-        })}
+        })
+        )}
       </div>
 
       {/* Official UASD APMC Printable Invoice Modal */}

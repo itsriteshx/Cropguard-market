@@ -3,11 +3,19 @@ const router = express.Router();
 
 const {
   getMandiRates,
+  getLiveAgmarknetRates,
+  getDistrictWeather,
+  lookupPincode,
   getBenchmarkForCrop,
   getMandiAnalytics,
   getMandiPriceTrends,
   getMandiMarketComparison
 } = require('../controllers/mandiController');
+
+// Live external Agmarknet, Open-Meteo Weather & India Post Pincode APIs
+router.get('/live', getLiveAgmarknetRates);
+router.get('/weather', getDistrictWeather);
+router.get('/pincode/:pincode', lookupPincode);
 
 // Analytics aggregation endpoint
 router.get('/analytics', getMandiAnalytics);

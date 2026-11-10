@@ -19,46 +19,13 @@ import { apiRequest, resolveMediaUrl } from '../config/api';
 
 const { width } = Dimensions.get('window');
 
-// High-resolution agricultural crop photography mapper (Exact same as Web)
-const getCropImage = (cropName = '', category = '', customImages = []) => {
-  if (customImages && customImages.length > 0 && typeof customImages[0] === 'string') {
-    return resolveMediaUrl(customImages[0]);
+const getListingImage = (item) => {
+  if (!item) return null;
+  if (Array.isArray(item.images) && item.images.length > 0 && typeof item.images[0] === 'string') {
+    const resolved = resolveMediaUrl(item.images[0]);
+    if (resolved) return resolved;
   }
-  const name = (cropName || '').toLowerCase();
-  if (name.includes('onion')) {
-    return 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('wheat') || name.includes('grain')) {
-    return 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('tomato')) {
-    return 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('chilli') || name.includes('chili') || name.includes('mirchi')) {
-    return 'https://images.unsplash.com/photo-1588252303782-cb80119abd6d?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('soybean') || name.includes('soya')) {
-    return 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('turmeric') || name.includes('haldi')) {
-    return 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('pepper') || name.includes('capsicum') || name.includes('shimla')) {
-    return 'https://images.unsplash.com/photo-1563565375-f3fdfdbefa83?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('lemon') || name.includes('citrus')) {
-    return 'https://images.unsplash.com/photo-1533038590840-1cde6e668a91?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('maize') || name.includes('corn')) {
-    return 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=800&q=80';
-  }
-  if (category?.toUpperCase() === 'FRUITS') {
-    return 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&w=800&q=80';
-  }
-  if (category?.toUpperCase() === 'SPICES') {
-    return 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80';
-  }
-  return 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80';
+  return item.resolvedImageUrl || null;
 };
 
 const CATEGORIES = [
@@ -76,6 +43,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
   const { t, token, user, role } = useAuth();
 
   const [listings, setListings] = useState([]);
+  const [tickerRates, setTickerRates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -102,8 +70,16 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 
   useEffect(() => {
     fetchListings(1);
+    fetchTickerRates();
     return () => { requestId.current += 1; };
   }, [selectedCategory, debouncedSearch]);
+
+  const fetchTickerRates = async () => {
+    const res = await apiRequest('/mandi-rates?limit=4');
+    if (res?.success && Array.isArray(res.rates)) {
+      setTickerRates(res.rates.slice(0, 4));
+    }
+  };
 
   const fetchListings = async (nextPage = 1, refresh = false) => {
     const id = ++requestId.current;
@@ -114,11 +90,12 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
     const params = ['status=AVAILABLE', `page=${nextPage}`, 'limit=10'];
     if (selectedCategory !== 'ALL') params.push(`category=${encodeURIComponent(selectedCategory)}`);
     if (debouncedSearch) params.push(`search=${encodeURIComponent(debouncedSearch)}`);
-    const res = await apiRequest(`/listings?${params.join('&')}`);
+    const res = await apiRequest(`/listings?${params.join('&')}`, {}, token);
     if (id !== requestId.current) return;
     if (res.success && Array.isArray(res.listings)) {
       setListings((prev) => nextPage === 1 ? res.listings : [...prev, ...res.listings.filter((item) => !prev.some((old) => old._id === item._id))]);
-      setPage(res.page); setPages(res.pages);
+      setPage(res.page || nextPage);
+      setPages(res.pages || 1);
     } else {
       if (nextPage === 1) setListings([]);
       setLoadError(res.message || 'Could not load listings.');
@@ -126,7 +103,10 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
     setLoading(false); setLoadingMore(false); setRefreshing(false);
   };
 
-  const onRefresh = () => fetchListings(1, true);
+  const onRefresh = () => {
+    fetchListings(1, true);
+    fetchTickerRates();
+  };
 
   const handleOpenOfferModal = (listing) => {
     setSelectedListing(listing);
@@ -186,11 +166,15 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Mandi Corridor Live Strip */}
+      {/* Live Agmarknet Corridor Feed */}
       <View style={styles.corridorBar}>
         <View style={styles.livePulseDot} />
-        <Text style={styles.corridorBarText}>
-          Browse produce listed by farmers
+        <Text style={styles.corridorBarText} numberOfLines={2}>
+          {tickerRates.length > 0
+            ? `Agmarknet Live: ${tickerRates
+                .map((r) => `${r.commodity} ₹${Number(r.modalPrice).toLocaleString('en-IN')}/qtl`)
+                .join(' • ')}`
+            : 'Browse produce listed by farmers'}
         </Text>
       </View>
 
@@ -235,8 +219,11 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 
   const renderListingCard = ({ item }) => {
     const isOwner = user && item.farmer && String(item.farmer._id) === String(user._id);
-    const imageUrl = getCropImage(item.cropName, item.category, item.images);
-    const price = item.pricePerUnit ?? item.expectedPrice ?? 0;
+    const imageUrl = getListingImage(item);
+    const price = Number(item.pricePerUnit ?? item.expectedPrice ?? 0);
+    const benchmark = item.benchmarkRate != null ? Number(item.benchmarkRate) : null;
+    const mspDiff = benchmark !== null ? price - benchmark : null;
+    const distance = item.distanceKm != null ? item.distanceKm : null;
 
     const initial = (item.farmer?.name || 'F')[0].toUpperCase();
 
@@ -244,18 +231,24 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
       <View style={styles.cropCard}>
         {/* Photo Container with Top Gradient Badges */}
         <View style={styles.imageWrapper}>
-          <Image
-            source={{ uri: imageUrl }}
-            style={styles.cropPhoto}
-            resizeMode="cover"
-          />
+          {imageUrl ? (
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.cropPhoto}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.cropPhoto, { backgroundColor: '#064e3b', justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ fontSize: 42 }}>🌾</Text>
+            </View>
+          )}
           <View style={styles.imageScrim} />
           {!item.images?.length && <Text style={{ color: '#fff', position: 'absolute', right: 8, bottom: 8, backgroundColor: '#0f172a', padding: 4, fontSize: 10 }}>Illustrative image</Text>}
 
           {/* Top Badges */}
           <View style={styles.imageTopRow}>
             <View style={styles.catBadge}>
-              <Text style={styles.catBadgeText}>{(item.category || 'Vegetables').toUpperCase()}</Text>
+              <Text style={styles.catBadgeText}>{(item.category || 'CROPS').toUpperCase()}</Text>
             </View>
 
             {item.organicCertified ? (
@@ -276,7 +269,11 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
                 📅 {item.harvestDate ? new Date(item.harvestDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Date not provided'}
               </Text>
             </View>
-
+            {distance !== null && (
+              <View style={styles.distanceBadge}>
+                <Text style={styles.distanceBadgeText}>📍 {distance} km away</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -334,7 +331,13 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
                 <Text style={styles.priceValueText}>{price.toLocaleString('en-IN')}</Text>
                 <Text style={styles.priceUnitText}> / {item.unit || 'unit'}</Text>
               </View>
-
+              <Text style={styles.mspText}>
+                {mspDiff === null
+                  ? 'Direct Farm Quote'
+                  : mspDiff >= 0
+                  ? `+₹${mspDiff} vs APMC Modal`
+                  : `₹${Math.abs(mspDiff)} below APMC Modal`}
+              </Text>
             </View>
           </View>
 
@@ -366,7 +369,15 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
         keyExtractor={(item) => item._id}
         renderItem={renderListingCard}
         ListHeaderComponent={renderHeader}
-        ListEmptyComponent={<Text style={{ color: '#cbd5e1', textAlign: 'center', padding: 20 }}>{loading ? 'Loading listings…' : loadError ? 'Could not load listings.' : 'No listings found.'}</Text>}
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator size="large" color="#10b981" style={{ marginTop: 40 }} />
+          ) : (
+            <Text style={{ color: '#cbd5e1', textAlign: 'center', padding: 20 }}>
+              {loadError ? 'Could not load listings.' : 'No listings found.'}
+            </Text>
+          )
+        }
         ListFooterComponent={<View style={{ padding: 18, alignItems: 'center', gap: 8 }}>{!!loadError && <Text style={{ color: '#fca5a5' }}>{loadError}</Text>}{(loadError || page < pages) && <TouchableOpacity style={styles.offerButton} disabled={loadingMore} onPress={() => fetchListings(loadError && listings.length === 0 ? 1 : page + 1)}><Text style={styles.offerButtonText}>{loadingMore ? 'Loading…' : loadError ? 'Try again' : 'Load more'}</Text></TouchableOpacity>}</View>}
         contentContainerStyle={styles.listPadding}
         showsVerticalScrollIndicator={false}
@@ -396,11 +407,13 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
             </View>
 
             <ScrollView contentContainerStyle={{ gap: 10, paddingVertical: 8 }}>
-              <Image
-                source={{ uri: getCropImage(listingDetails?.cropName, listingDetails?.category, listingDetails?.images) }}
-                style={styles.detailImage}
-                resizeMode="cover"
-              />
+              {getListingImage(listingDetails) && (
+                <Image
+                  source={{ uri: getListingImage(listingDetails) }}
+                  style={styles.detailImage}
+                  resizeMode="cover"
+                />
+              )}
 
               <View style={styles.specTable}>
                 <View style={styles.specRow}>
@@ -419,6 +432,12 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
                   <Text style={styles.specTitle}>Asking Rate:</Text>
                   <Text style={[styles.specValue, { color: '#34d399', fontWeight: '800' }]}>
                     ₹{(listingDetails?.expectedPrice || listingDetails?.pricePerUnit || 0).toLocaleString('en-IN')} / {listingDetails?.unit || 'unit'}
+                  </Text>
+                </View>
+                <View style={styles.specRow}>
+                  <Text style={styles.specTitle}>APMC Benchmark:</Text>
+                  <Text style={styles.specValue}>
+                    {listingDetails?.benchmarkRate != null ? `₹${listingDetails.benchmarkRate.toLocaleString('en-IN')}/qtl` : 'Not matched yet'}
                   </Text>
                 </View>
                 <View style={styles.specRow}>

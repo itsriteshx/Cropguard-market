@@ -56,20 +56,25 @@ const getAuditSummary = async (req, res, next) => {
     ]);
 
     const summary = aggregate[0] || {
-      totalMiddlemanSaved: 101000,
-      totalDirectVolumeRupees: 1010000,
-      verifiedCount: 4,
-      totalLogs: 4
+      totalMiddlemanSaved: 0,
+      totalDirectVolumeRupees: 0,
+      verifiedCount: 0,
+      totalLogs: 0
     };
+
+    const complianceRate = summary.totalLogs > 0
+      ? `${Math.round((summary.verifiedCount / summary.totalLogs) * 100)}%`
+      : '0%';
 
     return res.status(200).json({
       success: true,
       metrics: {
         totalMiddlemanSaved: summary.totalMiddlemanSaved,
         totalDirectVolumeRupees: summary.totalDirectVolumeRupees,
-        complianceRate: '100%',
-        directFarmerMarginRetained: '+10.0%',
+        complianceRate,
+        directFarmerMarginRetained: summary.totalDirectVolumeRupees > 0 ? '+10.0%' : '0.0%',
         verifiedTransactionsCount: summary.verifiedCount,
+        totalAuditLogsCount: summary.totalLogs,
         governingBodies: ['Ministry of Agriculture & Farmers Welfare', 'UASD Dharwad APMC Cell', 'ICAR']
       }
     });

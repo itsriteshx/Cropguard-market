@@ -2,6 +2,8 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   ShoppingBag,
+  PlusCircle,
+  MessageSquare,
   TrendingUp,
   FileText,
   ShieldCheck,
@@ -10,46 +12,69 @@ import {
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, onTabChange }) {
-  const { t } = useAuth();
+  const { t, currentUser } = useAuth();
+  const role = currentUser?.role;
+  const isFarmer = role === 'FARMER' || role === 'ADMIN';
+  const isAdmin = role === 'ADMIN';
 
   const navItems = [
     {
       id: 'marketplace',
-      label: t.nav?.marketplace || 'Wholesale Marketplace',
-      sublabel: t.nav?.marketplaceSub || 'Direct Bulk Farm Lots (20-500 qtl)',
+      label: t.nav?.marketplace || 'Marketplace',
+      sublabel: 'Browse live harvest lots',
       icon: ShoppingBag,
     },
+    ...(isFarmer
+      ? [
+          {
+            id: 'sell',
+            label: 'Sell Produce',
+            sublabel: 'List harvest & manage lots',
+            icon: PlusCircle,
+          },
+        ]
+      : []),
     {
-      id: 'mandi',
-      label: t.nav?.mandi || 'APMC Mandi Intelligence',
-      sublabel: t.nav?.mandiSub || 'Price Trends & Modal Spread',
-      icon: TrendingUp,
+      id: 'negotiations',
+      label: 'Negotiations',
+      sublabel: 'Live offer & counter-offer room',
+      icon: MessageSquare,
     },
     {
       id: 'orders',
-      label: t.nav?.orders || 'Bulk Orders & Escrow',
-      sublabel: t.nav?.ordersSub || 'Fulfillment & Settlement Pipeline',
+      label: t.nav?.orders || 'Orders & Escrow',
+      sublabel: 'Track order stages & receipts',
       icon: FileText,
     },
     {
-      id: 'compliance',
-      label: t.nav?.compliance || 'Audit & Fair-Trade',
-      sublabel: t.nav?.complianceSub || 'Digital Khata & +10% Savings',
-      icon: ShieldCheck,
+      id: 'mandi',
+      label: t.nav?.mandi || 'Mandi Prices & Weather',
+      sublabel: 'Live Agmarknet & district weather',
+      icon: TrendingUp,
     },
     {
-      id: 'system',
-      label: t.nav?.system || 'API Gateway & Docs',
-      sublabel: t.nav?.systemSub || 'Backend Health & Swagger Specs',
-      icon: Server,
+      id: 'compliance',
+      label: t.nav?.compliance || 'Audit & Khata',
+      sublabel: 'Digital ledger & savings summary',
+      icon: ShieldCheck,
     },
+    ...(isAdmin
+      ? [
+          {
+            id: 'system',
+            label: 'System Diagnostics',
+            sublabel: 'Admin gateway status',
+            icon: Server,
+          },
+        ]
+      : []),
   ];
 
   return (
     <aside className="w-full md:w-64 shrink-0 bg-slate-900/60 border-r border-slate-800 p-4 flex flex-col justify-between">
       <div className="space-y-1">
         <div className="px-3 py-2 text-[10px] uppercase font-bold tracking-wider text-slate-500">
-          {t.nav?.coreNav || 'Core Navigation'}
+          Workspace
         </div>
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -80,19 +105,14 @@ export default function Sidebar({ activeTab, onTabChange }) {
         })}
       </div>
 
-      {/* Institutional Governance Footer */}
-      <div className="mt-8 pt-4 border-t border-slate-800/80 px-2 space-y-3">
-        <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] space-y-1.5">
+      <div className="mt-8 pt-4 border-t border-slate-800/80 px-2">
+        <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] space-y-1">
           <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-            <Award className="w-4 h-4" /> {t.nav?.compliantBadge || 'ICAR & UASD Compliant'}
+            <Award className="w-4 h-4" /> Direct Trade Exchange
           </div>
           <p className="text-slate-400 text-[10px] leading-relaxed">
-            {t.nav?.complianceNotice || 'Eliminates APMC commission agents (arhatiyas) to transfer +10% economic value directly to farmers.'}
+            0% middleman commission. Benchmarked with live Agmarknet mandi rates.
           </p>
-        </div>
-
-        <div className="text-[10px] text-slate-500 text-center">
-          CropGuard Market v1.0 • DE Track
         </div>
       </div>
     </aside>

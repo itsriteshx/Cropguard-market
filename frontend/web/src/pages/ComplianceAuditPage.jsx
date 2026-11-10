@@ -11,99 +11,45 @@ import {
 } from 'lucide-react';
 
 export default function ComplianceAuditPage() {
-  const { t } = useAuth();
+  const { t, currentUser } = useAuth();
   const c = t.compliance || {};
   const [ledgerData, setLedgerData] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
   const [summaryMetrics, setSummaryMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState('');
 
   const loadAuditData = async () => {
     setLoading(true);
+    setFetchError('');
     try {
-      // Fetch concurrently: Farmer ledger, Audit summary, and Live audit logs from MongoDB Atlas
+      const canViewFarmerLedger = ['FARMER', 'ADMIN'].includes(currentUser?.role);
       const [ledgerRes, summaryRes, logsRes] = await Promise.allSettled([
-        ordersService.getFarmerLedger(),
+        canViewFarmerLedger ? ordersService.getFarmerLedger() : Promise.resolve(null),
         auditService.getSummary(),
-        auditService.getLogs({ limit: 10 }),
+        auditService.getLogs({ limit: 15 }),
       ]);
 
       if (ledgerRes.status === 'fulfilled' && ledgerRes.value?.ledger) {
         setLedgerData(ledgerRes.value.ledger);
       } else {
-        setLedgerData({
-          totalRevenue: 1010000,
-          totalMiddlemanSaved: 101000,
-          totalTransactions: 3,
-          totalQuintals: 400,
-          averageRatePerQuintal: 2525,
-          fairPriceComplianceRate: '100%',
-        });
+        setLedgerData(null);
       }
 
       if (summaryRes.status === 'fulfilled' && summaryRes.value?.metrics) {
         setSummaryMetrics(summaryRes.value.metrics);
       } else {
-        setSummaryMetrics({
-          totalMiddlemanSaved: 101000,
-          totalDirectVolumeRupees: 1010000,
-          complianceRate: '100%',
-          directFarmerMarginRetained: '+10.0%',
-          verifiedTransactionsCount: 4,
-          governingBodies: ['Ministry of Agriculture & Farmers Welfare', 'UASD Dharwad APMC Cell', 'ICAR'],
-        });
+        setSummaryMetrics(null);
       }
 
-      if (logsRes.status === 'fulfilled' && logsRes.value?.logs?.length > 0) {
+      if (logsRes.status === 'fulfilled' && Array.isArray(logsRes.value?.logs)) {
         setAuditLogs(logsRes.value.logs);
       } else {
-        // Fallback default regulatory records
-        setAuditLogs([
-          {
-            _id: 'aud_01',
-            action: 'APMC_BENCHMARK_VERIFIED',
-            title: 'Floor Price Benchmark Cleared',
-            description: 'Listing verified against Hubballi APMC modal rate corridor of ₹2,450/qtl.',
-            financialSnapshot: { dealAmount: 294000, middlemanFeeSaved: 29400, apmcBenchmarkRate: 2450 },
-            complianceAuthority: 'UASD APMC Cell',
-            isVerified: true,
-            createdAt: new Date().toISOString(),
-          },
-          {
-            _id: 'aud_02',
-            action: 'COMMISSION_EXEMPTION_APPLIED',
-            title: 'Zero Arhatiya Commission Exemption',
-            description: '10.0% traditional middleman cut retained by producer Ramesh Patil.',
-            financialSnapshot: { dealAmount: 294000, middlemanFeeSaved: 29400, apmcBenchmarkRate: 2450 },
-            complianceAuthority: 'Ministry of Agriculture Norms',
-            isVerified: true,
-            createdAt: new Date(Date.now() - 3600000).toISOString(),
-          },
-          {
-            _id: 'aud_03',
-            action: 'ESCROW_SECURED',
-            title: 'Escrow Vault Secured',
-            description: '₹5,60,000 institutional funds locked in multi-sig escrow prior to transport.',
-            financialSnapshot: { dealAmount: 560000, middlemanFeeSaved: 56000, apmcBenchmarkRate: 2800 },
-            complianceAuthority: 'CropGuard Escrow Framework',
-            isVerified: true,
-            createdAt: new Date(Date.now() - 7200000).toISOString(),
-          },
-          {
-            _id: 'aud_04',
-            action: 'SETTLEMENT_RELEASED',
-            title: 'Direct Farmer Settlement Completed',
-            description: '₹1,56,000 paid to Mallikarjun Patil with verified zero payment deduction.',
-            financialSnapshot: { dealAmount: 156000, middlemanFeeSaved: 15600, apmcBenchmarkRate: 1950 },
-            complianceAuthority: 'ICAR Fair Trade Directorate',
-            isVerified: true,
-            createdAt: new Date(Date.now() - 14400000).toISOString(),
-          },
-        ]);
+        setAuditLogs([]);
       }
     } catch (err) {
-      console.warn('[Audit Page] Live fetch notice:', err.message);
+      setFetchError(err.message || 'Unable to load compliance audit data');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -161,9 +107,9 @@ export default function ComplianceAuditPage() {
     },
   ];
 
-  const totalVolume = summaryMetrics?.totalDirectVolumeRupees || ledgerData?.totalRevenue || 1010000;
-  const totalSaved = summaryMetrics?.totalMiddlemanSaved || ledgerData?.totalMiddlemanSaved || 101000;
-  const verifiedCount = summaryMetrics?.verifiedTransactionsCount || auditLogs.length || 4;
+  const totalVolume = summaryMetrics?.totalDirectVolumeRupees ?? ledgerData?.totalRevenue ?? 0;
+  const totalSaved = summaryMetrics?.totalMiddlemanSaved ?? ledgerData?.totalMiddlemanSaved ?? 0;
+  const verifiedCount = summaryMetrics?.verifiedTransactionsCount ?? auditLogs.length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -207,7 +153,7 @@ export default function ComplianceAuditPage() {
             ₹{totalVolume.toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] text-slate-400">
-            {ledgerData?.totalQuintals || 400} quintals across {ledgerData?.totalTransactions || 3} contracts
+            {ledgerData ? `${ledgerData.totalQuintals || 0} quintals across ${ledgerData.totalTransactions || 0} settled contracts` : 'Live MongoDB aggregate total'}
           </div>
         </div>
 
@@ -228,10 +174,10 @@ export default function ComplianceAuditPage() {
             {c.farmgateRealization || 'Average Farmgate Realization'}
           </div>
           <div className="text-2xl font-black text-white">
-            ₹{(ledgerData?.averageRatePerQuintal || 2525).toLocaleString('en-IN')} / qtl
+            ₹{(ledgerData?.averageRatePerQuintal || 0).toLocaleString('en-IN')} / qtl
           </div>
           <div className="text-[11px] text-emerald-400">
-            +11.8% above traditional APMC floor
+            Computed from live settled orders
           </div>
         </div>
 

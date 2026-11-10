@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { systemService } from '../services/api';
 import {
   Lock,
   Phone,
@@ -28,6 +29,16 @@ export default function LoginPage() {
   const [district, setDistrict] = useState('Dharwad');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [platformStats, setPlatformStats] = useState(null);
+
+  useEffect(() => {
+    systemService
+      .getStats()
+      .then((res) => {
+        if (res?.success && res.stats) setPlatformStats(res.stats);
+      })
+      .catch(() => {});
+  }, []);
 
   const handlePhoneChange = (val) => {
     let clean = val.replace(/\D/g, '');
@@ -154,13 +165,21 @@ export default function LoginPage() {
             Zero middlemen deductions, live APMC benchmarked modal rates, and 100% escrow settlement guaranteed under Section 26.
           </p>
 
-          {/* 4 Trust Highlights */}
+          {/* 4 Live Platform Highlights */}
           <div className="grid grid-cols-2 gap-3 mb-8">
             {[
-              { icon: '🌾', title: '340+ MT Live Harvest', desc: 'Direct from Dharwad, Belagavi FPOs' },
+              {
+                icon: '🌾',
+                title: platformStats ? `${platformStats.totalAvailableMetricTons} MT Live Harvest` : 'Live MongoDB Harvest',
+                desc: platformStats ? `${platformStats.activeLots} active verified lots` : 'Synced directly from farmers',
+              },
               { icon: '⚡', title: '0.0% Arhatiya Cut', desc: '+10% direct margin to farmers' },
               { icon: '🛡️', title: '100% Escrow Security', desc: 'Protected by ICAR trade contracts' },
-              { icon: '🏛️', title: 'APMC Modal Rate Linked', desc: 'Real-time daily mandi discovery' },
+              {
+                icon: '🏛️',
+                title: 'Live Agmarknet Linked',
+                desc: platformStats ? `${platformStats.mandiRatesTrackedCount} mandi rates tracked` : 'data.gov.in daily mandi feed',
+              },
             ].map((p, idx) => (
               <div key={idx} className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 backdrop-blur-sm">
                 <div className="text-lg mb-1">{p.icon}</div>

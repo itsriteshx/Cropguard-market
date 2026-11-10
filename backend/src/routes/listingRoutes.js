@@ -10,12 +10,12 @@ const {
   deleteListing
 } = require('../controllers/listingController');
 
-const { protect, authorize } = require('../middleware/authMiddleware');
+const { protect, authorize, optionalProtect } = require('../middleware/authMiddleware');
 
 // Public listing browsing & farmer protected creation
 router
   .route('/')
-  .get(getAllListings)
+  .get(optionalProtect, getAllListings)
   .post(protect, authorize('FARMER', 'ADMIN'), createListing);
 
 // Logged-in farmer's inventory

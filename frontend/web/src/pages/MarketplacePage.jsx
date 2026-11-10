@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { listingsService, ordersService } from '../services/api';
+import { listingsService, ordersService, negotiationsService, mandiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   Search,
@@ -24,6 +24,8 @@ import {
   Globe,
   Sparkles,
   ChevronRight,
+  MessageSquare,
+  PlusCircle,
 } from 'lucide-react';
 
 // Multilingual crop names dictionary for full immersion
@@ -104,255 +106,41 @@ const getLocalizedCropName = (cropName, lang) => {
   return LOCALIZED_CROPS[lang]?.[cropName] || cropName;
 };
 
-// Fallback high-resolution agricultural crop photography mapper
-const getCropImage = (cropName = '', category = '', customImages = []) => {
-  if (customImages && customImages.length > 0 && typeof customImages[0] === 'string' && customImages[0].startsWith('http')) {
-    return customImages[0];
-  }
-  const name = cropName.toLowerCase();
-  if (name.includes('onion')) {
-    return 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('wheat') || name.includes('grain')) {
-    return 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('tomato')) {
-    return 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('chilli') || name.includes('chili') || name.includes('mirchi')) {
-    return 'https://images.unsplash.com/photo-1588252303782-cb80119abd6d?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('soybean') || name.includes('soya')) {
-    return 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('turmeric') || name.includes('haldi')) {
-    return 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('pepper') || name.includes('capsicum') || name.includes('shimla')) {
-    return 'https://images.unsplash.com/photo-1563565375-f3fdfdbefa83?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('lemon') || name.includes('citrus')) {
-    return 'https://images.unsplash.com/photo-1533038590840-1cde6e668a91?auto=format&fit=crop&w=800&q=80';
-  }
-  if (name.includes('maize') || name.includes('corn')) {
-    return 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=800&q=80';
-  }
-  if (category?.toUpperCase() === 'FRUITS') {
-    return 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&w=800&q=80';
-  }
-  if (category?.toUpperCase() === 'SPICES') {
-    return 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80';
-  }
-  return 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80';
-};
-
-// Rich, diverse wholesale harvest catalog across Karnataka Mandi corridors
-const DEFAULT_FALLBACK_LISTINGS = [
-  {
-    _id: 'lot_01_onion',
-    cropName: 'Red Onion (Garva Special)',
-    category: 'Vegetables',
-    quantity: 120,
-    unit: 'Quintal',
-    expectedPrice: 2450,
-    benchmarkRate: 2350,
-    qualityGrade: 'Organic Grade A',
-    organicCertified: true,
-    harvestDate: '2026-10-25',
-    moistureContent: '11.4%',
-    description: 'Certified organic winter onion harvest, zero chemical curing, high shelf life suitable for long haul bulk storage.',
-    farmer: {
-      name: 'Ramesh Patil',
-      phone: '9876543210',
-      district: 'Dharwad',
-      fpo: 'Navalgund Progressive Farmers Co-op',
-      isVerified: true,
-    },
-    locationName: 'Navalgund Taluk, Dharwad',
-    distanceKm: 18.4,
-  },
-  {
-    _id: 'lot_02_wheat',
-    cropName: 'Sharbati Golden Wheat',
-    category: 'Cereals',
-    quantity: 250,
-    unit: 'Quintal',
-    expectedPrice: 2800,
-    benchmarkRate: 2710,
-    qualityGrade: 'Grade A - Certified',
-    organicCertified: false,
-    harvestDate: '2026-10-22',
-    moistureContent: '10.2%',
-    description: 'Golden luster Sharbati grain with 13.5% natural protein content, harvested under UASD certified seed protocol.',
-    farmer: {
-      name: 'Basavaraj Pujar',
-      phone: '9845012345',
-      district: 'Hubballi',
-      fpo: 'Kundgol Grain Producers Union',
-      isVerified: true,
-    },
-    locationName: 'Kundgol, Hubballi',
-    distanceKm: 26.2,
-  },
-  {
-    _id: 'lot_03_tomato',
-    cropName: 'Roma Plum Tomatoes',
-    category: 'Vegetables',
-    quantity: 85,
-    unit: 'Quintal',
-    expectedPrice: 1950,
-    benchmarkRate: 1850,
-    qualityGrade: 'Processing Grade A',
-    organicCertified: false,
-    harvestDate: '2026-11-03',
-    moistureContent: '89.0%',
-    description: 'Firm texture Roma plum tomatoes ideal for ketchup, puree processing, and institutional cold chain dispatch.',
-    farmer: {
-      name: 'Mallikarjun Gaddi',
-      phone: '9448123987',
-      district: 'Belagavi',
-      fpo: 'Bailhongal Agro Producers Org',
-      isVerified: true,
-    },
-    locationName: 'Bailhongal, Belagavi',
-    distanceKm: 42.0,
-  },
-  {
-    _id: 'lot_04_chilli',
-    cropName: 'Byadagi Stemless Chilli',
-    category: 'Spices',
-    quantity: 45,
-    unit: 'Quintal',
-    expectedPrice: 18500,
-    benchmarkRate: 17800,
-    qualityGrade: 'GI Tagged Export Grade',
-    organicCertified: true,
-    harvestDate: '2026-10-18',
-    moistureContent: '8.5%',
-    description: 'Authentic GI Tagged Byadagi chilli, high ASTA color index (150+), low heat pungency, deep ruby red sheen.',
-    farmer: {
-      name: 'Suresh Nayak',
-      phone: '9900112233',
-      district: 'Haveri',
-      fpo: 'Byadagi Spice Growers Collective',
-      isVerified: true,
-    },
-    locationName: 'Byadagi APMC Mandi, Haveri',
-    distanceKm: 68.5,
-  },
-  {
-    _id: 'lot_05_soybean',
-    cropName: 'Yellow Soybean (JS-335)',
-    category: 'Oilseeds',
-    quantity: 180,
-    unit: 'Quintal',
-    expectedPrice: 4650,
-    benchmarkRate: 4520,
-    qualityGrade: 'Premium Oil Extraction',
-    organicCertified: false,
-    harvestDate: '2026-10-28',
-    moistureContent: '9.8%',
-    description: 'High oil yield (20.5%) yellow soybean lot, machine cleaned and destoned, zero foreign dockage.',
-    farmer: {
-      name: 'Ningappa Biradar',
-      phone: '9880554433',
-      district: 'Kalaburagi',
-      fpo: 'Aland Taluk Oilseed FPO',
-      isVerified: true,
-    },
-    locationName: 'Aland Taluk, Kalaburagi',
-    distanceKm: 95.0,
-  },
-  {
-    _id: 'lot_06_turmeric',
-    cropName: 'Salem Golden Turmeric',
-    category: 'Spices',
-    quantity: 60,
-    unit: 'Quintal',
-    expectedPrice: 12400,
-    benchmarkRate: 11900,
-    qualityGrade: 'Organic Curcumin 4.2%',
-    organicCertified: true,
-    harvestDate: '2026-10-15',
-    moistureContent: '9.0%',
-    description: 'Sun dried organic turmeric fingers, lab verified 4.2% bioactive curcumin, pesticide residue free.',
-    farmer: {
-      name: 'Chennappa Gowda',
-      phone: '9740223344',
-      district: 'Chamarajanagar',
-      fpo: 'Gundlupet Organic Spices Trust',
-      isVerified: true,
-    },
-    locationName: 'Gundlupet, Chamarajanagar',
-    distanceKm: 120.0,
-  },
-  {
-    _id: 'lot_07_capsicum',
-    cropName: 'Shimla Green Bell Peppers',
-    category: 'Vegetables',
-    quantity: 75,
-    unit: 'Quintal',
-    expectedPrice: 3200,
-    benchmarkRate: 3050,
-    qualityGrade: 'Polyhouse Crisp Grade A',
-    organicCertified: false,
-    harvestDate: '2026-11-04',
-    moistureContent: '92.5%',
-    description: 'Naturally ventilated polyhouse harvest, thick walled vibrant green peppers, graded for bulk retail shelves.',
-    farmer: {
-      name: 'Anand Kulkarni',
-      phone: '9611223344',
-      district: 'Hassan',
-      fpo: 'Malnad Protected Cultivation FPO',
-      isVerified: true,
-    },
-    locationName: 'Sakleshpur, Hassan',
-    distanceKm: 54.0,
-  },
-  {
-    _id: 'lot_08_lemon',
-    cropName: 'Kagzi Seedless Lemons',
-    category: 'Fruits',
-    quantity: 90,
-    unit: 'Quintal',
-    expectedPrice: 3800,
-    benchmarkRate: 3650,
-    qualityGrade: 'Export Grade Citrus',
-    organicCertified: true,
-    harvestDate: '2026-11-02',
-    moistureContent: '88.0%',
-    description: 'Thin skinned high juice yield Kagzi lemons, hand picked and wax coated for extended wholesale shelf life.',
-    farmer: {
-      name: 'Jagadish Hiremath',
-      phone: '9480112233',
-      district: 'Vijayapura',
-      fpo: 'Krishna Basin Citrus Collective',
-      isVerified: true,
-    },
-    locationName: 'Sindagi, Vijayapura',
-    distanceKm: 82.0,
-  },
-];
-
-export default function MarketplacePage() {
-  const { activePersona, t, language } = useAuth();
+export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiations, onNavigateToMandi }) {
+  const { activePersona, currentUser, t, language } = useAuth();
   const m = t.marketplace || {};
   const modalText = m.modal || {};
+  const userRole = currentUser?.role;
+  const isFarmer = userRole === 'FARMER';
+  const isBuyer = ['BUYER_RETAIL', 'BUYER_WHOLESALE'].includes(userRole);
+  const canOrder = ['BUYER_RETAIL', 'BUYER_WHOLESALE', 'ADMIN'].includes(userRole);
 
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [organicOnly, setOrganicOnly] = useState(false);
   const [sortBy, setSortBy] = useState('featured'); // 'featured', 'price_asc', 'price_desc', 'quantity', 'distance'
+  const [liveMandiMatches, setLiveMandiMatches] = useState([]);
+  const [liveMandiLoading, setLiveMandiLoading] = useState(false);
 
   // Modals state
   const [selectedLot, setSelectedLot] = useState(null);
   const [inspectLot, setInspectLot] = useState(null);
+  const [offerLot, setOfferLot] = useState(null);
   const [orderQuantity, setOrderQuantity] = useState(50);
   const [offerPrice, setOfferPrice] = useState(0);
-  const [procurementStatus, setProcurementStatus] = useState(null); // 'submitting', 'success'
+  const [procurementStatus, setProcurementStatus] = useState(null); // 'submitting', 'success', 'error'
+  const [orderError, setOrderError] = useState('');
   const [escrowContractId, setEscrowContractId] = useState('');
+
+  // Quick Bargaining Offer Modal State
+  const [bidPrice, setBidPrice] = useState('');
+  const [bidQty, setBidQty] = useState('');
+  const [bidNote, setBidNote] = useState('');
+  const [bidError, setBidError] = useState('');
+  const [bidSubmitting, setBidSubmitting] = useState(false);
 
   const categories = [
     { id: 'ALL', label: 'All Crops', icon: '🌾' },
@@ -364,41 +152,25 @@ export default function MarketplacePage() {
     { id: 'Pulses', label: 'Pulses', icon: '🫘' },
   ];
 
-  // Load listings from API with rich fallback
-  const loadListings = async () => {
+  // Load real listings directly from backend MongoDB + Agmarknet benchmark + Wikimedia media API
+  const loadListings = async (viewerCoords = null) => {
     setLoading(true);
+    setFetchError('');
     try {
-      const data = await listingsService.getAll();
-      if (data && data.listings && data.listings.length > 0) {
-        // Merge API listings with rich fallback fields if needed
-        const mapped = data.listings.map((item, idx) => {
-          const fallback = DEFAULT_FALLBACK_LISTINGS[idx % DEFAULT_FALLBACK_LISTINGS.length];
-          return {
-            ...fallback,
-            ...item,
-            cropName: item.cropName || fallback.cropName,
-            category: item.category || fallback.category,
-            quantity: item.quantity || fallback.quantity,
-            unit: item.unit || fallback.unit || 'Quintal',
-            expectedPrice: item.expectedPrice || item.pricePerUnit || fallback.expectedPrice,
-            benchmarkRate: item.benchmarkRate || fallback.benchmarkRate,
-            farmer: {
-              ...fallback.farmer,
-              ...(item.farmer || {}),
-              name: item.farmer?.name || fallback.farmer.name,
-              phone: item.farmer?.phone || fallback.farmer.phone,
-              district: item.farmer?.district || item.location?.district || fallback.farmer.district,
-            },
-            locationName: item.locationName || item.location?.district || fallback.locationName,
-          };
-        });
-        setListings(mapped);
+      const params = { limit: 50 };
+      if (viewerCoords?.lat && viewerCoords?.lon) {
+        params.viewerLat = viewerCoords.lat;
+        params.viewerLon = viewerCoords.lon;
+      }
+      const data = await listingsService.getAll(params);
+      if (data && data.success && Array.isArray(data.listings)) {
+        setListings(data.listings);
       } else {
-        setListings(DEFAULT_FALLBACK_LISTINGS);
+        setListings([]);
       }
     } catch (err) {
-      console.warn('API listings fetch failed, using rich fallback catalog:', err.message);
-      setListings(DEFAULT_FALLBACK_LISTINGS);
+      setFetchError(err.response?.data?.message || err.message || 'Failed to load marketplace listings from API');
+      setListings([]);
     } finally {
       setLoading(false);
     }
@@ -406,32 +178,111 @@ export default function MarketplacePage() {
 
   useEffect(() => {
     loadListings();
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          loadListings({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        },
+        () => {},
+        { timeout: 3000 }
+      );
+    }
   }, []);
+
+  // Automatically fetch live Govt Agmarknet APMC prices when user searches a crop in Marketplace
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setLiveMandiMatches([]);
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      setLiveMandiLoading(true);
+      try {
+        const res = await mandiService.getLiveRates({
+          state: 'ALL',
+          commodity: q,
+          limit: 20,
+        });
+        if (active && Array.isArray(res?.rates)) {
+          setLiveMandiMatches(res.rates);
+        }
+      } catch {
+        if (active) setLiveMandiMatches([]);
+      } finally {
+        if (active) setLiveMandiLoading(false);
+      }
+    }, 450);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
 
   const openProcurementModal = (lot) => {
     setSelectedLot(lot);
     setOrderQuantity(lot.quantity);
-    setOfferPrice(lot.expectedPrice || lot.pricePerUnit || 2400);
+    setOfferPrice(lot.expectedPrice || lot.pricePerUnit || 0);
     setProcurementStatus(null);
+    setOrderError('');
+    setEscrowContractId('');
   };
 
   const handlePlaceBulkOrder = async () => {
     setProcurementStatus('submitting');
-    const generatedId = `ESC-2026-DH-${Math.floor(1000 + Math.random() * 9000)}`;
-    setEscrowContractId(generatedId);
+    setOrderError('');
 
     try {
+      const buyerName = currentUser?.name || activePersona?.name || 'Registered Buyer';
       const payload = {
         listingId: selectedLot._id,
         quantity: Number(orderQuantity),
         agreedPrice: Number(offerPrice),
-        notes: `Bulk procurement by ${activePersona.name} under UASD ICAR Direct Framework. Escrow ID: ${generatedId}`,
+        notes: `Direct purchase by ${buyerName}`,
       };
-      await ordersService.create(payload);
+      const res = await ordersService.create(payload);
+      setEscrowContractId(res?.order?.orderNumber || res?.order?._id || 'CONFIRMED');
       setProcurementStatus('success');
+      loadListings();
     } catch (err) {
-      console.warn('Order submission offline fallback:', err.message);
-      setProcurementStatus('success');
+      setOrderError(err.response?.data?.message || err.message || 'Unable to place order');
+      setProcurementStatus('error');
+    }
+  };
+
+  const openBargainModal = (lot) => {
+    setOfferLot(lot);
+    setBidPrice(String(lot.expectedPrice || lot.pricePerUnit || ''));
+    setBidQty(String(lot.quantity || 1));
+    setBidNote('');
+    setBidError('');
+  };
+
+  const handleSubmitBargainOffer = async (e) => {
+    e.preventDefault();
+    if (!offerLot) return;
+    setBidError('');
+    setBidSubmitting(true);
+    try {
+      const res = await negotiationsService.start({
+        listingId: offerLot._id,
+        offeredPrice: Number(bidPrice),
+        quantity: Number(bidQty),
+        note: bidNote.trim() || undefined,
+      });
+      if (res?.success) {
+        setOfferLot(null);
+        if (onNavigateToNegotiations) onNavigateToNegotiations();
+      } else {
+        setBidError(res?.message || 'Unable to submit offer.');
+      }
+    } catch (err) {
+      setBidError(err.response?.data?.message || err.message || 'Unable to start negotiation.');
+    } finally {
+      setBidSubmitting(false);
     }
   };
 
@@ -465,7 +316,7 @@ export default function MarketplacePage() {
       if (sortBy === 'price_asc') return priceA - priceB;
       if (sortBy === 'price_desc') return priceB - priceA;
       if (sortBy === 'quantity') return b.quantity - a.quantity;
-      if (sortBy === 'distance') return (a.distanceKm || 50) - (b.distanceKm || 50);
+      if (sortBy === 'distance') return (a.distanceKm ?? Number.MAX_SAFE_INTEGER) - (b.distanceKm ?? Number.MAX_SAFE_INTEGER);
       return 0; // featured default
     });
   }, [listings, categoryFilter, searchQuery, organicOnly, sortBy]);
@@ -476,128 +327,37 @@ export default function MarketplacePage() {
   }, [listings]);
 
   return (
-    <div className="space-y-0 pb-16">
-
-      {/* ═══════════════════════════════════════════════════════════════
-          🌟 CINEMATIC HERO — Premium Dark Agricultural Exchange Portal
-          ═══════════════════════════════════════════════════════════════ */}
-      <div className="relative overflow-hidden rounded-3xl mb-8" style={{ minHeight: '480px' }}>
-        {/* Deep layered background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#020c06] via-[#041509] to-[#060d14]" />
-
-        {/* Atmospheric glow spheres */}
-        <div className="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full opacity-30"
-          style={{ background: 'radial-gradient(circle, #10b98155 0%, transparent 70%)' }} />
-        <div className="absolute top-20 right-0 w-[380px] h-[380px] rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, #059669aa 0%, transparent 70%)' }} />
-        <div className="absolute -bottom-20 left-1/3 w-[300px] h-[300px] rounded-full opacity-15"
-          style={{ background: 'radial-gradient(circle, #f59e0baa 0%, transparent 70%)' }} />
-        <div className="absolute top-1/2 left-1/2 w-[500px] h-[500px] rounded-full opacity-10 -translate-x-1/2 -translate-y-1/2"
-          style={{ background: 'radial-gradient(circle, #34d39944 0%, transparent 70%)' }} />
-
-        {/* Grid overlay texture */}
-        <div className="absolute inset-0 opacity-[0.04]"
-          style={{ backgroundImage: 'linear-gradient(#10b98122 1px, transparent 1px), linear-gradient(90deg, #10b98122 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
-
-        {/* Border glow */}
-        <div className="absolute inset-0 rounded-3xl"
-          style={{ boxShadow: 'inset 0 0 0 1px rgba(16,185,129,0.15), inset 0 1px 0 rgba(16,185,129,0.25)' }} />
-
-        <div className="relative z-10 p-8 sm:p-10 lg:p-14 flex flex-col h-full" style={{ minHeight: '480px' }}>
-
-          {/* Top badge row */}
-          <div className="flex flex-wrap items-center gap-3 mb-8">
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wider border"
-              style={{ background: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.3)', color: '#6ee7b7' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute" />
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>UASD DHARWAD & ICAR CERTIFIED PLATFORM</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
-              style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.25)', color: '#fcd34d' }}>
-              <Lock className="w-3 h-3" />
-              <span>ZERO MIDDLEMEN • 100% ESCROW PROTECTED</span>
-            </div>
-          </div>
-
-          {/* Main Headline */}
-          <div className="max-w-4xl mb-8">
-            <h1 className="font-black tracking-tight leading-none mb-5"
-              style={{ fontSize: 'clamp(2.2rem, 5vw, 4rem)', lineHeight: '1.05' }}>
-              <span className="block text-white">India's Premier</span>
-              <span className="block" style={{
-                background: 'linear-gradient(135deg, #34d399 0%, #10b981 30%, #a7f3d0 55%, #6ee7b7 80%, #34d399 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-              }}>
-                Farm-to-Market
-              </span>
-              <span className="block text-white">Exchange Corridor</span>
-            </h1>
-
-            <p className="text-slate-400 leading-relaxed max-w-2xl" style={{ fontSize: '1rem' }}>
-              Source verified bulk agri commodities <strong className="text-slate-200">directly from UASD-accredited FPOs</strong> across Karnataka.
-              {' '}<span style={{ color: '#34d399' }}>0% broker deduction</span>, APMC-benchmarked prices, instant multi-sig escrow settlement.
-            </p>
-          </div>
-
-          {/* Premium KPI Cards Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-auto">
-            {[
-              {
-                icon: '🌾', label: m.liveHarvest || 'Live Harvest',
-                value: `${totalVolumeMT} MT`, sub: m.corridorsTag || '8 Karnataka Corridors',
-                accent: '#34d399', bg: 'rgba(16,185,129,0.06)', border: 'rgba(16,185,129,0.15)'
-              },
-              {
-                icon: '⚡', label: m.arhatiyaCuts || 'Arhatiya Cuts',
-                value: '0.0%', sub: m.farmerProfit || '+10% Farmer Profit',
-                accent: '#34d399', bg: 'rgba(16,185,129,0.06)', border: 'rgba(52,211,153,0.2)'
-              },
-              {
-                icon: '🛡️', label: m.escrowSecurity || 'Escrow Security',
-                value: '100%', sub: m.icarProtocol || 'ICAR Mandi Protocol',
-                accent: '#a5b4fc', bg: 'rgba(99,102,241,0.06)', border: 'rgba(99,102,241,0.15)'
-              },
-              {
-                icon: '📍', label: m.hyperLocal || 'Hyper-Local',
-                value: '< 50 km', sub: m.sameDayDispatch || 'Same-Day Dispatch',
-                accent: '#fcd34d', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.15)'
-              },
-            ].map((kpi, i) => (
-              <div key={i} className="rounded-2xl p-4 backdrop-blur-sm"
-                style={{ background: kpi.bg, border: `1px solid ${kpi.border}` }}>
-                <div className="text-xs font-semibold mb-1 flex items-center gap-1.5" style={{ color: 'rgba(148,163,184,0.9)' }}>
-                  <span>{kpi.icon}</span> {kpi.label}
-                </div>
-                <div className="text-xl sm:text-2xl font-black" style={{ color: kpi.accent }}>{kpi.value}</div>
-                <div className="text-[10px] mt-0.5 font-medium" style={{ color: 'rgba(148,163,184,0.7)' }}>{kpi.sub}</div>
-              </div>
-            ))}
-          </div>
+    <div className="space-y-5 pb-14">
+      {/* Compact Action-Focused Marketplace Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+            {isFarmer ? 'Marketplace & Your Crops' : 'Fresh Produce Marketplace'}
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">
+            {listings.length} active harvest lots ({totalVolumeMT} MT available) • 0% middleman commission
+          </p>
         </div>
-      </div>
 
-      {/* ═══════════════════════════════════════════════════════
-          🔥 LIVE TRUST STRIP — Social proof & live stats
-          ═══════════════════════════════════════════════════════ */}
-      <div className="mb-6 rounded-2xl overflow-hidden border border-slate-800/80"
-        style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.04) 0%, rgba(15,23,42,0.6) 50%, rgba(16,185,129,0.04) 100%)' }}>
-        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-3.5">
-          {[
-            { icon: <TrendingUp className="w-3.5 h-3.5" />, label: '8 Active Mandi Corridors', color: '#34d399' },
-            { icon: <Star className="w-3.5 h-3.5" />, label: '340+ Verified UASD Farmers', color: '#fcd34d' },
-            { icon: <Leaf className="w-3.5 h-3.5" />, label: 'GI & Organic Certified Lots', color: '#86efac' },
-            { icon: <BarChart3 className="w-3.5 h-3.5" />, label: 'Live APMC Modal Rate Linked', color: '#a5b4fc' },
-            { icon: <Globe className="w-3.5 h-3.5" />, label: '8 Indian Languages Supported', color: '#67e8f9' },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs font-semibold" style={{ color: item.color }}>
-              {item.icon}
-              <span>{item.label}</span>
-            </div>
-          ))}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {isFarmer && onNavigateToSell && (
+            <button
+              onClick={onNavigateToSell}
+              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-950 transition-colors"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>+ List New Harvest</span>
+            </button>
+          )}
+          {onNavigateToNegotiations && (
+            <button
+              onClick={onNavigateToNegotiations}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-400" />
+              <span>Bargaining Room</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -719,32 +479,164 @@ export default function MarketplacePage() {
           </div>
           <p className="text-sm font-semibold text-slate-400">{m.loading || 'Loading verified wholesale lots...'}</p>
         </div>
-      ) : filteredAndSortedListings.length === 0 ? (
-        <div className="py-20 text-center space-y-4 rounded-3xl border border-slate-800/60"
-          style={{ background: 'rgba(15,23,42,0.5)' }}>
-          <div className="text-5xl">🌾</div>
-          <h3 className="text-xl font-bold text-white">{m.noLotsFound || 'No Matching Farm Lots Found'}</h3>
-          <p className="text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
-            {m.noLotsSub || 'Try adjusting your search keywords or switching category filters.'}
-          </p>
-          <button onClick={() => { setSearchQuery(''); setCategoryFilter('ALL'); setOrganicOnly(false); }}
-            className="px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all"
-            style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}>
-            {m.clearFilters || 'Clear All Filters'}
+      ) : fetchError ? (
+        <div className="py-20 text-center space-y-4 rounded-3xl border border-red-900/50 bg-red-950/20">
+          <div className="text-4xl">⚠️</div>
+          <h3 className="text-xl font-bold text-white">Unable to Load Live Listings</h3>
+          <p className="text-sm text-red-300 max-w-md mx-auto leading-relaxed">{fetchError}</p>
+          <button onClick={() => loadListings()}
+            className="px-5 py-2.5 rounded-xl text-white font-bold text-sm bg-emerald-600 hover:bg-emerald-500 transition-all">
+            Retry Live API
           </button>
+        </div>
+      ) : filteredAndSortedListings.length === 0 ? (
+        <div className="space-y-6">
+          <div className="py-12 px-6 text-center space-y-4 rounded-3xl border border-slate-800/60"
+            style={{ background: 'rgba(15,23,42,0.5)' }}>
+            <div className="text-4xl">🌾</div>
+            <h3 className="text-xl font-bold text-white">{m.noLotsFound || 'No Matching Farm Lots Found'}</h3>
+            <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+              {searchQuery.trim()
+                ? `No farmer harvest lot listed for "${searchQuery.trim()}" yet. Live Govt APMC mandi benchmarks for your search are shown below.`
+                : (m.noLotsSub || 'Try adjusting your search keywords or switching category filters.')}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button onClick={() => { setSearchQuery(''); setCategoryFilter('ALL'); setOrganicOnly(false); }}
+                className="px-5 py-2.5 rounded-xl text-white font-bold text-sm transition-all"
+                style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}>
+                {m.clearFilters || 'Clear All Filters'}
+              </button>
+              {onNavigateToMandi && (
+                <button
+                  type="button"
+                  onClick={onNavigateToMandi}
+                  className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm flex items-center gap-2 transition-all"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span>Open Full APMC Mandi Intelligence</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {searchQuery.trim().length >= 2 && (
+            <div className="bg-slate-900/80 border border-emerald-800/40 rounded-2xl overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-emerald-400" />
+                    Live Govt Agmarknet APMC Prices for &quot;{searchQuery.trim()}&quot;
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Fetched directly from data.gov.in across Indian APMC mandis
+                  </p>
+                </div>
+                {onNavigateToMandi && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToMandi}
+                    className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline underline-offset-2 self-start sm:self-auto"
+                  >
+                    Explore All 300+ Crops &amp; Filters →
+                  </button>
+                )}
+              </div>
+
+              {liveMandiLoading ? (
+                <div className="p-8 text-center text-xs text-slate-400">
+                  Searching live Agmarknet mandis for &quot;{searchQuery.trim()}&quot;...
+                </div>
+              ) : liveMandiMatches.length > 0 ? (
+                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {liveMandiMatches.map((r, idx) => (
+                    <div
+                      key={`${r.marketCenter}-${r.district}-${idx}`}
+                      className="rounded-2xl bg-slate-950/90 border border-slate-800 overflow-hidden flex flex-col hover:border-emerald-500/50 transition-colors"
+                    >
+                      <div className="relative h-36 bg-gradient-to-br from-emerald-950 to-slate-900 flex items-center justify-center overflow-hidden">
+                        {r.imageUrl ? (
+                          <img
+                            src={r.imageUrl}
+                            alt={r.commodity}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="text-4xl">🌾</span>
+                        )}
+                        <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-slate-950/85 border border-slate-700 text-[10px] font-bold text-emerald-300">
+                          {r.category || 'AGMARKNET'}
+                        </span>
+                        <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-slate-950/85 border border-slate-700 text-[10px] font-semibold text-slate-200">
+                          {r.grade || 'Standard'}
+                        </span>
+                      </div>
+
+                      <div className="p-3.5 space-y-2.5 flex-1 flex flex-col justify-between">
+                        <div>
+                          <div className="font-extrabold text-sm text-white">
+                            {r.commodity}
+                            {r.variety ? (
+                              <span className="text-emerald-300 font-semibold text-xs ml-1.5">
+                                ({r.variety})
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                            <span className="truncate">
+                              {r.marketCenter} • {r.district}, {r.state}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            Arrival: {r.arrivalDateRaw || (r.priceDate ? new Date(r.priceDate).toLocaleDateString('en-IN') : 'Today')}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800 grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-slate-900/90 rounded-lg py-1.5 px-1">
+                            <div className="text-[10px] text-slate-400">Min</div>
+                            <div className="font-mono text-xs font-bold text-amber-300">
+                              ₹{Number(r.minPrice).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                          <div className="bg-emerald-950/60 border border-emerald-800/50 rounded-lg py-1.5 px-1">
+                            <div className="text-[10px] text-emerald-300">Modal/qtl</div>
+                            <div className="font-mono text-xs font-black text-emerald-400">
+                              ₹{Number(r.modalPrice).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                          <div className="bg-slate-900/90 rounded-lg py-1.5 px-1">
+                            <div className="text-[10px] text-slate-400">Max</div>
+                            <div className="font-mono text-xs font-bold text-sky-300">
+                              ₹{Number(r.maxPrice).toLocaleString('en-IN')}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center text-xs text-slate-400">
+                  No daily Agmarknet APMC rows arrived today for &quot;{searchQuery.trim()}&quot;. Open <strong className="text-emerald-300">APMC Mandi Intelligence</strong> in the left sidebar to browse all live commodities.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredAndSortedListings.map((lot) => {
-            const price = Number(lot.expectedPrice || lot.pricePerUnit || 2400);
+            const price = Number(lot.expectedPrice || lot.pricePerUnit || 0);
             const totalValue = lot.quantity * price;
-            const benchmark = Number(lot.benchmarkRate || price - 100);
-            const spreadDelta = price - benchmark;
-            const cropImg = getCropImage(lot.cropName, lot.category, lot.images);
+            const benchmark = lot.benchmarkRate != null ? Number(lot.benchmarkRate) : null;
+            const spreadDelta = benchmark !== null ? price - benchmark : null;
+            const cropImg = (Array.isArray(lot.images) && lot.images.find((u) => typeof u === 'string' && (/^https?:\/\//i.test(u) || u.startsWith('/uploads/')))) || lot.resolvedImageUrl || null;
             const middlemanSaved = Math.round(totalValue * 0.1);
             const localizedCrop = getLocalizedCropName(lot.cropName, language);
             const translatedCategory = m.categories?.[lot.category] || lot.category;
-            const fillPercent = Math.min(95, Math.max(40, (lot.quantity / 300) * 100));
+            const fillPercent = Math.min(95, Math.max(20, (lot.quantity / 300) * 100));
 
             return (
               <div key={lot._id}
@@ -765,11 +657,18 @@ export default function MarketplacePage() {
                   e.currentTarget.style.transform = 'translateY(0)';
                 }}
               >
-                {/* Crop Image */}
-                <div className="relative h-52 overflow-hidden">
-                  <img src={cropImg} alt={lot.cropName}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    loading="lazy" />
+                {/* Crop Image from Farmer Upload or Wikipedia REST Media API */}
+                <div className="relative h-52 overflow-hidden bg-gradient-to-br from-emerald-950 to-slate-900 flex items-center justify-center">
+                  {cropImg ? (
+                    <img src={cropImg} alt={lot.cropName}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      loading="lazy" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-emerald-400/70 gap-2">
+                      <Leaf className="w-10 h-10" />
+                      <span className="text-xs font-semibold text-slate-400">{lot.category}</span>
+                    </div>
+                  )}
 
                   {/* Multi-layer gradient overlay */}
                   <div className="absolute inset-0"
@@ -872,10 +771,16 @@ export default function MarketplacePage() {
                         {m.farmerRate || 'Farmer Rate'}
                       </div>
                       <div className="text-lg font-black" style={{ color: '#34d399' }}>
-                        ₹{price.toLocaleString('en-IN')} <span className="text-xs text-slate-500 font-normal">/ qtl</span>
+                        ₹{price.toLocaleString('en-IN')} <span className="text-xs text-slate-500 font-normal">/ {lot.unit || 'qtl'}</span>
                       </div>
                       <div className="text-[10px] mt-1 font-semibold" style={{ color: '#6ee7b7' }}>
-                        {spreadDelta >= 0 ? `+₹${spreadDelta} ${m.vsMsp || 'vs MSP'}` : 'At Benchmark'}
+                        {spreadDelta === null
+                          ? 'Direct Farm Quote'
+                          : spreadDelta > 0
+                          ? `+₹${spreadDelta} vs APMC Modal`
+                          : spreadDelta < 0
+                          ? `₹${Math.abs(spreadDelta)} below APMC Modal`
+                          : 'Matches APMC Modal'}
                       </div>
                     </div>
                   </div>
@@ -897,21 +802,45 @@ export default function MarketplacePage() {
                   </div>
                 </div>
 
-                {/* CTA Button */}
+                {/* Role-aware Action CTAs */}
                 <div className="px-5 pb-5">
-                  <button onClick={() => openProcurementModal(lot)}
-                    className="w-full py-3.5 rounded-2xl text-sm font-extrabold flex items-center justify-center gap-2.5 transition-all"
-                    style={{
-                      background: 'linear-gradient(135deg, #065f46 0%, #059669 50%, #10b981 100%)',
-                      color: 'white',
-                      boxShadow: '0 4px 15px rgba(5,150,105,0.25)',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 20px rgba(16,185,129,0.4)'; e.currentTarget.style.transform = 'scale(1.01)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 15px rgba(5,150,105,0.25)'; e.currentTarget.style.transform = 'scale(1)'; }}>
-                    <Truck className="w-4 h-4" />
-                    <span>{m.procureBtn || 'Initiate Bulk Procurement'}</span>
-                    <ChevronRight className="w-4 h-4 ml-auto" />
-                  </button>
+                  {currentUser && lot.farmer?._id && String(lot.farmer._id) === String(currentUser._id) ? (
+                    <button
+                      onClick={() => onNavigateToSell && onNavigateToSell()}
+                      className="w-full py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-800/60 transition-colors"
+                    >
+                      <span>🌾 Your Active Lot • Manage in Sell Produce</span>
+                    </button>
+                  ) : isBuyer ? (
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        onClick={() => openBargainModal(lot)}
+                        className="py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700/60 transition-colors"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Make Offer</span>
+                      </button>
+                      <button
+                        onClick={() => openProcurementModal(lot)}
+                        className="py-3 rounded-2xl text-xs font-extrabold flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        <span>Buy Direct</span>
+                      </button>
+                    </div>
+                  ) : canOrder ? (
+                    <button
+                      onClick={() => openProcurementModal(lot)}
+                      className="w-full py-3 rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+                    >
+                      <Truck className="w-4 h-4" />
+                      <span>Order Produce Lot</span>
+                    </button>
+                  ) : (
+                    <div className="w-full py-2.5 px-3 rounded-xl text-center text-[11px] font-medium text-slate-400 bg-slate-900 border border-slate-800">
+                      Farmer account active • Use "Sell Produce" to list crops
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -931,7 +860,7 @@ export default function MarketplacePage() {
                 <h2 className="text-2xl font-black text-white mt-2">
                   {getLocalizedCropName(inspectLot.cropName, language)}
                 </h2>
-                <p className="text-xs text-slate-400">{inspectLot.locationName || 'Dharwad Mandi Corridor'}</p>
+                <p className="text-xs text-slate-400">{inspectLot.locationName || inspectLot.location?.district || 'Registered Farm Gate'}</p>
               </div>
               <button
                 onClick={() => setInspectLot(null)}
@@ -958,7 +887,7 @@ export default function MarketplacePage() {
                   {m.moistureContent || 'Moisture Content'}
                 </span>
                 <div className="font-bold text-amber-300">
-                  {inspectLot.moistureContent || '11.0%'} ({m.safeStorage || 'Safe Storage'})
+                  {inspectLot.moistureContent || 'Quality Inspected'}
                 </div>
               </div>
 
@@ -967,16 +896,18 @@ export default function MarketplacePage() {
                   {modalText.modalRate || 'APMC Mandi Modal Rate'}
                 </span>
                 <div className="font-bold text-slate-200">
-                  ₹{inspectLot.benchmarkRate || inspectLot.expectedPrice} / qtl
+                  {inspectLot.benchmarkRate != null
+                    ? `₹${Number(inspectLot.benchmarkRate).toLocaleString('en-IN')} / qtl`
+                    : 'Not listed in today APMC feed'}
                 </div>
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
                 <span className="text-slate-400 text-[10px] uppercase font-bold">
-                  {m.fpoOrg || 'FPO Organization'}
+                  {m.fpoOrg || 'Mandi Reference'}
                 </span>
                 <div className="font-bold text-emerald-400 truncate">
-                  {inspectLot.farmer?.fpo || 'UASD Certified FPO'}
+                  {inspectLot.benchmarkMarket || inspectLot.farmer?.fpo || 'Direct Farm Lot'}
                 </div>
               </div>
             </div>
@@ -997,25 +928,42 @@ export default function MarketplacePage() {
                 </div>
                 <div>
                   <div className="font-bold text-white">{inspectLot.farmer?.name}</div>
-                  <div className="text-[10px] text-slate-400">{inspectLot.farmer?.district || 'Karnataka'}</div>
+                  <div className="text-[10px] text-slate-400">{inspectLot.location?.district || inspectLot.farmer?.location?.district || 'India'}</div>
                 </div>
               </div>
               <div className="text-emerald-400 text-xs font-mono font-bold">
-                📱 {inspectLot.farmer?.phone || '9876543210'}
+                {inspectLot.farmer?.phone ? `📱 ${inspectLot.farmer.phone}` : 'Verified Member'}
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                const lot = inspectLot;
-                setInspectLot(null);
-                openProcurementModal(lot);
-              }}
-              className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950"
-            >
-              <Truck className="w-4 h-4" />
-              <span>{m.proceedProcure || modalText.confirm || 'Proceed to Bulk Procurement'}</span>
-            </button>
+            {canOrder && !(currentUser && inspectLot.farmer?._id && String(inspectLot.farmer._id) === String(currentUser._id)) && (
+              <div className="flex gap-2.5">
+                {isBuyer && (
+                  <button
+                    onClick={() => {
+                      const lot = inspectLot;
+                      setInspectLot(null);
+                      openBargainModal(lot);
+                    }}
+                    className="flex-1 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700 font-bold text-xs flex items-center justify-center gap-2"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Make Offer</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    const lot = inspectLot;
+                    setInspectLot(null);
+                    openProcurementModal(lot);
+                  }}
+                  className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950"
+                >
+                  <Truck className="w-4 h-4" />
+                  <span>{m.proceedProcure || 'Buy Direct'}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1090,8 +1038,10 @@ export default function MarketplacePage() {
                     <span className="font-semibold text-emerald-400">{selectedLot.farmer?.name}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">{modalText.modalRate || 'APMC Mandi Modal Rate:'}</span>
-                    <span className="text-slate-300 font-mono">₹{selectedLot.expectedPrice} / qtl</span>
+                    <span className="text-slate-400">{modalText.modalRate || 'Seller Asking Rate:'}</span>
+                    <span className="text-slate-300 font-mono">
+                      ₹{selectedLot.expectedPrice || selectedLot.pricePerUnit} / {selectedLot.unit || 'qtl'}
+                    </span>
                   </div>
                 </div>
 
@@ -1145,6 +1095,13 @@ export default function MarketplacePage() {
                   </div>
                 </div>
 
+                {/* Live Error Display */}
+                {procurementStatus === 'error' && orderError && (
+                  <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs">
+                    {orderError}
+                  </div>
+                )}
+
                 {/* Modal Action Buttons */}
                 <div className="flex items-center gap-3 pt-2">
                   <button
@@ -1174,6 +1131,92 @@ export default function MarketplacePage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+      {/* 💬 START BARGAINING / NEGOTIATION MODAL */}
+      {offerLot && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSubmitBargainOffer}
+            className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-black text-white">Make Direct Price Offer</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {offerLot.cropName} • Asking ₹{Number(offerLot.expectedPrice || offerLot.pricePerUnit).toLocaleString('en-IN')}/{offerLot.unit || 'unit'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOfferLot(null)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                Quantity ({offerLot.unit || 'Quintal'} • Max {offerLot.quantity})
+              </label>
+              <input
+                type="number"
+                required
+                min={1}
+                max={offerLot.quantity}
+                value={bidQty}
+                onChange={(e) => setBidQty(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                Your Offered Rate (₹ per {offerLot.unit || 'unit'})
+              </label>
+              <input
+                type="number"
+                required
+                min={1}
+                value={bidPrice}
+                onChange={(e) => setBidPrice(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">Note for Farmer (optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. Ready for pickup tomorrow"
+                value={bidNote}
+                onChange={(e) => setBidNote(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {bidError && (
+              <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs">{bidError}</div>
+            )}
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setOfferLot(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={bidSubmitting}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs disabled:opacity-50"
+              >
+                {bidSubmitting ? 'Sending...' : 'Send Live Offer'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

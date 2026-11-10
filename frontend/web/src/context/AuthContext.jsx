@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authService } from '../services/api';
+import { authService, systemService } from '../services/api';
+import { disconnectNegotiationSocket } from '../services/socket';
 import { webTranslations } from '../i18n/translations';
 
 const AuthContext = createContext();
@@ -15,70 +16,40 @@ export const WEB_LANGUAGES = [
   { code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', flag: '🌾', region: 'Punjab Mandis' },
 ];
 
-export const DEMO_PERSONAS = [
-  {
-    id: 'BUYER_WHOLESALE',
-    name: 'Karnataka State Co-op Federation (KSCF)',
-    role: 'BUYER_WHOLESALE',
-    badge: 'Institutional Wholesaler',
-    district: 'Dharwad / Hubballi',
-    phone: '9811223344',
-    password: 'buyerpassword123',
-    initials: 'KS',
-  },
-  {
-    id: 'ADMIN',
-    name: 'UASD & ICAR Mandi Directorate',
-    role: 'ADMIN',
-    badge: 'Mandi Regulatory Admin',
-    district: 'Dharwad',
-    phone: '9800012345',
-    password: 'adminpassword123',
-    initials: 'UA',
-  },
-  {
-    id: 'FARMER',
-    name: 'Ramesh Patil (UASD Progressive Farmer)',
-    role: 'FARMER',
-    badge: 'FPO Lead / Producer',
-    district: 'Dharwad',
-    phone: '9876543210',
-    password: 'farmerpassword123',
-    initials: 'RP',
-  },
-];
+function buildUserPersona(u) {
+  if (!u) return null;
+  return {
+    id: u.role,
+    name: u.name,
+    role: u.role,
+    badge: u.role === 'FARMER' ? 'Registered Producer' : u.role === 'ADMIN' ? 'Mandi Admin' : 'Verified Buyer',
+    district: u.location?.district || '',
+    phone: u.phone,
+    initials: (u.name || 'U')
+      .split(' ')
+      .map((s) => s[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase(),
+  };
+}
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('cropguard_web_user');
       return saved ? JSON.parse(saved) : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   });
   const [activePersona, setActivePersona] = useState(() => {
     try {
       const savedUser = localStorage.getItem('cropguard_web_user');
-      if (savedUser) {
-        const u = JSON.parse(savedUser);
-        return {
-          id: u.role,
-          name: u.name,
-          role: u.role,
-          badge: u.role === 'FARMER' ? 'Registered Producer' : 'Verified Buyer',
-          district: u.location?.district || 'Karnataka',
-          phone: u.phone,
-          initials: (u.name || 'User')
-            .split(' ')
-            .map((s) => s[0])
-            .slice(0, 2)
-            .join('')
-            .toUpperCase(),
-        };
-      }
-    } catch (e) {}
-    return DEMO_PERSONAS[0];
+      return savedUser ? buildUserPersona(JSON.parse(savedUser)) : null;
+    } catch {
+      return null;
+    }
   });
   const [token, setToken] = useState(localStorage.getItem('cropguard_web_token') || null);
   const [language, setLanguageState] = useState(localStorage.getItem('cropguard_web_lang') || 'en');
@@ -171,48 +142,12 @@ export const AuthProvider = ({ children }) => {
 
   // Logout & Reset
   const logout = () => {
+    disconnectNegotiationSocket();
     localStorage.removeItem('cropguard_web_token');
     localStorage.removeItem('cropguard_web_user');
     setCurrentUser(null);
     setToken(null);
-    setActivePersona(DEMO_PERSONAS[0]);
-  };
-
-  // Authenticate when switching user profile session
-  const switchPersona = async (persona) => {
-    setLoading(true);
-    const demoUser = {
-      _id: 'demo_' + persona.role.toLowerCase(),
-      name: persona.name,
-      role: persona.role,
-      badge: persona.badge,
-      district: persona.district,
-      phone: persona.phone,
-      isDemo: true,
-      initials: persona.initials || 'DM',
-    };
-
-    setCurrentUser(demoUser);
-    setActivePersona(persona);
-    localStorage.setItem('cropguard_web_user', JSON.stringify(demoUser));
-
-    try {
-      const data = await authService.login(persona.phone, persona.password);
-      if (data && data.token) {
-        setToken(data.token);
-        localStorage.setItem('cropguard_web_token', data.token);
-        setBackendOnline(true);
-      }
-    } catch (err) {
-      console.warn('Backend login attempt:', err.message);
-      // Fallback: Generate mock session so offline development still previews smoothly
-      const mockToken = `mock_token_${persona.role.toLowerCase()}_${Date.now()}`;
-      setToken(mockToken);
-      localStorage.setItem('cropguard_web_token', mockToken);
-      setBackendOnline(false);
-    } finally {
-      setLoading(false);
-    }
+    setActivePersona(null);
   };
 
   useEffect(() => {
@@ -222,23 +157,31 @@ export const AuthProvider = ({ children }) => {
     };
     window.addEventListener('cropguard_auth_expired', handleAuthExpired);
 
-    // Verify saved session against backend on boot
+    // Verify saved session or backend gateway health honestly
     const verifySavedSession = async () => {
       const savedToken = localStorage.getItem('cropguard_web_token');
       if (!savedToken) {
-        setBackendOnline(true);
+        try {
+          const health = await systemService.getHealth();
+          setBackendOnline(Boolean(health?.success));
+        } catch {
+          setBackendOnline(false);
+        }
         return;
       }
       try {
         const res = await authService.getMe();
         if (res && res.user) {
           setCurrentUser(res.user);
+          setActivePersona(buildUserPersona(res.user));
           localStorage.setItem('cropguard_web_user', JSON.stringify(res.user));
           setBackendOnline(true);
         }
       } catch (err) {
         if (err.response?.status === 401) {
           logout();
+        } else {
+          setBackendOnline(false);
         }
       }
     };
@@ -253,7 +196,6 @@ export const AuthProvider = ({ children }) => {
         currentUser,
         isCustomUser: !!currentUser,
         activePersona,
-        switchPersona,
         login,
         register,
         logout,
@@ -266,7 +208,6 @@ export const AuthProvider = ({ children }) => {
         loading,
         backendOnline,
         setBackendOnline,
-        personas: DEMO_PERSONAS,
         t,
       }}
     >
