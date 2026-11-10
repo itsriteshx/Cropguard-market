@@ -1,0 +1,9 @@
+commodity,category,state,district,marketCenter,minPrice,maxPrice,modalPrice,unit,arrivalQuantity,priceDate
+Tomato,VEGETABLES,Maharashtra,Pune,Pune APMC,1800,2400,2100,QUINTAL,120,2026-11-08
+Tomato,VEGETABLES,Maharashtra,Nashik,Nashik APMC,1600,2300,1950,QUINTAL,200,2026-11-08
+Onion,VEGETABLES,Maharashtra,Pune,Pune APMC,2200,2800,2500,QUINTAL,350,2026-11-08
+Onion,VEGETABLES,Maharashtra,Nashik,Lासलगाव APMC,2000,2700,2350,QUINTAL,500,2026-11-08
+Wheat,GRAINS,Maharashtra,Pune,Pune APMC,2500,2900,2700,QUINTAL,180,2026-11-08
+Rice,GRAINS,Maharashtra,Kolhapur,Kolhapur APMC,3200,3800,3500,QUINTAL,150,2026-11-08
+Soybean,OILSEEDS,Maharashtra,Pune,Pune APMC,4000,4600,4300,QUINTAL,90,2026-11-09
+Potato,VEGETABLES,Maharashtra,Pune,Pune APMC,1200,1700,1450,QUINTAL,240,2026-11-09
