@@ -58,7 +58,23 @@ const mandiRateSchema = new mongoose.Schema(
     },
     priceDate: {
       type: Date,
-      default: Date.now,
+      default: () => {
+        const now = new Date();
+        return new Date(Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate()
+        ));
+      },
+      set: (value) => {
+        const date = new Date(value);
+
+        return new Date(Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate()
+        ));
+      },
       index: true
     }
   },
@@ -82,5 +98,19 @@ mandiRateSchema.virtual('arrivals').get(function () {
 
 // Compound index for sub-second APMC rate lookups by commodity and district
 mandiRateSchema.index({ commodity: 1, district: 1, priceDate: -1 });
+mandiRateSchema.index(
+  {
+    commodity: 1,
+    state: 1,
+    district: 1,
+    marketCenter: 1,
+    unit: 1,
+    priceDate: 1
+  },
+  {
+    unique: true,
+    name: 'uniq_mandi_rate_per_market_date'
+  }
+);
 
 module.exports = mongoose.model('MandiRate', mandiRateSchema);
