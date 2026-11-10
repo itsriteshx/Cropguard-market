@@ -1,5 +1,76 @@
 const MandiRate = require('../models/MandiRate');
 
+const buildAnalyticsMatch = (query) => {
+  const match = {};
+
+  // Validate and normalize text filters.
+  const textFilters = ['commodity', 'state', 'district', 'category'];
+
+  for (const field of textFilters) {
+    if (query[field] !== undefined) {
+      if (typeof query[field] !== 'string' || !query[field].trim()) {
+        return { error: `Invalid ${field} filter` };
+      }
+
+      match[field] = query[field].trim().toUpperCase();
+    }
+  }
+
+  // Validate date-only values (YYYY-MM-DD).
+  const parseDate = (value, field) => {
+    if (typeof value !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return { error: `Invalid ${field} date. Use YYYY-MM-DD.` };
+    }
+
+    const date = new Date(`${value}T00:00:00.000Z`);
+
+    if (Number.isNaN(date.getTime()) ||
+        date.toISOString().slice(0, 10) !== value) {
+      return { error: `Invalid ${field} calendar date.` };
+    }
+
+    return { date };
+  };
+
+  let fromDate;
+  let toDate;
+
+  if (query.from !== undefined) {
+    const result = parseDate(query.from, 'from');
+    if (result.error) return result;
+    fromDate = result.date;
+  }
+
+  if (query.to !== undefined) {
+    const result = parseDate(query.to, 'to');
+    if (result.error) return result;
+    toDate = result.date;
+  }
+
+  if (fromDate && toDate && fromDate > toDate) {
+    return { error: '`from` date cannot be after `to` date.' };
+  }
+
+  // Use an inclusive date range.
+  if (fromDate || toDate) {
+    match.priceDate = {};
+
+    if (fromDate) {
+      match.priceDate.$gte = fromDate;
+    }
+
+    if (toDate) {
+      const nextDay = new Date(toDate);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      match.priceDate.$lt = nextDay;
+    }
+  }
+
+  return { match };
+};
+
+
 /**
  * @desc    Get APMC Mandi rates with filters (commodity, state, district, category)
  * @route   GET /api/mandi-rates
@@ -135,29 +206,40 @@ const getBenchmarkForCrop = async (req, res, next) => {
  */
 const getMandiAnalytics = async (req, res, next) => {
   try {
+    const { match, error: filterError } = buildAnalyticsMatch(req.query);
+
+    if (filterError) {
+      return res.status(400).json({
+        success: false,
+        message: filterError
+      });
+    }
     // Pipeline 1: Commodity price trends & spreads
     const commodityTrends = await MandiRate.aggregate([
+      { $match: match },
       {
         $group: {
-          _id: '$commodity',
+          _id: {
+            commodity: '$commodity',
+            category: '$category'
+          },
           avgModalPrice: { $avg: '$modalPrice' },
           minObserved: { $min: '$minPrice' },
           maxObserved: { $max: '$maxPrice' },
           totalArrivals: { $sum: '$arrivalQuantity' },
-          marketsCount: { $sum: 1 },
-          category: { $first: '$category' }
+          marketCenters: { $addToSet: '$marketCenter' }
         }
       },
       {
         $project: {
-          commodity: '$_id',
-          category: 1,
+          commodity: '$_id.commodity',
+          category: '$_id.category',
           avgModalPrice: { $round: ['$avgModalPrice', 0] },
           minObserved: 1,
           maxObserved: 1,
           priceSpread: { $subtract: ['$maxObserved', '$minObserved'] },
           totalArrivals: 1,
-          marketsCount: 1
+          marketsCount: { $size: '$marketCenters' }
         }
       },
       { $sort: { totalArrivals: -1 } }
@@ -165,12 +247,13 @@ const getMandiAnalytics = async (req, res, next) => {
 
     // Pipeline 2: District-wise arrival volume
     const districtArrivals = await MandiRate.aggregate([
+      { $match: match },
       {
         $group: {
           _id: '$district',
           totalArrivals: { $sum: '$arrivalQuantity' },
           commoditiesTracked: { $addToSet: '$commodity' },
-          mandiCount: { $sum: 1 }
+          marketCenters: { $addToSet: '$marketCenter' }
         }
       },
       {
@@ -178,7 +261,7 @@ const getMandiAnalytics = async (req, res, next) => {
           district: '$_id',
           totalArrivals: 1,
           commoditiesCount: { $size: '$commoditiesTracked' },
-          mandiCount: 1
+          mandiCount: { $size: '$marketCenters' }
         }
       },
       { $sort: { totalArrivals: -1 } }
@@ -195,8 +278,130 @@ const getMandiAnalytics = async (req, res, next) => {
   }
 };
 
+const getMandiPriceTrends = async (req, res, next) => {
+  try {
+    const { match, error: filterError } = buildAnalyticsMatch(req.query);
+
+    if (filterError) {
+      return res.status(400).json({
+        success: false,
+        message: filterError
+      });
+    }
+
+    const trends = await MandiRate.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: {
+            date: '$priceDate',
+            commodity: '$commodity'
+          },
+          avgModalPrice: { $avg: '$modalPrice' },
+          minModalPrice: { $min: '$modalPrice' },
+          maxModalPrice: { $max: '$modalPrice' },
+          totalArrivals: { $sum: '$arrivalQuantity' },
+          marketCenters: { $addToSet: '$marketCenter' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          date: '$_id.date',
+          commodity: '$_id.commodity',
+          avgModalPrice: { $round: ['$avgModalPrice', 0] },
+          minModalPrice: 1,
+          maxModalPrice: 1,
+          totalArrivals: 1,
+          marketsCount: { $size: '$marketCenters' }
+        }
+      },
+      {
+        $sort: {
+          date: 1,
+          commodity: 1
+        }
+      }
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      trends
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+const getMandiMarketComparison = async (req, res, next) => {
+  try {
+    const { match, error: filterError } = buildAnalyticsMatch(req.query);
+
+    if (filterError) {
+      return res.status(400).json({
+        success: false,
+        message: filterError
+      });
+    }
+
+    if (!match.commodity) {
+      return res.status(400).json({
+        success: false,
+        message: 'Commodity filter is required for market comparison.'
+      });
+    }
+
+    const markets = await MandiRate.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: {
+            state: '$state',
+            district: '$district',
+            marketCenter: '$marketCenter',
+            unit: '$unit'
+          },
+          avgModalPrice: { $avg: '$modalPrice' },
+          minModalPrice: { $min: '$modalPrice' },
+          maxModalPrice: { $max: '$modalPrice' },
+          totalArrivals: { $sum: '$arrivalQuantity' },
+          observations: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          state: '$_id.state',
+          district: '$_id.district',
+          marketCenter: '$_id.marketCenter',
+          unit: '$_id.unit',
+          avgModalPrice: { $round: ['$avgModalPrice', 0] },
+          minModalPrice: 1,
+          maxModalPrice: 1,
+          totalArrivals: 1,
+          observations: 1
+        }
+      },
+      { $sort: { avgModalPrice: 1 } }
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      commodity: match.commodity,
+      markets
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
 module.exports = {
   getMandiRates,
   getBenchmarkForCrop,
-  getMandiAnalytics
+  getMandiAnalytics,
+  getMandiPriceTrends,
+  getMandiMarketComparison
 };

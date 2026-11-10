@@ -4,16 +4,21 @@ const router = express.Router();
 const {
   getMandiRates,
   getBenchmarkForCrop,
-  getMandiAnalytics
+  getMandiAnalytics,
+  getMandiPriceTrends,
+  getMandiMarketComparison
 } = require('../controllers/mandiController');
 
 // Analytics aggregation endpoint
 router.get('/analytics', getMandiAnalytics);
+router.get('/analytics/trends', getMandiPriceTrends);
+router.get('/analytics/markets', getMandiMarketComparison);
 
 // Benchmark guidance endpoint (must be defined before /:id style routes)
 router.get('/benchmark', getBenchmarkForCrop);
 
 // Query all APMC rates with filters
 router.get('/', getMandiRates);
+
 
 module.exports = router;
