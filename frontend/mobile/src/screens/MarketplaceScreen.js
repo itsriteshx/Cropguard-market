@@ -39,11 +39,13 @@ const CATEGORIES = [
   { key: 'Other', label: 'Other', icon: '🌱' }
 ];
 
-export default function MarketplaceScreen({ onNavigateToNegotiations }) {
+export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigateToMandi }) {
   const { t, token, user, role } = useAuth();
 
   const [listings, setListings] = useState([]);
   const [tickerRates, setTickerRates] = useState([]);
+  const [liveMandiMatches, setLiveMandiMatches] = useState([]);
+  const [liveMandiLoading, setLiveMandiLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -74,10 +76,31 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
     return () => { requestId.current += 1; };
   }, [selectedCategory, debouncedSearch]);
 
+  useEffect(() => {
+    if (!debouncedSearch || debouncedSearch.length < 2) {
+      setLiveMandiMatches([]);
+      return;
+    }
+    let active = true;
+    setLiveMandiLoading(true);
+    apiRequest(`/mandi-rates/live?state=ALL&commodity=${encodeURIComponent(debouncedSearch)}&limit=10`)
+      .then((res) => {
+        if (active && res?.success && Array.isArray(res.rates)) {
+          setLiveMandiMatches(res.rates);
+        } else if (active) {
+          setLiveMandiMatches([]);
+        }
+      })
+      .finally(() => {
+        if (active) setLiveMandiLoading(false);
+      });
+    return () => { active = false; };
+  }, [debouncedSearch]);
+
   const fetchTickerRates = async () => {
-    const res = await apiRequest('/mandi-rates?limit=4');
+    const res = await apiRequest('/mandi-rates?state=ALL&limit=10');
     if (res?.success && Array.isArray(res.rates)) {
-      setTickerRates(res.rates.slice(0, 4));
+      setTickerRates(res.rates.slice(0, 10));
     }
   };
 
@@ -166,8 +189,12 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Live Agmarknet Corridor Feed */}
-      <View style={styles.corridorBar}>
+      {/* Live Agmarknet Corridor Feed (Tap to open Full Mandi Explorer) */}
+      <TouchableOpacity
+        style={styles.corridorBar}
+        onPress={() => onNavigateToMandi && onNavigateToMandi()}
+        activeOpacity={0.8}
+      >
         <View style={styles.livePulseDot} />
         <Text style={styles.corridorBarText} numberOfLines={2}>
           {tickerRates.length > 0
@@ -176,7 +203,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
                 .join(' • ')}`
             : 'Browse produce listed by farmers'}
         </Text>
-      </View>
+      </TouchableOpacity>
 
       {/* Modern Search Input */}
       <View style={styles.searchBox}>
@@ -373,9 +400,48 @@ export default function MarketplaceScreen({ onNavigateToNegotiations }) {
           loading ? (
             <ActivityIndicator size="large" color="#10b981" style={{ marginTop: 40 }} />
           ) : (
-            <Text style={{ color: '#cbd5e1', textAlign: 'center', padding: 20 }}>
-              {loadError ? 'Could not load listings.' : 'No listings found.'}
-            </Text>
+            <View style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12 }}>
+              <Text style={{ color: '#cbd5e1', textAlign: 'center', fontSize: 13 }}>
+                {loadError
+                  ? 'Could not load listings.'
+                  : debouncedSearch
+                  ? `No farmer lots for "${debouncedSearch}". Showing live Govt Agmarknet rates:`
+                  : 'No listings found.'}
+              </Text>
+
+              {onNavigateToMandi && (
+                <TouchableOpacity style={styles.mandiJumpBtn} onPress={onNavigateToMandi} activeOpacity={0.8}>
+                  <Text style={styles.mandiJumpBtnText}>📊 Open Full APMC Mandi Explorer</Text>
+                </TouchableOpacity>
+              )}
+
+              {liveMandiLoading && <ActivityIndicator size="small" color="#10b981" style={{ marginTop: 10 }} />}
+
+              {!liveMandiLoading && liveMandiMatches.map((r, idx) => (
+                <View key={`${r.marketCenter}-${r.district}-${idx}`} style={styles.liveMatchCard}>
+                  {r.imageUrl ? (
+                    <Image source={{ uri: r.imageUrl }} style={styles.liveMatchPhoto} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.liveMatchPhoto, { alignItems: 'center', justifyContent: 'center' }]}>
+                      <Text style={{ fontSize: 28 }}>🌾</Text>
+                    </View>
+                  )}
+                  <View style={styles.liveMatchInfo}>
+                    <Text style={styles.liveMatchTitle} numberOfLines={1}>
+                      {r.commodity}{r.variety ? ` (${r.variety})` : ''}
+                    </Text>
+                    <Text style={styles.liveMatchSub} numberOfLines={1}>
+                      🏛️ {r.marketCenter} • {r.district}, {r.state}
+                    </Text>
+                    <View style={styles.liveMatchPriceRow}>
+                      <Text style={styles.liveMatchMin}>Min ₹{Number(r.minPrice || 0).toLocaleString('en-IN')}</Text>
+                      <Text style={styles.liveMatchModal}>Modal ₹{Number(r.modalPrice || 0).toLocaleString('en-IN')}/qtl</Text>
+                      <Text style={styles.liveMatchMax}>Max ₹{Number(r.maxPrice || 0).toLocaleString('en-IN')}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
           )
         }
         ListFooterComponent={<View style={{ padding: 18, alignItems: 'center', gap: 8 }}>{!!loadError && <Text style={{ color: '#fca5a5' }}>{loadError}</Text>}{(loadError || page < pages) && <TouchableOpacity style={styles.offerButton} disabled={loadingMore} onPress={() => fetchListings(loadError && listings.length === 0 ? 1 : page + 1)}><Text style={styles.offerButtonText}>{loadingMore ? 'Loading…' : loadError ? 'Try again' : 'Load more'}</Text></TouchableOpacity>}</View>}
@@ -1092,5 +1158,63 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '800'
+  },
+  mandiJumpBtn: {
+    backgroundColor: '#0284c7',
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center'
+  },
+  mandiJumpBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  liveMatchCard: {
+    flexDirection: 'row',
+    backgroundColor: '#111827',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    overflow: 'hidden'
+  },
+  liveMatchPhoto: {
+    width: 88,
+    height: 88,
+    backgroundColor: '#064e3b'
+  },
+  liveMatchInfo: {
+    flex: 1,
+    padding: 10,
+    justifyContent: 'space-between'
+  },
+  liveMatchTitle: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  liveMatchSub: {
+    color: '#94a3b8',
+    fontSize: 11
+  },
+  liveMatchPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4
+  },
+  liveMatchMin: {
+    color: '#fcd34d',
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  liveMatchModal: {
+    color: '#34d399',
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  liveMatchMax: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: '700'
   }
 });

@@ -16,6 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { SocketProvider, useSocket } from './src/context/SocketContext';
 import MarketplaceScreen from './src/screens/MarketplaceScreen';
+import MandiRatesScreen from './src/screens/MandiRatesScreen';
 import SellProduceScreen from './src/screens/SellProduceScreen';
 import NegotiationsScreen from './src/screens/NegotiationsScreen';
 import LedgerScreen from './src/screens/LedgerScreen';
@@ -64,7 +65,14 @@ function MainApp() {
   const renderActiveScreen = () => {
     switch (activeTab) {
       case 'MARKET':
-        return <MarketplaceScreen onNavigateToNegotiations={() => setActiveTab('NEGOTIATIONS')} />;
+        return (
+          <MarketplaceScreen
+            onNavigateToNegotiations={() => setActiveTab('NEGOTIATIONS')}
+            onNavigateToMandi={() => setActiveTab('MANDI')}
+          />
+        );
+      case 'MANDI':
+        return <MandiRatesScreen />;
       case 'SELL':
         return <SellProduceScreen onNavigateToMarket={() => setActiveTab('MARKET')} />;
       case 'NEGOTIATIONS':
@@ -76,12 +84,18 @@ function MainApp() {
       case 'PROFILE':
         return <ProfileScreen />;
       default:
-        return <MarketplaceScreen onNavigateToNegotiations={() => setActiveTab('NEGOTIATIONS')} />;
+        return (
+          <MarketplaceScreen
+            onNavigateToNegotiations={() => setActiveTab('NEGOTIATIONS')}
+            onNavigateToMandi={() => setActiveTab('MANDI')}
+          />
+        );
     }
   };
 
   const navItems = [
     { key: 'MARKET', icon: '🌾', label: t.tabs.market },
+    { key: 'MANDI', icon: '📊', label: 'Mandi' },
     ...(isFarmer ? [{ key: 'SELL', icon: '➕', label: t.tabs.sell }] : []),
     { key: 'NEGOTIATIONS', icon: '💬', label: t.tabs.negotiations },
     { key: 'ORDERS', icon: '📦', label: 'Orders' },
