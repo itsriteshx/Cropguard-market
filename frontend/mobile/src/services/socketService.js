@@ -89,6 +89,12 @@ class SocketService {
     return () => this.socket?.off('counter_offer_received', callback);
   }
 
+  onChatMessageReceived(callback) {
+    if (!this.socket) return () => {};
+    this.socket.on('chat_message_received', callback);
+    return () => this.socket?.off('chat_message_received', callback);
+  }
+
   onDealLocked(callback) {
     if (!this.socket) return () => {};
     this.socket.on('deal_locked', callback);
