@@ -118,10 +118,11 @@ const getMandiRates = async (req, res, next) => {
         ? String(state).trim()
         : undefined;
 
-    const syncStatus = await ensureLiveRatesSynced({
-      state: cleanState || 'ALL',
-      force: sync === 'true'
-    });
+    // Normal reads serve the saved snapshot immediately while a refresh runs.
+    // Explicit sync requests may wait for the external source.
+    let syncStatus = { synced: false, reason: 'background_refresh' };
+    if (sync === 'true') syncStatus = await ensureLiveRatesSynced({ state: cleanState || 'ALL', force: true });
+    else void ensureLiveRatesSynced({ state: cleanState || 'ALL' });
 
     const query = {};
 
@@ -152,7 +153,7 @@ const getMandiRates = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      source: syncStatus.synced ? syncStatus.source : 'MongoDB Live Agmarknet Cache',
+      source: syncStatus.synced ? syncStatus.source : 'MongoDB saved mandi rates',
       syncedLive: Boolean(syncStatus.synced),
       totalAvailable: syncStatus.totalAvailable || null,
       updatedDate: syncStatus.updatedDate || null,
@@ -293,7 +294,7 @@ const getBenchmarkForCrop = async (req, res, next) => {
       });
     }
 
-    await ensureLiveRatesSynced({ state: state || 'Karnataka' });
+    void ensureLiveRatesSynced({ state: state || 'Karnataka' });
 
     const query = {
       commodity: { $regex: targetCrop.trim(), $options: 'i' }
@@ -369,7 +370,7 @@ const getMandiAnalytics = async (req, res, next) => {
       });
     }
 
-    const syncStatus = await ensureLiveRatesSynced({ state: req.query.state || 'Karnataka' });
+    void ensureLiveRatesSynced({ state: req.query.state || 'Karnataka' });
     // Pipeline 1: Commodity price trends & spreads
     const commodityTrends = await MandiRate.aggregate([
       { $match: match },
@@ -425,7 +426,7 @@ const getMandiAnalytics = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      source: syncStatus.synced ? syncStatus.source : 'MongoDB Agmarknet Aggregation',
+      source: 'MongoDB saved mandi rates',
       corridor: 'Live APMC Corridor Analytics',
       commodityTrends,
       districtArrivals
