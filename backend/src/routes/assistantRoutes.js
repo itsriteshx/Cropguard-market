@@ -7,4 +7,3 @@ const { protect } = require('../middleware/authMiddleware');
 router.post('/query', protect, processAssistantQuery);
 
 module.exports = router;
-

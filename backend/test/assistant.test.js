@@ -72,4 +72,3 @@ test('processAssistantQuery navigates cleanly for voice screen commands', async 
   assert.equal(body.intent, 'NAVIGATE');
   assert.equal(body.action.navigateTo, 'sell');
 });
-

@@ -873,7 +873,10 @@ export default function MandiAnalyticsPage() {
             {sortedRecords.slice(0, 48).map((row) => (
               <div
                 key={`card-${row.id}`}
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedCommodity(row.commodity)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCommodity(row.commodity); } }}
                 className={`cursor-pointer rounded-2xl overflow-hidden border transition-all bg-slate-950/90 flex flex-col ${
                   selectedCommodity === row.commodity
                     ? 'border-emerald-500 ring-1 ring-emerald-500/40'
@@ -1146,7 +1149,7 @@ export default function MandiAnalyticsPage() {
             <div>
               <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-emerald-400" />
-                Best Mandi Comparison by Commodity
+                Market Price Comparison (Lowest-price-first)
               </h2>
               <p className="text-[11px] text-slate-400">
                 Sorted cheapest-to-highest average modal price using `/api/mandi-rates/analytics/markets`.
@@ -1245,7 +1248,7 @@ export default function MandiAnalyticsPage() {
             )}
           </div>
 
-          {analytics.districtArrivals?.length > 0 && (
+          {analytics.districtArrivals?.length > 0 ? (
             <div className="pt-3 border-t border-slate-800">
               <div className="text-[11px] font-bold text-slate-400 uppercase mb-2">
                 Active Districts in Analytics Corridor
@@ -1259,6 +1262,12 @@ export default function MandiAnalyticsPage() {
                     <strong className="text-white">{d.district}</strong> • {d.mandiCount} Mandis • {d.commoditiesCount} Crops
                   </span>
                 ))}
+              </div>
+            </div>
+          ) : (
+            <div className="pt-3 border-t border-slate-800">
+              <div className="text-[11px] text-slate-500 text-center py-2">
+                No district arrival data available for current filters.
               </div>
             </div>
           )}

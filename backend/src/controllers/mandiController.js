@@ -311,13 +311,25 @@ const getBenchmarkForCrop = async (req, res, next) => {
 
     if (district) {
       query.district = district.trim().toUpperCase();
+      if (state) {
+        query.state = state.trim().toUpperCase();
+      }
     } else if (state) {
       query.state = state.trim().toUpperCase();
     }
 
-    // Try exact district/state match, then fallback to pan-India DB or keyword match
+    // Priority 1: exact crop + district (+ state when provided)
     let benchmark = await MandiRate.findOne(query).sort('-priceDate');
 
+    // Priority 2: same state, any district
+    if (!benchmark && district && state) {
+      benchmark = await MandiRate.findOne({
+        commodity: { $regex: targetCrop.trim(), $options: 'i' },
+        state: state.trim().toUpperCase()
+      }).sort('-priceDate');
+    }
+
+    // Priority 3: any market globally, matching the original crop name
     if (!benchmark && (district || state)) {
       benchmark = await MandiRate.findOne({
         commodity: { $regex: targetCrop.trim(), $options: 'i' }
