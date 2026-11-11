@@ -209,7 +209,10 @@ const getLiveAgmarknetRates = async (req, res, next) => {
     });
   } catch (error) {
     try {
-      const { state, district, commodity, limit = 100 } = req.query;
+      const { state, district, commodity, limit = 100, offset = 0 } = req.query;
+      // A snapshot is not the same result set as a live feed; never append it
+      // to a previously fetched live page.
+      if (Number(offset) > 0) return res.status(503).json({ success: false, message: 'Live rates unavailable. Please retry or refresh.' });
       const query = {};
       if (state && String(state).trim().toUpperCase() !== 'ALL') {
         query.state = state.trim().toUpperCase();
@@ -225,7 +228,7 @@ const getLiveAgmarknetRates = async (req, res, next) => {
 
       return res.status(200).json({
         success: true,
-        source: `MongoDB Synced Agmarknet Snapshot (${error.message})`,
+        source: 'Saved mandi rates (live source unavailable)',
         count: enrichedFallback.length,
         hasMore: false,
         rates: enrichedFallback

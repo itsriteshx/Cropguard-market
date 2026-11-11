@@ -17,12 +17,12 @@ export const apiRequest = async (endpoint, options = {}, token = null) => {
     ...(options.headers || {})
   };
 
+  const { timeoutMs = 8000, ...fetchOptions } = options;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(url, { ...options, headers, signal: controller.signal });
-    clearTimeout(timeoutId);
+    const res = await fetch(url, { ...fetchOptions, headers, signal: controller.signal });
     let data;
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
@@ -31,12 +31,13 @@ export const apiRequest = async (endpoint, options = {}, token = null) => {
       const text = await res.text();
       data = { success: false, message: text || `HTTP error ${res.status}` };
     }
+    clearTimeout(timeoutId);
     return { ...data, httpStatus: res.status };
   } catch (error) {
     clearTimeout(timeoutId);
     const isTimeout = error.name === 'AbortError';
     const errorMsg = isTimeout
-      ? `Server timeout (8s). Cannot reach ${origin}. Check Wi-Fi & backend.`
+      ? `Server timeout (${Math.round(timeoutMs / 1000)}s). Check the connection and try again.`
       : (error.message || 'Network error connecting to backend');
     console.error(`API Error on ${endpoint}:`, errorMsg);
     return { success: false, networkError: true, message: errorMsg };

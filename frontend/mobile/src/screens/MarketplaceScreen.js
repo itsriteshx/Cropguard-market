@@ -72,9 +72,10 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
 
   useEffect(() => {
     fetchListings(1);
-    fetchTickerRates();
     return () => { requestId.current += 1; };
   }, [selectedCategory, debouncedSearch]);
+
+  useEffect(() => { fetchTickerRates(); }, []);
 
   useEffect(() => {
     if (!debouncedSearch || debouncedSearch.length < 2) {
@@ -83,7 +84,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
     }
     let active = true;
     setLiveMandiLoading(true);
-    apiRequest(`/mandi-rates/live?state=ALL&commodity=${encodeURIComponent(debouncedSearch)}&limit=10`)
+    apiRequest(`/mandi-rates/live?state=ALL&commodity=${encodeURIComponent(debouncedSearch)}&limit=10`, { timeoutMs: 25000 })
       .then((res) => {
         if (active && res?.success && Array.isArray(res.rates)) {
           setLiveMandiMatches(res.rates);
@@ -198,7 +199,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
         <View style={styles.livePulseDot} />
         <Text style={styles.corridorBarText} numberOfLines={2}>
           {tickerRates.length > 0
-            ? `Agmarknet Live: ${tickerRates
+            ? `Mandi rates: ${tickerRates
                 .map((r) => `${r.commodity} ₹${Number(r.modalPrice).toLocaleString('en-IN')}/qtl`)
                 .join(' • ')}`
             : 'Browse produce listed by farmers'}
@@ -400,7 +401,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
                 {loadError
                   ? 'Could not load listings.'
                   : debouncedSearch
-                  ? `No farmer lots for "${debouncedSearch}". Showing live Govt Agmarknet rates:`
+                  ? `No farmer lots for "${debouncedSearch}". Showing available mandi rates:`
                   : 'No listings found.'}
               </Text>
 

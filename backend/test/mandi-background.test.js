@@ -29,3 +29,19 @@ test('saved benchmark responds without waiting for a slow external sync', async 
     delete require.cache[controllerPath];
   }
 });
+
+test('live feed does not append an unrelated saved snapshot after a failed page request', async () => {
+  const originalFetch = service.fetchAgmarknetMandiRates;
+  const originalFind = MandiRate.find;
+  const controllerPath = require.resolve('../src/controllers/mandiController');
+  try {
+    service.fetchAgmarknetMandiRates = async () => { throw new Error('live feed unavailable'); };
+    MandiRate.find = () => { throw new Error('cached data must not be queried for an appended page'); };
+    delete require.cache[controllerPath];
+    const { getLiveAgmarknetRates } = require(controllerPath);
+    let status, body;
+    await getLiveAgmarknetRates({ query: { offset: '10' } }, { status(value) { status = value; return this; }, json(value) { body = value; return this; } }, (error) => { throw error; });
+    assert.equal(status, 503);
+    assert.equal(body.success, false);
+  } finally { service.fetchAgmarknetMandiRates = originalFetch; MandiRate.find = originalFind; delete require.cache[controllerPath]; }
+});
