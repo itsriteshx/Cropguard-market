@@ -138,6 +138,18 @@ export const negotiationsService = {
     const res = await apiClient.post(`/negotiations/${id}/reject`, { reason });
     return res.data;
   },
+  sendMessage: async (id, { text, isVoice = false }) => {
+    const res = await apiClient.post(`/negotiations/${id}/message`, { text, isVoice });
+    return res.data;
+  },
+};
+
+// Smart AI Voice & Mandi Assistant
+export const assistantService = {
+  query: async ({ query, lang = 'en', context = {} }) => {
+    const res = await apiClient.post('/assistant/query', { query, lang, context });
+    return res.data;
+  },
 };
 
 // Mandi Intelligence & Live External APIs (Agmarknet, Open-Meteo Weather, India Post Pincode)

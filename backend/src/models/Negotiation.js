@@ -27,6 +27,38 @@ const bidHistorySchema = new mongoose.Schema({
   }
 });
 
+const chatMessageSchema = new mongoose.Schema({
+  sender: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  senderRole: {
+    type: String,
+    enum: ['BUYER', 'FARMER'],
+    required: true
+  },
+  senderName: {
+    type: String,
+    trim: true,
+    default: 'Participant'
+  },
+  text: {
+    type: String,
+    required: [true, 'Message text is required'],
+    trim: true,
+    maxlength: 500
+  },
+  isVoice: {
+    type: Boolean,
+    default: false
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now
+  }
+});
+
 const negotiationSchema = new mongoose.Schema(
   {
     listing: {
@@ -78,6 +110,7 @@ const negotiationSchema = new mongoose.Schema(
       default: null
     },
     bidHistory: [bidHistorySchema],
+    messages: [chatMessageSchema],
     expiresAt: {
       type: Date,
       default: () => new Date(+new Date() + 48 * 60 * 60 * 1000) // 48-hour negotiation window

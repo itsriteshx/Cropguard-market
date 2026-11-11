@@ -41,6 +41,30 @@ const initNegotiationSocket = (io) => {
     socket.on('leave_room', (payload = {}) => {
       if (payload && typeof payload.negotiationId === 'string') socket.leave(`room_${payload.negotiationId}`);
     });
+
+    socket.on('typing_start', (payload = {}) => {
+      if (!payload || typeof payload.negotiationId !== 'string') return;
+      const room = `room_${payload.negotiationId}`;
+      if (!socket.rooms.has(room)) return;
+      socket.to(room).emit('participant_typing', {
+        negotiationId: payload.negotiationId,
+        userId: id,
+        userRole: role,
+        isTyping: true
+      });
+    });
+
+    socket.on('typing_stop', (payload = {}) => {
+      if (!payload || typeof payload.negotiationId !== 'string') return;
+      const room = `room_${payload.negotiationId}`;
+      if (!socket.rooms.has(room)) return;
+      socket.to(room).emit('participant_typing', {
+        negotiationId: payload.negotiationId,
+        userId: id,
+        userRole: role,
+        isTyping: false
+      });
+    });
   });
 };
 

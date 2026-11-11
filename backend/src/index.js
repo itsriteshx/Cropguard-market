@@ -24,6 +24,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const docsRoutes = require('./routes/docsRoutes');
 const languageRoutes = require('./routes/languageRoutes');
 const auditRoutes = require('./routes/auditRoutes');
+const assistantRoutes = require('./routes/assistantRoutes');
 const initNegotiationSocket = require('./sockets/negotiationSocket');
 
 // Initialize Express App & HTTP Server
@@ -72,6 +73,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/docs', docsRoutes);
 app.use('/api/languages', languageRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/assistant', assistantRoutes);
 
 app.get('/', (req, res) => {
   res.status(200).json({
