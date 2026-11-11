@@ -1,4 +1,13 @@
+const mongoose = require('mongoose');
 const MandiRate = require('../models/MandiRate');
+const {
+  fetchAgmarknetMandiRates,
+  syncAgmarknetRatesToDb,
+  upsertRecordsToDb,
+  attachCropImagesToRates,
+  fetchDistrictWeather,
+  fetchPincodeInfo
+} = require('../services/externalApiService');
 
 const buildAnalyticsMatch = (query) => {
   const match = {};
@@ -72,7 +81,23 @@ const buildAnalyticsMatch = (query) => {
 
 
 /**
- * @desc    Get APMC Mandi rates with filters (commodity, state, district, category)
+ * Best-effort background/inline sync with Data.gov.in Agmarknet API.
+ * Never swallows errors silently without logging, and never returns fake data.
+ */
+async function ensureLiveRatesSynced({ state = 'ALL', force = false } = {}) {
+  if (mongoose.connection.readyState !== 1) {
+    return { synced: false, reason: 'db_disconnected' };
+  }
+  try {
+    return await syncAgmarknetRatesToDb(MandiRate, { state, force });
+  } catch (err) {
+    console.warn('[Agmarknet Live Sync Warning]:', err.message);
+    return { synced: false, error: err.message };
+  }
+}
+
+/**
+ * @desc    Get APMC Mandi rates with filters (syncs live from data.gov.in Agmarknet API)
  * @route   GET /api/mandi-rates
  * @access  Public
  */
@@ -83,17 +108,28 @@ const getMandiRates = async (req, res, next) => {
       state,
       district,
       category,
+      sync,
       page = 1,
-      limit = 20
+      limit = 120
     } = req.query;
+
+    const cleanState =
+      state && String(state).trim().toUpperCase() !== 'ALL'
+        ? String(state).trim()
+        : undefined;
+
+    const syncStatus = await ensureLiveRatesSynced({
+      state: cleanState || 'ALL',
+      force: sync === 'true'
+    });
 
     const query = {};
 
     if (commodity) {
       query.commodity = { $regex: commodity.trim(), $options: 'i' };
     }
-    if (state) {
-      query.state = state.trim().toUpperCase();
+    if (cleanState) {
+      query.state = cleanState.toUpperCase();
     }
     if (district) {
       query.district = district.trim().toUpperCase();
@@ -102,18 +138,24 @@ const getMandiRates = async (req, res, next) => {
       query.category = category.trim().toUpperCase();
     }
 
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10) || 120));
     const skip = (pageNum - 1) * limitNum;
 
     const total = await MandiRate.countDocuments(query);
-    const rates = await MandiRate.find(query)
+    const dbRates = await MandiRate.find(query)
       .sort('-priceDate')
       .skip(skip)
-      .limit(limitNum);
+      .limit(limitNum)
+      .lean();
+    const rates = await attachCropImagesToRates(dbRates);
 
     return res.status(200).json({
       success: true,
+      source: syncStatus.synced ? syncStatus.source : 'MongoDB Live Agmarknet Cache',
+      syncedLive: Boolean(syncStatus.synced),
+      totalAvailable: syncStatus.totalAvailable || null,
+      updatedDate: syncStatus.updatedDate || null,
       count: rates.length,
       total,
       page: pageNum,
@@ -126,23 +168,135 @@ const getMandiRates = async (req, res, next) => {
 };
 
 /**
+ * @desc    Query live daily Agmarknet prices directly from data.gov.in API
+ * @route   GET /api/mandi-rates/live
+ * @access  Public
+ */
+const getLiveAgmarknetRates = async (req, res, next) => {
+  try {
+    const { state = 'ALL', district, commodity, limit = 100, offset = 0 } = req.query;
+    const cleanState =
+      state && String(state).trim().toUpperCase() !== 'ALL' ? String(state).trim() : undefined;
+    const data = await fetchAgmarknetMandiRates({
+      state: cleanState,
+      district: district || undefined,
+      commodity: commodity || undefined,
+      maxRecords: Math.min(200, Math.max(10, parseInt(limit, 10) || 100)),
+      startOffset: Math.max(0, parseInt(offset, 10) || 0)
+    });
+
+    // Persist any newly searched commodities / loaded pages into MongoDB cache
+    if (mongoose.connection.readyState === 1 && data.records.length > 0) {
+      upsertRecordsToDb(MandiRate, data.records, data.source).catch((err) => {
+        console.warn('[Live Cache Save Warning]:', err.message);
+      });
+    }
+
+    const enrichedRates = await attachCropImagesToRates(data.records);
+
+    return res.status(200).json({
+      success: true,
+      source: data.source,
+      updatedDate: data.updatedDate,
+      fetchedAt: data.fetchedAt,
+      totalAvailable: data.totalAvailable,
+      offset: data.offset,
+      nextOffset: data.nextOffset,
+      hasMore: data.hasMore,
+      count: enrichedRates.length,
+      rates: enrichedRates
+    });
+  } catch (error) {
+    try {
+      const { state, district, commodity, limit = 100 } = req.query;
+      const query = {};
+      if (state && String(state).trim().toUpperCase() !== 'ALL') {
+        query.state = state.trim().toUpperCase();
+      }
+      if (district) query.district = district.trim().toUpperCase();
+      if (commodity) query.commodity = { $regex: commodity.trim(), $options: 'i' };
+
+      const dbRates = await MandiRate.find(query)
+        .sort('-priceDate')
+        .limit(Math.min(500, Math.max(10, parseInt(limit, 10) || 100)))
+        .lean();
+      const enrichedFallback = await attachCropImagesToRates(dbRates);
+
+      return res.status(200).json({
+        success: true,
+        source: `MongoDB Synced Agmarknet Snapshot (${error.message})`,
+        count: enrichedFallback.length,
+        hasMore: false,
+        rates: enrichedFallback
+      });
+    } catch (dbErr) {
+      return next(dbErr);
+    }
+  }
+};
+
+/**
+ * @desc    Get live weather and harvest/transit advisory via Open-Meteo API
+ * @route   GET /api/mandi-rates/weather
+ * @access  Public
+ */
+const getDistrictWeather = async (req, res) => {
+  try {
+    const { district = 'Dharwad', latitude, longitude } = req.query;
+    const weather = await fetchDistrictWeather({ district, latitude, longitude });
+    return res.status(200).json({
+      success: true,
+      weather
+    });
+  } catch (error) {
+    return res.status(502).json({
+      success: false,
+      message: `Weather API unavailable: ${error.message}`
+    });
+  }
+};
+
+/**
+ * @desc    Lookup Indian District/Taluk/State from Pincode via India Post API
+ * @route   GET /api/mandi-rates/pincode/:pincode
+ * @access  Public
+ */
+const lookupPincode = async (req, res) => {
+  try {
+    const location = await fetchPincodeInfo(req.params.pincode);
+    return res.status(200).json({
+      success: true,
+      location
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
  * @desc    Get fair price benchmark and anti-exploitation corridor for a specific crop
  * @route   GET /api/mandi-rates/benchmark
  * @access  Public
  */
 const getBenchmarkForCrop = async (req, res, next) => {
   try {
-    const { commodity, district, state } = req.query;
+    const { commodity, cropName, district, state } = req.query;
+    const targetCrop = commodity || cropName;
 
-    if (!commodity) {
+    if (!targetCrop) {
       return res.status(400).json({
         success: false,
         message: 'Please specify a commodity name to get benchmark rate'
       });
     }
 
+    await ensureLiveRatesSynced({ state: state || 'Karnataka' });
+
     const query = {
-      commodity: { $regex: commodity.trim(), $options: 'i' }
+      commodity: { $regex: targetCrop.trim(), $options: 'i' }
     };
 
     if (district) {
@@ -157,14 +311,14 @@ const getBenchmarkForCrop = async (req, res, next) => {
     if (!benchmark && district) {
       // Fallback: search without district constraint
       benchmark = await MandiRate.findOne({
-        commodity: { $regex: commodity.trim(), $options: 'i' }
+        commodity: { $regex: targetCrop.trim(), $options: 'i' }
       }).sort('-priceDate');
     }
 
     if (!benchmark) {
       return res.status(404).json({
         success: false,
-        message: `No APMC benchmark found for ${commodity}. Please check commodity name.`
+        message: `No APMC benchmark found for ${targetCrop}. Please check commodity name.`
       });
     }
 
@@ -214,6 +368,8 @@ const getMandiAnalytics = async (req, res, next) => {
         message: filterError
       });
     }
+
+    const syncStatus = await ensureLiveRatesSynced({ state: req.query.state || 'Karnataka' });
     // Pipeline 1: Commodity price trends & spreads
     const commodityTrends = await MandiRate.aggregate([
       { $match: match },
@@ -242,10 +398,10 @@ const getMandiAnalytics = async (req, res, next) => {
           marketsCount: { $size: '$marketCenters' }
         }
       },
-      { $sort: { totalArrivals: -1 } }
+      { $sort: { marketsCount: -1, totalArrivals: -1 } }
     ]);
 
-    // Pipeline 2: District-wise arrival volume
+    // Pipeline 2: District-wise mandi activity & arrivals
     const districtArrivals = await MandiRate.aggregate([
       { $match: match },
       {
@@ -264,12 +420,13 @@ const getMandiAnalytics = async (req, res, next) => {
           mandiCount: { $size: '$marketCenters' }
         }
       },
-      { $sort: { totalArrivals: -1 } }
+      { $sort: { mandiCount: -1, commoditiesCount: -1, totalArrivals: -1 } }
     ]);
 
     return res.status(200).json({
       success: true,
-      corridor: 'UASD Dharwad - North Karnataka & Maharashtra Corridor',
+      source: syncStatus.synced ? syncStatus.source : 'MongoDB Agmarknet Aggregation',
+      corridor: 'Live APMC Corridor Analytics',
       commodityTrends,
       districtArrivals
     });
@@ -400,6 +557,9 @@ const getMandiMarketComparison = async (req, res, next) => {
 
 module.exports = {
   getMandiRates,
+  getLiveAgmarknetRates,
+  getDistrictWeather,
+  lookupPincode,
   getBenchmarkForCrop,
   getMandiAnalytics,
   getMandiPriceTrends,

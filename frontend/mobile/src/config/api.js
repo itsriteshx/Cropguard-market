@@ -1,41 +1,8 @@
 import { Platform, NativeModules } from 'react-native';
+import { selectApiOrigin } from './apiOrigin';
 
-/**
- * Universal Auto-Host Discovery:
- * Reads the active host IP from Metro bundler's scriptURL.
- * - Physical Phone (Expo Go on Android/iOS): Auto-detects Mac's active IP on Wi-Fi or Hotspot!
- * - iOS Simulator: Connects via localhost:5001
- * - Android Emulator: Connects via 10.0.2.2:5001
- * Eliminates having to edit .env every time Wi-Fi or Hotspot changes.
- */
-const getAutoDetectedHost = () => {
-  try {
-    const scriptURL = NativeModules.SourceCode?.scriptURL;
-    if (scriptURL) {
-      const address = scriptURL.split('://')[1]?.split('/')[0];
-      const host = address?.split(':')[0];
-      if (host && host !== 'localhost' && host !== '127.0.0.1') {
-        return `http://${host}:5001`;
-      }
-    }
-  } catch (e) {}
-
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5001';
-  }
-  return 'http://localhost:5001';
-};
-
-const autoHost = getAutoDetectedHost();
-const envHost = process.env.EXPO_PUBLIC_API_ORIGIN;
-let rawOrigin = (envHost && !envHost.includes('localhost')) ? envHost : autoHost;
-
-// Android emulator fallback
-if (Platform.OS === 'android' && rawOrigin.includes('localhost')) {
-  rawOrigin = rawOrigin.replace('localhost', '10.0.2.2');
-}
-
-const origin = rawOrigin.replace(/\/+$/, '');
+// A configured origin wins; LAN host detection is a convenience for Expo Go.
+const origin = selectApiOrigin(process.env.EXPO_PUBLIC_API_ORIGIN, Platform.OS, NativeModules.SourceCode?.scriptURL);
 
 export const getSocketUrl = () => origin;
 export const resolveMediaUrl = (url) => url?.startsWith('/uploads/') ? `${origin}${url}` : url;

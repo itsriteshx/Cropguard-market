@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { mandiService } from '../services/api';
 import { ShieldCheck, Activity, Building2, UserCheck, ChevronDown, Sparkles, Globe, Check, LogIn, LogOut, User } from 'lucide-react';
 import AuthModal from './AuthModal';
 
@@ -16,6 +17,22 @@ export default function Navbar({ onTabChange, activeTab }) {
     setAuthModalOpen
   } = useAuth();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [tickerRates, setTickerRates] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    mandiService
+      .getRates({ state: 'ALL', limit: 15 })
+      .then((res) => {
+        if (active && res?.success && Array.isArray(res.rates)) {
+          setTickerRates(res.rates.slice(0, 15));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const activeLang = languages.find((l) => l.code === language) || languages[0];
   const n = t.navbar || {};
@@ -24,33 +41,21 @@ export default function Navbar({ onTabChange, activeTab }) {
     <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Brand & Academic Badges */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => onTabChange('marketplace')}>
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-xl shadow-lg shadow-emerald-500/20">
-                🌾
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-lg text-white tracking-tight">CropGuard</span>
-                  <span className="text-xs uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/80">
-                    {n.brandTag || 'Wholesale & Mandi'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400 hidden sm:block">
-                  {n.brandSubtitle || 'Direct Market Access • UASD Dharwad & ICAR Protocol'}
-                </p>
-              </div>
+          {/* Clean Brand Header */}
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => onTabChange('marketplace')}>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-lg shadow-lg shadow-emerald-500/20">
+              🌾
             </div>
-
-            {/* Academic Collaboration Pill */}
-            <div className="hidden lg:flex items-center gap-2 pl-4 border-l border-slate-800 text-xs text-slate-400">
-              <span className="px-2 py-1 rounded bg-slate-800/80 border border-slate-700/60 font-medium text-slate-300">
-                🏛️ UASD APMC Cell
-              </span>
-              <span className="px-2 py-1 rounded bg-slate-800/80 border border-slate-700/60 font-medium text-emerald-300">
-                {n.zeroMiddleman || 'Zero Middleman'}
-              </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-lg text-white tracking-tight">CropGuard Market</span>
+                <span className="hidden sm:inline-block text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/80">
+                  Direct Mandi
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 hidden sm:block">
+                Farmer-to-Buyer Agricultural Exchange
+              </p>
             </div>
           </div>
 
@@ -132,9 +137,9 @@ export default function Navbar({ onTabChange, activeTab }) {
                 }`}
               />
               <span className="hidden md:inline">
-                {backendOnline ? 'Node.js Gateway :5001' : 'Standalone Demo'}
+                {backendOnline ? 'Node.js Gateway :5001' : 'API Offline'}
               </span>
-              <span className="md:hidden">{backendOnline ? 'Live' : 'Demo'}</span>
+              <span className="md:hidden">{backendOnline ? 'Live' : 'Offline'}</span>
             </div>
 
             {/* User Profile Badge or Sign In Trigger */}
@@ -185,21 +190,33 @@ export default function Navbar({ onTabChange, activeTab }) {
       {/* Auth Modal */}
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
-      {/* APMC Live Benchmark Ticker */}
+      {/* APMC Live Benchmark Ticker (sourced from live backend / data.gov.in Agmarknet API) */}
       <div className="bg-slate-950 border-t border-slate-800/60 px-4 py-1.5 overflow-x-auto text-[11px] text-slate-400 flex items-center gap-6">
         <span className="font-bold text-emerald-400 shrink-0 flex items-center gap-1">
-          <Sparkles className="w-3.5 h-3.5" /> {n.tickerTitle || 'UASD Mandi Corridor:'}
+          <Sparkles className="w-3.5 h-3.5" /> {n.tickerTitle || 'Live Agmarknet Feed:'}
         </span>
-        <div className="flex items-center gap-6 shrink-0">
-          <span>🧅 Dharwad Onion: <strong className="text-slate-200">₹2,450 / qtl</strong></span>
-          <span className="text-slate-600">•</span>
-          <span>🌾 Hubballi Wheat: <strong className="text-slate-200">₹2,800 / qtl</strong></span>
-          <span className="text-slate-600">•</span>
-          <span>🍅 Belagavi Tomato: <strong className="text-slate-200">₹1,950 / qtl</strong></span>
-          <span className="text-slate-600">•</span>
-          <span>🌽 Haveri Maize: <strong className="text-slate-200">₹2,100 / qtl</strong></span>
-          <span className="text-slate-600">•</span>
-          <span>⚡ {n.middlemanBonus || 'Middleman Margin Eliminated: +10.0% Direct Farmer Bonus'}</span>
+        <div className="flex items-center gap-5 shrink-0">
+          {tickerRates.length > 0 ? (
+            tickerRates.map((rate, idx) => (
+              <React.Fragment key={rate._id || idx}>
+                {idx > 0 && <span className="text-slate-600">•</span>}
+                <button
+                  type="button"
+                  onClick={() => onTabChange?.('mandi')}
+                  className="hover:text-emerald-300 transition-colors text-left"
+                  title={`${rate.marketCenter || rate.district} (${rate.state || 'India'}) — Click to view full Agmarknet data`}
+                >
+                  {rate.marketCenter || rate.district} {rate.commodity}
+                  {rate.variety ? ` (${rate.variety})` : ''}:{' '}
+                  <strong className="text-slate-200">
+                    ₹{Number(rate.modalPrice).toLocaleString('en-IN')} / qtl
+                  </strong>
+                </button>
+              </React.Fragment>
+            ))
+          ) : (
+            <span className="text-slate-500">Syncing live Agmarknet mandi rates...</span>
+          )}
         </div>
       </div>
     </header>

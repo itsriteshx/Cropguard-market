@@ -36,10 +36,11 @@ export default function SystemHealthPage() {
       console.warn('System health query error:', err.message);
       setPingMs(null);
       setHealth({
-        status: 'OFFLINE_OR_STANDALONE',
+        success: false,
+        status: 'OFFLINE',
         timestamp: new Date().toISOString(),
-        environment: 'development',
-        database: 'MongoDB Atlas (ReplicaSet ap-south-1)',
+        environment: 'unreachable',
+        database: 'disconnected',
       });
     } finally {
       setLoading(false);
@@ -127,7 +128,7 @@ export default function SystemHealthPage() {
             </div>
             <span
               className={`w-2.5 h-2.5 rounded-full ${
-                health?.status === 'OK' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                health?.success || health?.status === 'OK' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
               }`}
             />
           </div>
@@ -138,7 +139,7 @@ export default function SystemHealthPage() {
             </div>
             <div className="flex justify-between">
               <span>Roundtrip Ping:</span>
-              <span className="font-mono text-emerald-400">{pingMs ? `${pingMs} ms` : 'Demo Fallback'}</span>
+              <span className="font-mono text-emerald-400">{pingMs !== null ? `${pingMs} ms` : 'Offline'}</span>
             </div>
           </div>
         </div>
@@ -148,9 +149,9 @@ export default function SystemHealthPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-white font-bold text-sm">
               <Database className="w-4 h-4 text-emerald-400" />
-              <span>MongoDB Atlas</span>
+              <span>MongoDB Atlas ({health?.database || 'checking'})</span>
             </div>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+            <span className={`w-2.5 h-2.5 rounded-full ${health?.database === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
           </div>
           <div className="text-xs text-slate-400 space-y-1 pt-1">
             <div className="flex justify-between">

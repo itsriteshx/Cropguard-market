@@ -68,6 +68,10 @@ export const listingsService = {
     const res = await apiClient.get('/listings', { params });
     return res.data;
   },
+  getMyListings: async () => {
+    const res = await apiClient.get('/listings/my-listings');
+    return res.data;
+  },
   getById: async (id) => {
     const res = await apiClient.get(`/listings/${id}`);
     return res.data;
@@ -76,18 +80,91 @@ export const listingsService = {
     const res = await apiClient.post('/listings', data);
     return res.data;
   },
+  update: async (id, data) => {
+    const res = await apiClient.put(`/listings/${id}`, data);
+    return res.data;
+  },
+  remove: async (id) => {
+    const res = await apiClient.delete(`/listings/${id}`);
+    return res.data;
+  },
 };
 
-// Mandi Intelligence & Benchmarks
+// Media Upload
+export const uploadService = {
+  uploadPhotos: async (files = []) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('photos', file));
+    const res = await apiClient.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+};
+
+// Live Price Negotiations
+export const negotiationsService = {
+  getMy: async () => {
+    const res = await apiClient.get('/negotiations/my');
+    return res.data;
+  },
+  getById: async (id) => {
+    const res = await apiClient.get(`/negotiations/${id}`);
+    return res.data;
+  },
+  start: async ({ listingId, offeredPrice, quantity, note }) => {
+    const res = await apiClient.post('/negotiations', {
+      listingId,
+      offeredPrice,
+      quantity,
+      note,
+    });
+    return res.data;
+  },
+  counter: async (id, { counterPrice, note }) => {
+    const res = await apiClient.post(`/negotiations/${id}/counter`, {
+      counterPrice,
+      note,
+    });
+    return res.data;
+  },
+  accept: async (id, expectedPrice) => {
+    const res = await apiClient.post(`/negotiations/${id}/accept`, {
+      expectedPrice,
+    });
+    return res.data;
+  },
+  reject: async (id, reason) => {
+    const res = await apiClient.post(`/negotiations/${id}/reject`, { reason });
+    return res.data;
+  },
+};
+
+// Mandi Intelligence & Live External APIs (Agmarknet, Open-Meteo Weather, India Post Pincode)
 export const mandiService = {
   getRates: async (params = {}) => {
     const res = await apiClient.get('/mandi-rates', { params });
     return res.data;
   },
 
+  getLiveRates: async (params = {}) => {
+    const res = await apiClient.get('/mandi-rates/live', { params });
+    return res.data;
+  },
+
+  getWeather: async (params = {}) => {
+    const res = await apiClient.get('/mandi-rates/weather', { params });
+    return res.data;
+  },
+
+  getPincode: async (pincode) => {
+    const res = await apiClient.get(`/mandi-rates/pincode/${pincode}`);
+    return res.data;
+  },
+
   getBenchmark: async (cropName, state = 'Karnataka') => {
     const res = await apiClient.get('/mandi-rates/benchmark', {
-      params: { cropName, state },
+      params: { commodity: cropName, cropName, state },
     });
     return res.data;
   },
@@ -98,6 +175,11 @@ export const mandiService = {
   },
 
   getPriceTrends: async (params = {}) => {
+    const res = await apiClient.get('/mandi-rates/analytics/trends', { params });
+    return res.data;
+  },
+
+  getAnalyticsTrends: async (params = {}) => {
     const res = await apiClient.get('/mandi-rates/analytics/trends', { params });
     return res.data;
   },
@@ -152,6 +234,10 @@ export const auditService = {
 export const systemService = {
   getHealth: async () => {
     const res = await apiClient.get('/health');
+    return res.data;
+  },
+  getStats: async () => {
+    const res = await apiClient.get('/health/stats');
     return res.data;
   },
   getDocs: async () => {

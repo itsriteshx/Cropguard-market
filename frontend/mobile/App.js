@@ -7,7 +7,8 @@ import {
   Modal,
   ScrollView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -15,6 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { SocketProvider, useSocket } from './src/context/SocketContext';
 import MarketplaceScreen from './src/screens/MarketplaceScreen';
+import MandiRatesScreen from './src/screens/MandiRatesScreen';
 import SellProduceScreen from './src/screens/SellProduceScreen';
 import NegotiationsScreen from './src/screens/NegotiationsScreen';
 import LedgerScreen from './src/screens/LedgerScreen';
@@ -43,7 +45,7 @@ function MainApp() {
           </TouchableOpacity>
           <TouchableOpacity
             style={{ backgroundColor: '#1E293B', paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#334155' }}
-            onPress={async () => { await logout(); }}
+            onPress={async () => { const result = await logout(); if (!result.success) Alert.alert('Sign out failed', result.message); }}
           >
             <Text style={{ color: '#F87171', fontWeight: '600' }}>Sign Out & Re-login</Text>
           </TouchableOpacity>
@@ -63,7 +65,14 @@ function MainApp() {
   const renderActiveScreen = () => {
     switch (activeTab) {
       case 'MARKET':
-        return <MarketplaceScreen onNavigateToNegotiations={() => setActiveTab('NEGOTIATIONS')} />;
+        return (
+          <MarketplaceScreen
+            onNavigateToNegotiations={() => setActiveTab('NEGOTIATIONS')}
+            onNavigateToMandi={() => setActiveTab('MANDI')}
+          />
+        );
+      case 'MANDI':
+        return <MandiRatesScreen />;
       case 'SELL':
         return <SellProduceScreen onNavigateToMarket={() => setActiveTab('MARKET')} />;
       case 'NEGOTIATIONS':
@@ -75,12 +84,18 @@ function MainApp() {
       case 'PROFILE':
         return <ProfileScreen />;
       default:
-        return <MarketplaceScreen onNavigateToNegotiations={() => setActiveTab('NEGOTIATIONS')} />;
+        return (
+          <MarketplaceScreen
+            onNavigateToNegotiations={() => setActiveTab('NEGOTIATIONS')}
+            onNavigateToMandi={() => setActiveTab('MANDI')}
+          />
+        );
     }
   };
 
   const navItems = [
     { key: 'MARKET', icon: '🌾', label: t.tabs.market },
+    { key: 'MANDI', icon: '📊', label: 'Mandi' },
     ...(isFarmer ? [{ key: 'SELL', icon: '➕', label: t.tabs.sell }] : []),
     { key: 'NEGOTIATIONS', icon: '💬', label: t.tabs.negotiations },
     { key: 'ORDERS', icon: '📦', label: 'Orders' },

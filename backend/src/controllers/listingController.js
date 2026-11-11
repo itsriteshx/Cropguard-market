@@ -1,4 +1,95 @@
+const mongoose = require('mongoose');
 const ProduceListing = require('../models/ProduceListing');
+const MandiRate = require('../models/MandiRate');
+const {
+  calculateDistanceKm,
+  fetchCropImageUrl
+} = require('../services/externalApiService');
+
+const COMMODITY_KEYWORDS = [
+  'ONION',
+  'WHEAT',
+  'TOMATO',
+  'SOYBEAN',
+  'SOYABEAN',
+  'BENGAL GRAM',
+  'BLACK GRAM',
+  'GREEN GRAM',
+  'CHILLI',
+  'CAPSICUM',
+  'TURMERIC',
+  'LEMON',
+  'MAIZE',
+  'RICE',
+  'PADDY',
+  'POTATO',
+  'GROUNDNUT',
+  'COTTON',
+  'CORIANDER',
+  'GARLIC'
+];
+
+function findMatchingMandiRate(cropName = '', mandiRates = []) {
+  const upper = String(cropName).toUpperCase();
+  const keyword = COMMODITY_KEYWORDS.find((k) => upper.includes(k));
+  if (!keyword) return null;
+
+  // Match exact keyword or Bengal Gram -> Chana / Gram, Soybean <-> Soyabean
+  const aliasPattern =
+    keyword === 'SOYBEAN' || keyword === 'SOYABEAN'
+      ? /(SOYBEAN|SOYABEAN)/i
+      : keyword === 'CHILLI'
+      ? /(CHILLI|CHILI)/i
+      : new RegExp(keyword, 'i');
+
+  return mandiRates.find((r) => aliasPattern.test(r.commodity)) || null;
+}
+
+async function enrichListings(listings = [], viewerCoords = null) {
+  if (!Array.isArray(listings) || listings.length === 0) return listings;
+  if (mongoose.connection.readyState !== 1) return listings;
+
+  let mandiRates = [];
+  try {
+    mandiRates = await MandiRate.find({})
+      .select('commodity district marketCenter modalPrice minPrice maxPrice priceDate')
+      .sort('-priceDate')
+      .limit(100)
+      .lean();
+  } catch {
+    mandiRates = [];
+  }
+
+  return Promise.all(
+    listings.map(async (rawItem) => {
+      const item = typeof rawItem.toObject === 'function' ? rawItem.toObject({ virtuals: true }) : { ...rawItem };
+      const matchedRate = findMatchingMandiRate(item.cropName, mandiRates);
+      const listingCoords = item.location?.coordinates;
+      const distanceKm = calculateDistanceKm(viewerCoords, listingCoords);
+
+      let resolvedImageUrl =
+        Array.isArray(item.images) && item.images.find((img) => typeof img === 'string' && /^https?:\/\//i.test(img));
+      if (!resolvedImageUrl) {
+        resolvedImageUrl = await fetchCropImageUrl(item.cropName);
+      }
+
+      return {
+        ...item,
+        benchmarkRate: matchedRate ? matchedRate.modalPrice : null,
+        benchmarkMarket: matchedRate ? matchedRate.marketCenter : null,
+        benchmarkDate: matchedRate ? matchedRate.priceDate : null,
+        distanceKm,
+        resolvedImageUrl: resolvedImageUrl || null,
+        images:
+          Array.isArray(item.images) && item.images.length > 0
+            ? item.images
+            : resolvedImageUrl
+            ? [resolvedImageUrl]
+            : []
+      };
+    })
+  );
+}
 
 /**
  * @desc    Create a new produce listing
@@ -66,9 +157,11 @@ const getAllListings = async (req, res, next) => {
       status,
       longitude,
       latitude,
+      viewerLon,
+      viewerLat,
       maxDistance = 50000, // default 50km in meters
       page = 1,
-      limit = 10,
+      limit = 20,
       sortBy = '-createdAt'
     } = req.query;
 
@@ -136,7 +229,16 @@ const getAllListings = async (req, res, next) => {
       queryExec = queryExec.sort(sortBy);
     }
 
-    const listings = await queryExec;
+    const rawListings = await queryExec;
+
+    const viewerCoords =
+      longitude && latitude
+        ? [parseFloat(longitude), parseFloat(latitude)]
+        : viewerLon && viewerLat
+        ? [parseFloat(viewerLon), parseFloat(viewerLat)]
+        : req.user?.location?.coordinates || null;
+
+    const listings = await enrichListings(rawListings, viewerCoords);
 
     return res.status(200).json({
       success: true,
@@ -170,9 +272,11 @@ const getListingById = async (req, res, next) => {
       });
     }
 
+    const [enriched] = await enrichListings([listing], req.user?.location?.coordinates || null);
+
     return res.status(200).json({
       success: true,
-      listing
+      listing: enriched
     });
   } catch (error) {
     next(error);

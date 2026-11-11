@@ -63,4 +63,23 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { protect, authorize };
+/**
+ * Optional auth - Attaches req.user if a valid Bearer token is present, otherwise continues cleanly
+ */
+const optionalProtect = async (req, res, next) => {
+  try {
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      const token = req.headers.authorization.split(' ')[1];
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || 'cropguard_dev_secret_key_adypu_2026'
+      );
+      req.user = await User.findById(decoded.id).select('-password');
+    }
+  } catch {
+    req.user = null;
+  }
+  next();
+};
+
+module.exports = { protect, authorize, optionalProtect };

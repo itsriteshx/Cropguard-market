@@ -33,6 +33,21 @@ const mandiRateSchema = new mongoose.Schema(
       required: [true, 'Please provide APMC mandi center name'],
       trim: true
     },
+    variety: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    grade: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    source: {
+      type: String,
+      trim: true,
+      default: 'APMC Agmarknet'
+    },
     minPrice: {
       type: Number,
       required: [true, 'Minimum price is required'],

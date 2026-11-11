@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   StyleSheet,
@@ -8,12 +8,22 @@ import {
   TouchableOpacity
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, apiRequest } from '../config/api';
+import { useSocket } from '../context/SocketContext';
 
 export default function ProfileScreen() {
   const { t, user, role, language, setLanguage, languages, logout } = useAuth();
 
   const isFarmer = role === 'FARMER';
+  const { isConnected } = useSocket();
+  const [health, setHealth] = useState({ state: 'checking' });
+  const checkHealth = async () => {
+    setHealth({ state: 'checking' });
+    const response = await apiRequest('/health');
+    if (response.success) setHealth({ state: 'online', database: response.database });
+    else setHealth({ state: 'offline' });
+  };
+  useEffect(() => { checkHealth(); }, []);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -113,23 +123,23 @@ export default function ProfileScreen() {
 
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>{t.profile.backendStatus}:</Text>
-          <Text style={styles.statusValOnline}>✔ Online ({API_BASE_URL})</Text>
+          <Text style={health.state === 'online' ? styles.statusValOnline : styles.statusValMuted}>{health.state === 'checking' ? 'Checking…' : health.state === 'online' ? 'Online' : 'Unreachable'}</Text>
         </View>
 
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>{t.profile.dbStatus}:</Text>
-          <Text style={styles.statusValOnline}>✔ Connected (Mumbai ap-south-1)</Text>
+          <Text style={health.database === 'connected' ? styles.statusValOnline : styles.statusValMuted}>{health.state === 'checking' ? 'Checking…' : health.state !== 'online' ? 'Unknown' : health.database === 'connected' ? 'Connected' : 'Disconnected'}</Text>
         </View>
 
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>{t.profile.socketStatus}:</Text>
-          <Text style={styles.statusValOnline}>✔ Active (/negotiation gateway)</Text>
+          <Text style={isConnected ? styles.statusValOnline : styles.statusValMuted}>{isConnected ? 'Connected' : 'Disconnected'}</Text>
         </View>
 
-        <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>Problem Statement:</Text>
-          <Text style={styles.statusValMuted}>UASD Dharwad & ICAR 2026</Text>
-        </View>
+        <Text style={[styles.statusValMuted, { marginTop: 8 }]}>Backend: {API_BASE_URL}</Text>
+        <TouchableOpacity onPress={checkHealth} accessibilityRole="button" style={{ paddingVertical: 10 }}>
+          <Text style={styles.statusValOnline}>Refresh connection status</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
