@@ -127,6 +127,7 @@ Stores agricultural market benchmark rates.
 **Indexes:**
 - Individual indexes on commodity, state, district and price date
 - Compound index on `{ commodity: 1, district: 1, priceDate: -1 }`
+- Schema-declared compound unique index `uniq_mandi_rate_per_market_date` on `{ commodity: 1, state: 1, district: 1, marketCenter: 1, unit: 1, priceDate: 1 }`. This index is declared in the Mongoose schema; its actual creation in the target database should be verified separately.
 
 Note: Seeded mandi records are demonstration data. They should not be represented as verified live APMC or Agmarknet data.
 
@@ -166,6 +167,7 @@ CropGuard Market uses indexing to improve query performance.
 | Order | `buyer + orderStatus` | Retrieve buyer orders |
 | Order | `farmer + orderStatus` | Retrieve farmer orders |
 | MandiRate | `commodity + district + priceDate` | Retrieve district-wise historical prices |
+| MandiRate | `commodity + state + district + marketCenter + unit + priceDate` (unique, schema-declared) | Prevent duplicate market observations |
 | AuditLog | `targetEntity + targetId` | Retrieve audit history for a target |
 
 ## 4. Data Relationships

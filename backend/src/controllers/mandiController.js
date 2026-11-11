@@ -301,15 +301,26 @@ const getBenchmarkForCrop = async (req, res, next) => {
 
     if (district) {
       query.district = district.trim().toUpperCase();
+      if (state) {
+        query.state = state.trim().toUpperCase();
+      }
     } else if (state) {
       query.state = state.trim().toUpperCase();
     }
 
-    // Try finding exact district match, fallback to nearest state match or any match
+    // Try finding exact district (+ state if provided) match first
     let benchmark = await MandiRate.findOne(query).sort('-priceDate');
 
-    if (!benchmark && district) {
-      // Fallback: search without district constraint
+    // Fallback 1: same state, any district
+    if (!benchmark && district && state) {
+      benchmark = await MandiRate.findOne({
+        commodity: { $regex: targetCrop.trim(), $options: 'i' },
+        state: state.trim().toUpperCase()
+      }).sort('-priceDate');
+    }
+
+    // Fallback 2: any market globally
+    if (!benchmark && (district || state)) {
       benchmark = await MandiRate.findOne({
         commodity: { $regex: targetCrop.trim(), $options: 'i' }
       }).sort('-priceDate');
