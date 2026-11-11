@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 /**
  * Protect routes - Verifies JWT Bearer token and attaches user to req.user
@@ -14,10 +15,7 @@ const protect = async (req, res, next) => {
     try {
       token = req.headers.authorization.split(' ')[1];
 
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || 'cropguard_dev_secret_key_adypu_2026'
-      );
+      const decoded = jwt.verify(token, getJwtSecret());
 
       // Fetch user without password
       req.user = await User.findById(decoded.id).select('-password');
@@ -70,10 +68,7 @@ const optionalProtect = async (req, res, next) => {
   try {
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       const token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || 'cropguard_dev_secret_key_adypu_2026'
-      );
+      const decoded = jwt.verify(token, getJwtSecret());
       req.user = await User.findById(decoded.id).select('-password');
     }
   } catch {

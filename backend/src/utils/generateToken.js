@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../config/jwtSecret');
 
 /**
  * Generate a signed JWT token
@@ -9,7 +10,7 @@ const jwt = require('jsonwebtoken');
 const generateToken = (userId, role) => {
   return jwt.sign(
     { id: userId, role },
-    process.env.JWT_SECRET || 'cropguard_dev_secret_key_adypu_2026',
+    getJwtSecret(),
     {
       expiresIn: process.env.JWT_EXPIRE || '30d'
     }

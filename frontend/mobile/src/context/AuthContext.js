@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { apiRequest } from '../config/api';
 import { translations } from '../i18n/translations';
 import { createSessionManager } from '../auth/sessionManager';
+import { syncLanguagePreference } from '../auth/languageSync';
 
 const AuthContext = createContext();
 const SESSION_KEY = 'cropguard_session_token';
@@ -111,24 +112,24 @@ export const AuthProvider = ({ children }) => {
   };
 
   const setLanguage = async (newLang) => {
-    if (!newLang) return;
-    setLanguageState(newLang);
+    if (!newLang) return { success: false, synced: false, error: 'Language code is required' };
 
-    // Synchronize language preference with backend if logged in
-    if (token) {
-      try {
-        await apiRequest(
-          '/auth/language',
-          {
-            method: 'PATCH',
-            body: JSON.stringify({ languagePreference: newLang })
-          },
-          token
-        );
-      } catch (err) {
-        console.warn('Failed to sync language to backend:', err.message);
-      }
+    // Always preserve local language switching regardless of network or backend state
+    setLanguageState(newLang);
+    if (user) {
+      setUser((prev) => (prev ? { ...prev, languagePreference: newLang } : prev));
     }
+
+    // Synchronize language preference with backend if authenticated
+    if (token) {
+      const syncResult = await syncLanguagePreference(apiRequest, token, newLang);
+      if (!syncResult.success) {
+        console.warn('[AuthContext] Language synchronization warning:', syncResult.error);
+      }
+      return syncResult;
+    }
+
+    return { success: true, synced: false, language: newLang };
   };
 
   const toggleLanguage = () => {

@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { apiRequest } from '../config/api';
+import { createTypingController } from '../utils/typingController';
 
 export default function NegotiationsScreen({ onNavigateToOrders }) {
   const { t, token, user, role } = useAuth();
@@ -49,6 +50,10 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
   // Online status of counterparts per user ID
   const [onlineUsers, setOnlineUsers] = useState({});
 
+  // Real-time participant typing indicator map { [negotiationId]: userRole }
+  const [typingMap, setTypingMap] = useState({});
+  const typingControllerRef = useRef(null);
+
   // Keep track of joined rooms
   const joinedRoomsRef = useRef(new Set());
 
@@ -77,6 +82,34 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
       joinedRoomsRef.current.clear();
     };
   }, [leaveNegotiationRoom]);
+
+  // Real-Time Typing Controller lifecycle and listener
+  useEffect(() => {
+    const controller = createTypingController({
+      socketService,
+      currentUserId: user?._id,
+      onTypingStatusChange: ({ negotiationId, userRole, isTyping }) => {
+        setTypingMap((prev) => {
+          if (isTyping) {
+            return { ...prev, [negotiationId]: userRole };
+          }
+          const next = { ...prev };
+          delete next[negotiationId];
+          return next;
+        });
+      }
+    });
+
+    typingControllerRef.current = controller;
+    if (isConnected) {
+      controller.subscribe();
+    }
+
+    return () => {
+      controller.cleanup();
+      typingControllerRef.current = null;
+    };
+  }, [socketService, isConnected, user?._id]);
 
   // Real-Time Socket Event Listeners (Counter Offers, Deal Locked, Deal Rejected, Presence)
   useEffect(() => {
@@ -343,6 +376,10 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
   const handleSendQuickChat = async (negotiationId, textOverride = null) => {
     const text = String(textOverride ?? chatDrafts[negotiationId] ?? '').trim();
     if (!text || sendingChatId) return;
+
+    // Immediately stop typing indicator when sending
+    typingControllerRef.current?.handleMessageSent(negotiationId);
+
     setSendingChatId(negotiationId);
     const res = await apiRequest(
       `/negotiations/${negotiationId}/message`,
@@ -502,23 +539,35 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
         )}
 
         {!isRejected && (
-          <View style={styles.chatComposerRow}>
-            <TextInput
-              style={styles.chatInput}
-              placeholder="Send message to farmer/buyer..."
-              placeholderTextColor="#64748B"
-              value={chatDrafts[item._id] || ''}
-              onChangeText={(txt) => setChatDrafts((prev) => ({ ...prev, [item._id]: txt }))}
-              onSubmitEditing={() => handleSendQuickChat(item._id)}
-            />
-            <TouchableOpacity
-              style={styles.chatSendBtn}
-              disabled={sendingChatId === item._id}
-              onPress={() => handleSendQuickChat(item._id)}
-            >
-              <Text style={styles.chatSendText}>{sendingChatId === item._id ? '...' : 'Send'}</Text>
-            </TouchableOpacity>
-          </View>
+          <>
+            {typingMap[item._id] && (
+              <View style={styles.typingIndicatorRow}>
+                <Text style={styles.typingIndicatorText}>
+                  ✍️ {typingMap[item._id] === 'FARMER' ? 'Farmer' : 'Buyer'} is typing...
+                </Text>
+              </View>
+            )}
+            <View style={styles.chatComposerRow}>
+              <TextInput
+                style={styles.chatInput}
+                placeholder="Send message to farmer/buyer..."
+                placeholderTextColor="#64748B"
+                value={chatDrafts[item._id] || ''}
+                onChangeText={(txt) => {
+                  setChatDrafts((prev) => ({ ...prev, [item._id]: txt }));
+                  typingControllerRef.current?.handleTextChange(item._id, txt);
+                }}
+                onSubmitEditing={() => handleSendQuickChat(item._id)}
+              />
+              <TouchableOpacity
+                style={styles.chatSendBtn}
+                disabled={sendingChatId === item._id}
+                onPress={() => handleSendQuickChat(item._id)}
+              >
+                <Text style={styles.chatSendText}>{sendingChatId === item._id ? '...' : 'Send'}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
         )}
 
         {/* Action Buttons */}
@@ -1278,5 +1327,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold'
+  },
+  typingIndicatorRow: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 4,
+    backgroundColor: '#0F291E',
+    borderWidth: 1,
+    borderColor: '#166534',
+    borderRadius: 6,
+    alignSelf: 'flex-start'
+  },
+  typingIndicatorText: {
+    fontSize: 11,
+    fontStyle: 'italic',
+    color: '#4ADE80',
+    fontWeight: '500'
   }
 });
