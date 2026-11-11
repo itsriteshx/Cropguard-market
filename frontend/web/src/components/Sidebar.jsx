@@ -26,13 +26,13 @@ export default function Sidebar({ activeTab, onTabChange }) {
     },
     ...(isFarmer
       ? [
-          {
-            id: 'sell',
-            label: 'Sell Produce',
-            sublabel: 'List harvest & manage lots',
-            icon: PlusCircle,
-          },
-        ]
+        {
+          id: 'sell',
+          label: 'Sell Produce',
+          sublabel: 'List harvest & manage lots',
+          icon: PlusCircle,
+        },
+      ]
       : []),
     {
       id: 'negotiations',
@@ -60,13 +60,13 @@ export default function Sidebar({ activeTab, onTabChange }) {
     },
     ...(isAdmin
       ? [
-          {
-            id: 'system',
-            label: 'System Diagnostics',
-            sublabel: 'Admin gateway status',
-            icon: Server,
-          },
-        ]
+        {
+          id: 'system',
+          label: 'System Diagnostics',
+          sublabel: 'Admin gateway status',
+          icon: Server,
+        },
+      ]
       : []),
   ];
 
@@ -83,16 +83,14 @@ export default function Sidebar({ activeTab, onTabChange }) {
             <button
               key={item.id}
               onClick={() => onTabChange(item.id)}
-              className={`w-full text-left p-3 rounded-xl flex items-start gap-3 transition-all ${
-                isActive
-                  ? 'bg-gradient-to-r from-emerald-950/80 to-slate-900 border border-emerald-600/50 text-white shadow-lg shadow-emerald-950/40'
-                  : 'hover:bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-transparent'
-              }`}
+              className={`w-full text-left p-3 rounded-xl flex items-start gap-3 transition-all ${isActive
+                ? 'bg-gradient-to-r from-emerald-950/80 to-slate-900 border border-emerald-600/50 text-white shadow-lg shadow-emerald-950/40'
+                : 'hover:bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-transparent'
+                }`}
             >
               <Icon
-                className={`w-5 h-5 shrink-0 mt-0.5 ${
-                  isActive ? 'text-emerald-400' : 'text-slate-400'
-                }`}
+                className={`w-5 h-5 shrink-0 mt-0.5 ${isActive ? 'text-emerald-400' : 'text-slate-400'
+                  }`}
               />
               <div className="min-w-0">
                 <div className={`text-xs font-bold ${isActive ? 'text-white' : 'text-slate-300'}`}>
@@ -108,7 +106,7 @@ export default function Sidebar({ activeTab, onTabChange }) {
       <div className="mt-8 pt-4 border-t border-slate-800/80 px-2">
         <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] space-y-1">
           <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-            <Award className="w-4 h-4" /> Direct Trade Exchange
+            <Award className="w-4 h-4" /> {t.nav?.compliantBadge || 'Direct Trade Exchange'}
           </div>
           <p className="text-slate-400 text-[10px] leading-relaxed">
             0% middleman commission. Benchmarked with live Agmarknet mandi rates.

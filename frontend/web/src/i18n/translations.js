@@ -22,7 +22,7 @@ export const webTranslations = {
       "system": "API Gateway & Docs",
       "systemSub": "Backend Health & Swagger Specs",
       "complianceNotice": "Eliminates APMC commission agents (arhatiyas) to transfer +10% economic value directly to farmers.",
-      "compliantBadge": "ICAR & UASD Compliant"
+      "compliantBadge": "Illustrative Price Analysis"
     },
     "marketplace": {
       "tag": "Institutional & Wholesale Gateway",
@@ -113,8 +113,8 @@ export const webTranslations = {
     },
     "mandi": {
       "tag": "UASD Dharwad APMC Price Intelligence Pipeline",
-      "title": "Live Mandi Rate & Fair-Price Corridor Monitor",
-      "subtitle": "Real-time APMC price benchmarks prevent predatory buyer bidding. Direct market price discovery eliminates unfair discounts forced on local farmers.",
+      "title": "Mandi Price Analytics & Fair-Price Corridor Monitor",
+      "subtitle": "Explore aggregated mandi price observations, compare market centers, and evaluate illustrative farmer offers using demonstration data.",
       "trackedMandis": "APMC Mandis Tracked",
       "modalSpread": "Mandi Modal Spread",
       "fairTradeIndex": "Fair Trade Index",
@@ -123,13 +123,13 @@ export const webTranslations = {
       "spreadChartSub": "Min vs Modal vs Max Rate (₹ per Quintal)",
       "realizationChartTitle": "Farmer Price Realization Over Time",
       "realizationChartSub": "CropGuard Direct Farmgate vs Mandi Auction Modal",
-      "simTitle": "Anti-Exploitation Price Corridor Simulator",
-      "simSubtitle": "Evaluate buyer bids against UASD ICAR statutory fair-trade price boundaries",
+      "simTitle": "Illustrative Farmer Offer Simulator",
+      "simSubtitle": "Evaluate simulated buyer offers against an illustrative mandi price threshold",
       "selectCrop": "Select Monitored Commodity",
       "simOffer": "Simulated Wholesaler Offer (₹ / qtl)",
       "simResult": "Corridor Evaluation Result",
-      "exploitativeBid": "Exploitative Bid! (>10% below APMC modal)",
-      "approvedBid": "Fair Price Corridor Approved (UASD Compliant)"
+      "exploitativeBid": "Offer Below Illustrative Threshold",
+      "approvedBid": "Offer Meets Illustrative Price Threshold"
     },
     "orders": {
       "tag": "Direct Escrow & 5-Stage Settlement State Machine",
@@ -296,8 +296,8 @@ export const webTranslations = {
       "selectCrop": "फ़सल चुनें",
       "simOffer": "थोक खरीददार का प्रस्तावित भाव (₹/क्विंटल)",
       "simResult": "मूल्य जांच परिणाम",
-      "exploitativeBid": "शोषणकारी बोली! (मंडी औसत भाव से >10% कम)",
-      "approvedBid": "उचित मूल्य गलियारा स्वीकृत (मानक अनुरूप)"
+      "exploitativeBid": "प्रस्ताव सांकेतिक मूल्य सीमा से कम है",
+      "approvedBid": "प्रस्ताव सांकेतिक मूल्य सीमा को पूरा करता है"
     },
     "orders": {
       "tag": "सीधा एस्क्रो एवं 5-चरणीय भुगतान मशीन",
@@ -464,8 +464,8 @@ export const webTranslations = {
       "selectCrop": "ಬೆಳೆ ಆಯ್ಕೆಮಾಡಿ",
       "simOffer": "ಖರೀದಿದಾರರು ನೀಡಿದ ದರ (₹/ಕ್ವಿಂಟಾಲ್)",
       "simResult": "ಫಲಿತಾಂಶ",
-      "exploitativeBid": "ಶೋಷಣಾ ದರ! (ಮಾರುಕಟ್ಟೆ ದರಕ್ಕಿಂತ >10% ಕಡಿಮೆ)",
-      "approvedBid": "ನ್ಯಾಯಯುತ ದರ ಅನುಮೋದಿಸಲಾಗಿದೆ (UASD ಮಾನದಂಡ)"
+      "exploitativeBid": "ಕೊಡುಗೆಯು ಸೂಚಕ ಬೆಲೆ ಮಿತಿಗಿಂತ ಕಡಿಮೆಯಾಗಿದೆ",
+      "approvedBid": "ಕೊಡುಗೆಯು ಸೂಚಕ ಬೆಲೆ ಮಿತಿಯನ್ನು ಪೂರೈಸುತ್ತದೆ"
     },
     "orders": {
       "tag": "ನೇರ ಎಸ್ಕ್ರೋ ಮತ್ತು 5 ಹಂತಗಳ ಪಾವತಿ ವ್ಯವಸ್ಥೆ",
@@ -632,8 +632,8 @@ export const webTranslations = {
       "selectCrop": "पीक निवडा",
       "simOffer": "खरेदीदाराने दिलेला दर (₹/क्विंटल)",
       "simResult": "निकाल",
-      "exploitativeBid": "खूप कमी दर! (बाजार दरापेक्षा >१०% कमी)",
-      "approvedBid": "योग्य दर मंजूर"
+      "exploitativeBid": "प्रस्ताव सूचक किंमत मर्यादेपेक्षा कमी आहे",
+      "approvedBid": "प्रस्ताव सूचक किंमत मर्यादा पूर्ण करतो"
     },
     "orders": {
       "tag": "एस्क्रो आणि ५ टप्प्यांचे सुरक्षित पेमेंट",
@@ -800,8 +800,8 @@ export const webTranslations = {
       "selectCrop": "పంటను ఎంచుకోండి",
       "simOffer": "కొనుగోలుదారు ఇచ్చిన ధర (₹/క్వింటాల్)",
       "simResult": "ఫలితం",
-      "exploitativeBid": "చాలా తక్కువ ధర! (మార్కెట్ ధర కంటే >10% తక్కువ)",
-      "approvedBid": "సరైన ధర ఆమోదించబడింది"
+      "exploitativeBid": "ఆఫర్ సూచిక ధర పరిమితి కంటే తక్కువగా ఉంది",
+      "approvedBid": "ఆఫర్ సూచిక ధర పరిమితిని చేరుకుంటుంది"
     },
     "orders": {
       "tag": "ఎస్క్రో సురక్షిత చెల్లింపుల వ్యవస్థ",
@@ -968,8 +968,8 @@ export const webTranslations = {
       "selectCrop": "பயிரைத் தேர்ந்தெடுக்கவும்",
       "simOffer": "வழங்கப்பட்ட விலை (₹/குவிண்டால்)",
       "simResult": "முடிவு",
-      "exploitativeBid": "மிகக் குறைந்த விலை! (சந்தை விலையை விட >10% குறைவு)",
-      "approvedBid": "நியாயமான விலை அனுமதிக்கப்பட்டது"
+      "exploitativeBid": "சலுகை குறியீட்டு விலை வரம்பை விடக் குறைவாக உள்ளது",
+      "approvedBid": "சலுகை குறியீட்டு விலை வரம்பை பூர்த்தி செய்கிறது"
     },
     "orders": {
       "tag": "எஸ்க்ரோ பாதுகாப்பான கட்டண முறை",
@@ -1136,8 +1136,8 @@ export const webTranslations = {
       "selectCrop": "પાક પસંદ કરો",
       "simOffer": "ખરીદદારે આપેલો ભાવ (₹/ક્વિન્ટલ)",
       "simResult": "પરિણામ",
-      "exploitativeBid": "બહુ ઓછો ભાવ! (યાર્ડના ભાવ કરતાં >૧૦% ઓછો)",
-      "approvedBid": "યોગ્ય ભાવ મંજૂર"
+      "exploitativeBid": "ઓફર સૂચક ભાવ મર્યાદા કરતાં ઓછી છે",
+      "approvedBid": "ઓફર સૂચક ભાવ મર્યાદાને પૂર્ણ કરે છે"
     },
     "orders": {
       "tag": "એસ્ક્રો સુરક્ષિત પેમેન્ટ સિસ્ટમ",
@@ -1304,8 +1304,8 @@ export const webTranslations = {
       "selectCrop": "ਫ਼ਸਲ ਚੁਣੋ",
       "simOffer": "ਖਰੀਦਦਾਰ ਦਾ ਭਾਅ (₹/ਕੁਇੰਟਲ)",
       "simResult": "ਨਤੀਜਾ",
-      "exploitativeBid": "ਬਹੁਤ ਘੱਟ ਭਾਅ! (ਮੰਡੀ ਭਾਅ ਤੋਂ >10% ਘੱਟ)",
-      "approvedBid": "ਵਾਜਬ ਭਾਅ ਮਨਜ਼ੂਰ"
+      "exploitativeBid": "ਪੇਸ਼ਕਸ਼ ਸੰਕੇਤਕ ਕੀਮਤ ਸੀਮਾ ਤੋਂ ਘੱਟ ਹੈ",
+      "approvedBid": "ਪੇਸ਼ਕਸ਼ ਸੰਕੇਤਕ ਕੀਮਤ ਸੀਮਾ ਨੂੰ ਪੂਰਾ ਕਰਦੀ ਹੈ"
     },
     "orders": {
       "tag": "ਐਸਕਰੋ ਸੁਰੱਖਿਅਤ ਭੁਗਤਾਨ ਪ੍ਰਣਾਲੀ",

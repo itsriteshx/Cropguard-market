@@ -107,4 +107,3 @@ test('attachCropImagesToRates deduplicates crop lookups and distinguishes Pine A
     globalThis.fetch = originalFetch;
   }
 });
-

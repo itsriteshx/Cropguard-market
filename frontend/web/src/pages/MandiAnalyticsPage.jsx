@@ -26,7 +26,11 @@ import {
   ArrowUpDown,
   AlertCircle,
   Filter,
+  Sparkles,
+  ShieldAlert,
+  CheckCircle,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { mandiService } from '../services/api';
 
 const STATE_OPTIONS = [
@@ -186,12 +190,16 @@ const QUICK_COMMODITIES = [
 ];
 
 export default function MandiAnalyticsPage() {
+  const { t } = useAuth();
+  const m = t?.mandi || {};
+
   const [selectedState, setSelectedState] = useState('ALL');
   const [selectedDistrict, setSelectedDistrict] = useState('Dharwad');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeLiveCrop, setActiveLiveCrop] = useState('ALL');
   const [selectedCommodity, setSelectedCommodity] = useState('');
+  const [testFarmerOffer, setTestFarmerOffer] = useState(2400);
 
   const [records, setRecords] = useState([]);
   const [feedMeta, setFeedMeta] = useState({
@@ -290,6 +298,8 @@ export default function MandiAnalyticsPage() {
 
       if (merged.length > 0 && (!selectedCommodity || !merged.some((r) => r.commodity === selectedCommodity))) {
         setSelectedCommodity(merged[0].commodity);
+      } else if (analyticsRes.status === 'fulfilled' && analyticsRes.value?.commodityTrends?.length > 0 && !selectedCommodity) {
+        setSelectedCommodity(analyticsRes.value.commodityTrends[0].commodity);
       }
 
       if (merged.length === 0 && liveRes.status === 'rejected' && dbRes.status === 'rejected') {
@@ -364,7 +374,7 @@ export default function MandiAnalyticsPage() {
     }
   };
 
-  // Fetch Nitika's /analytics/markets and /analytics/trends whenever selectedCommodity changes
+  // Fetch /analytics/markets and /analytics/trends whenever selectedCommodity changes
   useEffect(() => {
     if (!selectedCommodity) {
       setMarketComparison([]);
@@ -381,7 +391,7 @@ export default function MandiAnalyticsPage() {
 
     Promise.allSettled([
       mandiService.getMarketComparison(params),
-      mandiService.getAnalyticsTrends(params),
+      mandiService.getPriceTrends(params),
     ])
       .then(([marketsRes, trendsRes]) => {
         if (!active) return;
@@ -417,8 +427,16 @@ export default function MandiAnalyticsPage() {
   }, [selectedCommodity, selectedState]);
 
   const distinctCommodities = useMemo(() => {
-    return Array.from(new Set(records.map((r) => r.commodity))).sort();
-  }, [records]);
+    const list = Array.from(new Set(records.map((r) => r.commodity))).filter(Boolean);
+    if (analytics.commodityTrends?.length > 0) {
+      analytics.commodityTrends.forEach((t) => {
+        if (t.commodity && !list.includes(t.commodity)) {
+          list.push(t.commodity);
+        }
+      });
+    }
+    return list.sort();
+  }, [records, analytics.commodityTrends]);
 
   const filteredRecords = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -495,6 +513,49 @@ export default function MandiAnalyticsPage() {
     }));
   }, [sortedRecords, chartLimit]);
 
+  // Actual modal rate benchmark calculation for the selected commodity (No fabricated data)
+  const currentBenchmark = useMemo(() => {
+    if (!selectedCommodity) return null;
+    const target = selectedCommodity.toUpperCase();
+    const fromTrends = analytics?.commodityTrends?.find(
+      (item) => String(item.commodity || '').toUpperCase() === target
+    );
+    if (fromTrends && fromTrends.avgModalPrice) {
+      return {
+        commodity: fromTrends.commodity,
+        avgModalPrice: Number(fromTrends.avgModalPrice) || 0,
+        source: 'MongoDB Analytics Aggregate',
+      };
+    }
+    const matchingRecords = records.filter(
+      (r) => String(r.commodity || '').toUpperCase() === target && r.modalPrice > 0
+    );
+    if (matchingRecords.length > 0) {
+      const avg = Math.round(
+        matchingRecords.reduce((sum, r) => sum + r.modalPrice, 0) / matchingRecords.length
+      );
+      return {
+        commodity: matchingRecords[0].commodity,
+        avgModalPrice: avg,
+        source: 'Live APMC Feed Average',
+      };
+    }
+    return null;
+  }, [selectedCommodity, analytics?.commodityTrends, records]);
+
+  const modalRate = currentBenchmark ? Number(currentBenchmark.avgModalPrice) : null;
+  const benchmarkAvailable =
+    modalRate !== null && Number.isFinite(modalRate) && modalRate > 0;
+  const minCorridor = benchmarkAvailable ? Math.round(modalRate * 0.9) : null;
+
+  const farmerOffer = Number(testFarmerOffer);
+  const validFarmerOffer =
+    String(testFarmerOffer).trim() !== '' &&
+    Number.isFinite(farmerOffer) &&
+    farmerOffer >= 0;
+  const isExploitative =
+    benchmarkAvailable && validFarmerOffer && farmerOffer < minCorridor;
+
   const exportCsv = () => {
     if (sortedRecords.length === 0) return;
     const headers = [
@@ -553,14 +614,14 @@ export default function MandiAnalyticsPage() {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-extrabold text-white flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-emerald-400" />
-                Live APMC Mandi Intelligence & Agmarknet Explorer
+                {m.title || 'Live APMC Mandi Intelligence & Agmarknet Explorer'}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
                 {feedMeta.source}
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Complete live records with State, District, APMC Market, Commodity, Variety, Grade, Arrival Date, and Min / Modal / Max price spreads.
+              {m.subtitle || 'Complete live records with State, District, APMC Market, Commodity, Variety, Grade, Arrival Date, and Min / Modal / Max price spreads.'}
               {feedMeta.updatedDate ? ` • Feed updated: ${feedMeta.updatedDate}` : ''}
             </p>
           </div>
@@ -739,7 +800,7 @@ export default function MandiAnalyticsPage() {
           <div className="text-lg font-black text-emerald-400 mt-1">
             ₹{kpis.minPrice.toLocaleString('en-IN')} – ₹{kpis.maxPrice.toLocaleString('en-IN')}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">Per Quintal (incl. high-value spices)</div>
+          <div className="text-[11px] text-slate-400 mt-1">Per Quintal (incl. high-value crops)</div>
         </div>
 
         <div className="bg-gradient-to-br from-slate-900 to-emerald-950/30 border border-emerald-800/40 rounded-2xl p-4">
@@ -781,7 +842,7 @@ export default function MandiAnalyticsPage() {
         </div>
       </div>
 
-      {/* Crop Photo & Price Visual Gallery (All Live Commodities with Real Wikimedia Photos) */}
+      {/* Crop Photo & Price Visual Gallery */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
@@ -789,7 +850,7 @@ export default function MandiAnalyticsPage() {
               Live Crops Photo &amp; Rate Cards ({sortedRecords.length} Markets Shown)
             </h2>
             <p className="text-[11px] text-slate-400">
-              Har crop ki real photo (Wikipedia REST API) + Min / Modal / Max price + Mandi aur Variety ek saath. Click any card to compare mandis.
+              Real crop photos + Min / Modal / Max price + APMC Mandi and Variety. Click any card to compare mandis.
             </p>
           </div>
           {weather?.advisory && (
@@ -845,11 +906,11 @@ export default function MandiAnalyticsPage() {
                     <div className="font-extrabold text-xs text-white truncate" title={row.commodity}>
                       {row.commodity}
                     </div>
-                    <div className="text-[11px] text-emerald-300 truncate">
-                      {row.variety || 'Standard Variety'}
+                    <div className="text-[11px] text-emerald-400 truncate">
+                      {row.variety ? `Var: ${row.variety}` : 'Standard Variety'}
                     </div>
-                    <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                      {row.marketCenter} • {row.district}, {row.state}
+                    <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                      {row.marketCenter}, {row.district}
                     </div>
                     <div className="text-[10px] text-slate-500">
                       Arrival: {row.arrivalDisplay}
@@ -870,7 +931,7 @@ export default function MandiAnalyticsPage() {
         )}
       </div>
 
-      {/* Full Searchable Live APMC Table (All 10 Fields Exposed!) */}
+      {/* Full Searchable Live APMC Table */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
         <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
@@ -1202,6 +1263,123 @@ export default function MandiAnalyticsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Anti-Exploitation Benchmark Simulator (Data Engineering Track) */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-700/60 flex items-center justify-center text-emerald-400">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">
+              {m.simTitle || 'Anti-Exploitation Price Corridor Simulator'}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {m.simSubtitle || 'Compare simulated buyer offers against an illustrative threshold derived from recorded mandi modal prices'}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              {m.selectCrop || 'Select Monitored Commodity'}
+            </label>
+            <select
+              value={selectedCommodity}
+              onChange={(e) => setSelectedCommodity(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500 capitalize"
+            >
+              {distinctCommodities.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              {m.simOffer || 'Simulated Wholesaler Offer (₹ / qtl)'}
+            </label>
+            <input
+              type="number"
+              value={testFarmerOffer}
+              onChange={(e) => setTestFarmerOffer(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              {m.simResult || 'Corridor Evaluation Result'}
+            </label>
+            <div
+              className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-bold ${
+                !benchmarkAvailable || !validFarmerOffer
+                  ? 'bg-amber-950/70 border-amber-700/80 text-amber-300'
+                  : isExploitative
+                    ? 'bg-rose-950/70 border-rose-700/80 text-rose-300'
+                    : 'bg-emerald-950/70 border-emerald-700/80 text-emerald-300'
+              }`}
+            >
+              {!benchmarkAvailable ? (
+                <>
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>Benchmark unavailable — cannot evaluate offer.</span>
+                </>
+              ) : !validFarmerOffer ? (
+                <>
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>Enter a valid non-negative farmer offer.</span>
+                </>
+              ) : isExploitative ? (
+                <>
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>
+                    {m.exploitativeBid || 'Offer Below Illustrative Threshold!'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>
+                    {m.approvedBid || 'Offer Meets Illustrative Threshold'}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Detailed Corridor Parameters */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
+          <div>
+            <span className="text-slate-400">APMC Modal Rate:</span>
+            <span className="font-bold text-white ml-2">
+              {benchmarkAvailable ? `₹${modalRate.toLocaleString('en-IN')}` : 'Unavailable'}
+              {benchmarkAvailable ? ' / qtl' : ''}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400">Illustrative Price Threshold (90%):</span>
+            <span className="font-bold text-amber-400 ml-2">
+              {benchmarkAvailable ? `₹${minCorridor.toLocaleString('en-IN')}` : 'Unavailable'}
+              {benchmarkAvailable ? ' / qtl' : ''}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400">Direct Farmer Advantage:</span>
+            <span className="font-bold text-emerald-400 ml-2">
+              Illustrative 10% threshold difference
+            </span>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-500 leading-relaxed border-t border-slate-800/80 pt-2">
+          This simulator uses an illustrative 90% benchmark threshold for demonstration only. It does not represent an official MSP, statutory price floor, or regulatory compliance assessment.
+        </p>
       </div>
     </div>
   );
