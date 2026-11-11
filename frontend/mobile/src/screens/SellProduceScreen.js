@@ -27,6 +27,22 @@ const CATEGORIES = [
 
 const UNITS = ['KG', 'QUINTAL'];
 const QUALITY_GRADES = ['GRADE_A', 'GRADE_B', 'ORGANIC'];
+const CURATED_MOBILE_CROPS = [
+  { name: 'Tomato', category: 'VEGETABLES' },
+  { name: 'Onion', category: 'VEGETABLES' },
+  { name: 'Potato', category: 'VEGETABLES' },
+  { name: 'Wheat', category: 'GRAINS' },
+  { name: 'Rice', category: 'GRAINS' },
+  { name: 'Cotton', category: 'OTHER' },
+  { name: 'Soyabean', category: 'OILSEEDS' },
+  { name: 'Garlic', category: 'VEGETABLES' },
+  { name: 'Turmeric', category: 'SPICES' },
+  { name: 'Chilli', category: 'SPICES' },
+  { name: 'Apple', category: 'FRUITS' },
+  { name: 'Mango', category: 'FRUITS' }
+];
+const QTY_PRESETS = [10, 25, 50, 100];
+const NOTE_PRESETS = ['Sun-dried (<12% moisture)', 'Graded Grade-A', '50kg gunny bag packed'];
 
 export default function SellProduceScreen({ onNavigateToMarket }) {
   const { t, token, user, role } = useAuth();
@@ -41,10 +57,30 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
   const [photo, setPhoto] = useState(null);
   const [uploadedPhoto, setUploadedPhoto] = useState(null);
 
-  // Mandi Benchmark State
+  // Mandi Benchmark & Catalog State
   const [mandiBenchmark, setMandiBenchmark] = useState(null);
   const [loadingBenchmark, setLoadingBenchmark] = useState(false);
+  const [liveCropCatalog, setLiveCropCatalog] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    apiRequest('/mandi-rates?state=ALL&limit=150').then((res) => {
+      if (res?.success && Array.isArray(res.rates)) {
+        const seen = new Map();
+        res.rates.forEach((r) => {
+          const k = String(r.commodity || '').trim().toUpperCase();
+          if (k && !seen.has(k)) {
+            seen.set(k, {
+              name: r.commodity,
+              category: CATEGORIES.includes(r.category) ? r.category : 'OTHER',
+              modalPrice: Number(r.modalPrice) || null
+            });
+          }
+        });
+        setLiveCropCatalog(Array.from(seen.values()));
+      }
+    });
+  }, []);
 
   // Auto-check Mandi rates when crop name changes
   useEffect(() => {
@@ -240,18 +276,37 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           maxLength={100}
         />
 
-        {/* Quick Crop Suggestions */}
-        <View style={styles.suggestionRow}>
-          {['Tomato', 'Onion', 'Wheat', 'Chilli', 'Cotton'].map((c) => (
-            <TouchableOpacity
-              key={c}
-              style={styles.suggestionChip}
-              onPress={() => setCropName(c)}
-            >
-              <Text style={styles.suggestionText}>+ {c}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {/* Dynamic Filtered Crop Suggestions */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
+          {[
+            ...liveCropCatalog,
+            ...CURATED_MOBILE_CROPS.filter(
+              (c) => !liveCropCatalog.some((l) => l.name.toUpperCase() === c.name.toUpperCase())
+            )
+          ]
+            .filter((item) =>
+              !cropName.trim() || item.name.toLowerCase().includes(cropName.trim().toLowerCase())
+            )
+            .slice(0, 8)
+            .map((item) => (
+              <TouchableOpacity
+                key={item.name}
+                style={styles.suggestionChip}
+                onPress={() => {
+                  setCropName(item.name);
+                  if (CATEGORIES.includes(item.category)) setCategory(item.category);
+                  if (item.modalPrice && !pricePerUnit) {
+                    const scaled = unit === 'QUINTAL' ? item.modalPrice : Math.round((item.modalPrice / 100) * 10) / 10;
+                    setPricePerUnit(String(scaled));
+                  }
+                }}
+              >
+                <Text style={styles.suggestionText}>
+                  + {item.name}{item.modalPrice ? ` (₹${item.modalPrice}/qtl)` : ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
+        </ScrollView>
 
         {/* Category Picker */}
         <Text style={styles.inputLabel}>📁 {t.sell.categoryLabel}</Text>
@@ -308,6 +363,15 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           </View>
         </View>
 
+        {/* Quantity Quick Picks */}
+        <View style={styles.suggestionRow}>
+          {QTY_PRESETS.map((q) => (
+            <TouchableOpacity key={q} style={styles.suggestionChip} onPress={() => setQuantity(String(q))}>
+              <Text style={styles.suggestionText}>{q} {unit.toLowerCase()}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* Expected Price */}
         <Text style={styles.inputLabel}>💰 {t.sell.priceLabel} per {unit} *</Text>
         <TextInput
@@ -318,6 +382,41 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           value={pricePerUnit}
           onChangeText={setPricePerUnit}
         />
+        {mandiBenchmark?.farmerPriceGuidance && (
+          <View style={styles.suggestionRow}>
+            {[
+              {
+                label: 'Min',
+                val:
+                  unit === 'QUINTAL'
+                    ? Math.round(mandiBenchmark.farmerPriceGuidance.minimumAcceptablePerKg * 100)
+                    : mandiBenchmark.farmerPriceGuidance.minimumAcceptablePerKg
+              },
+              {
+                label: 'Modal ★',
+                val:
+                  unit === 'QUINTAL'
+                    ? Math.round(mandiBenchmark.farmerPriceGuidance.modalRatePerKg * 100)
+                    : mandiBenchmark.farmerPriceGuidance.modalRatePerKg
+              },
+              {
+                label: 'Max',
+                val:
+                  unit === 'QUINTAL'
+                    ? Math.round(mandiBenchmark.farmerPriceGuidance.maximumMarketPerKg * 100)
+                    : mandiBenchmark.farmerPriceGuidance.maximumMarketPerKg
+              }
+            ].map((p) => (
+              <TouchableOpacity
+                key={p.label}
+                style={styles.suggestionChip}
+                onPress={() => setPricePerUnit(String(p.val))}
+              >
+                <Text style={styles.suggestionText}>{p.label}: ₹{p.val}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Quality Grade */}
         <Text style={styles.inputLabel}>⭐ {t.sell.qualityLabel}</Text>
@@ -355,6 +454,21 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           onChangeText={setDescription}
           maxLength={500}
         />
+        <View style={styles.suggestionRow}>
+          {NOTE_PRESETS.map((tpl) => (
+            <TouchableOpacity
+              key={tpl}
+              style={styles.suggestionChip}
+              onPress={() =>
+                setDescription((prev) =>
+                  prev.trim() ? `${prev.trim()} • ${tpl}`.slice(0, 500) : tpl
+                )
+              }
+            >
+              <Text style={styles.suggestionText}>+ {tpl}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <Text style={styles.inputLabel}>📷 Produce photo (optional)</Text>
         {photo && <Image source={{ uri: photo.uri }} style={styles.photoPreview} accessibilityLabel="Selected produce photo" />}

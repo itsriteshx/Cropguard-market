@@ -293,7 +293,13 @@ const getBenchmarkForCrop = async (req, res, next) => {
       });
     }
 
-    await ensureLiveRatesSynced({ state: state || 'Karnataka' });
+    await ensureLiveRatesSynced({ state: state || 'ALL' });
+
+    const cleanKeyword = String(targetCrop)
+      .replace(/\(.*?\)/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .pop() || targetCrop.trim();
 
     const query = {
       commodity: { $regex: targetCrop.trim(), $options: 'i' }
@@ -305,14 +311,37 @@ const getBenchmarkForCrop = async (req, res, next) => {
       query.state = state.trim().toUpperCase();
     }
 
-    // Try finding exact district match, fallback to nearest state match or any match
+    // Try exact district/state match, then fallback to pan-India DB or keyword match
     let benchmark = await MandiRate.findOne(query).sort('-priceDate');
 
-    if (!benchmark && district) {
-      // Fallback: search without district constraint
+    if (!benchmark && (district || state)) {
       benchmark = await MandiRate.findOne({
         commodity: { $regex: targetCrop.trim(), $options: 'i' }
       }).sort('-priceDate');
+    }
+
+    if (!benchmark && cleanKeyword && cleanKeyword.toLowerCase() !== targetCrop.trim().toLowerCase()) {
+      benchmark = await MandiRate.findOne({
+        commodity: { $regex: cleanKeyword, $options: 'i' }
+      }).sort('-priceDate');
+    }
+
+    // Last resort: query live Agmarknet API directly for this crop
+    if (!benchmark) {
+      try {
+        const liveData = await fetchAgmarknetMandiRates({
+          commodity: cleanKeyword,
+          maxRecords: 10
+        });
+        if (Array.isArray(liveData.records) && liveData.records.length > 0) {
+          benchmark = liveData.records[0];
+          if (mongoose.connection.readyState === 1) {
+            upsertRecordsToDb(MandiRate, liveData.records, liveData.source).catch(() => {});
+          }
+        }
+      } catch {
+        // Fallback stays 404 below if live lookup unavailable
+      }
     }
 
     if (!benchmark) {
