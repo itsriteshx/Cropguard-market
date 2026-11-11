@@ -25,7 +25,7 @@ const getListingImage = (item) => {
     const resolved = resolveMediaUrl(item.images[0]);
     if (resolved) return resolved;
   }
-  return item.resolvedImageUrl || null;
+  return item.resolvedImageUrl ? resolveMediaUrl(item.resolvedImageUrl) : null;
 };
 
 const CATEGORIES = [
@@ -249,7 +249,6 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
     const imageUrl = getListingImage(item);
     const price = Number(item.pricePerUnit ?? item.expectedPrice ?? 0);
     const benchmark = item.benchmarkRate != null ? Number(item.benchmarkRate) : null;
-    const mspDiff = benchmark !== null ? price - benchmark : null;
     const distance = item.distanceKm != null ? item.distanceKm : null;
 
     const initial = (item.farmer?.name || 'F')[0].toUpperCase();
@@ -270,7 +269,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
             </View>
           )}
           <View style={styles.imageScrim} />
-          {!item.images?.length && <Text style={{ color: '#fff', position: 'absolute', right: 8, bottom: 8, backgroundColor: '#0f172a', padding: 4, fontSize: 10 }}>Illustrative image</Text>}
+          {item.imageSource === 'illustrative' && <Text style={{ color: '#fff', position: 'absolute', right: 8, bottom: 8, backgroundColor: '#0f172a', padding: 4, fontSize: 10 }}>Illustrative image</Text>}
 
           {/* Top Badges */}
           <View style={styles.imageTopRow}>
@@ -358,13 +357,9 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
                 <Text style={styles.priceValueText}>{price.toLocaleString('en-IN')}</Text>
                 <Text style={styles.priceUnitText}> / {item.unit || 'unit'}</Text>
               </View>
-              <Text style={styles.mspText}>
-                {mspDiff === null
-                  ? 'Direct Farm Quote'
-                  : mspDiff >= 0
-                  ? `+₹${mspDiff} vs APMC Modal`
-                  : `₹${Math.abs(mspDiff)} below APMC Modal`}
-              </Text>
+              {benchmark !== null && <Text style={styles.mspText}>
+                Mandi: ₹{benchmark.toLocaleString('en-IN')}/{item.benchmarkUnit || 'unit'}{item.benchmarkMarket ? ` · ${item.benchmarkMarket}` : ''}
+              </Text>}
             </View>
           </View>
 
