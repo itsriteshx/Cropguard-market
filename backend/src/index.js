@@ -26,17 +26,26 @@ const languageRoutes = require('./routes/languageRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const assistantRoutes = require('./routes/assistantRoutes');
 const initNegotiationSocket = require('./sockets/negotiationSocket');
+const { getJwtSecret } = require('./config/jwtSecret');
+const {
+  getAllowedOrigins,
+  getSocketCorsConfig,
+  getExpressCorsOptions
+} = require('./config/corsConfig');
+
+// Validate critical security environment variables on startup
+if (process.env.NODE_ENV === 'production') {
+  getJwtSecret();
+  getAllowedOrigins();
+}
 
 // Initialize Express App & HTTP Server
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.io Server with CORS
+// Initialize Socket.io Server with hardened CORS policy
 const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE']
-  }
+  cors: getSocketCorsConfig()
 });
 
 // Attach io instance to Express app for controller access
@@ -50,7 +59,7 @@ connectDB();
 
 // Security & Request Middlewares
 app.use(helmetMiddleware);
-app.use(cors());
+app.use(cors(getExpressCorsOptions()));
 app.use(express.json({ limit: '10mb' }));
 app.use(sanitizeMiddleware);
 app.use(i18nMiddleware);
