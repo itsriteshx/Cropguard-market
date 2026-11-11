@@ -36,6 +36,10 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
   const [counterNote, setCounterNote] = useState('');
   const [submittingCounter, setSubmittingCounter] = useState(false);
 
+  // Per-room inline quick chat inputs
+  const [chatDrafts, setChatDrafts] = useState({});
+  const [sendingChatId, setSendingChatId] = useState(null);
+
   // Real-time toast state
   const [liveToast, setLiveToast] = useState(null);
 
@@ -189,12 +193,30 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
       }
     });
 
+    const unsubChat = socketService.onChatMessageReceived
+      ? socketService.onChatMessageReceived((data) => {
+          if (!data?.negotiationId) return;
+          setNegotiations((prev) =>
+            prev.map((item) => {
+              if (item._id !== data.negotiationId) return item;
+              const nextMessages = Array.isArray(data.messages)
+                ? data.messages
+                : data.message
+                ? [...(item.messages || []), data.message]
+                : item.messages || [];
+              return { ...item, messages: nextMessages };
+            })
+          );
+        })
+      : () => {};
+
     return () => {
       unsubCreated();
       unsubCounter();
       unsubLocked();
       unsubRejected();
       unsubPresence();
+      unsubChat();
     };
   }, [socketService, role, isConnected]);
 
@@ -318,6 +340,30 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
     );
   };
 
+  const handleSendQuickChat = async (negotiationId, textOverride = null) => {
+    const text = String(textOverride ?? chatDrafts[negotiationId] ?? '').trim();
+    if (!text || sendingChatId) return;
+    setSendingChatId(negotiationId);
+    const res = await apiRequest(
+      `/negotiations/${negotiationId}/message`,
+      { method: 'POST', body: JSON.stringify({ text }) },
+      token
+    );
+    setSendingChatId(null);
+    if (res?.success && Array.isArray(res.messages)) {
+      setNegotiations((prev) =>
+        prev.map((item) =>
+          item._id === negotiationId ? { ...item, messages: res.messages } : item
+        )
+      );
+      if (textOverride === null) {
+        setChatDrafts((prev) => ({ ...prev, [negotiationId]: '' }));
+      }
+    } else {
+      Alert.alert('Message failed', res?.message || 'Unable to send message.');
+    }
+  };
+
   const placeOrder = async (session) => {
     if (creatingOrder) return;
     setCreatingOrder(session._id);
@@ -432,6 +478,47 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
           <TouchableOpacity style={styles.acceptBtn} onPress={() => placeOrder(item)} disabled={!!creatingOrder} accessibilityRole="button">
             <Text style={styles.acceptBtnText}>{creatingOrder === item._id ? 'Placing order…' : 'Place or view order'}</Text>
           </TouchableOpacity>
+        )}
+
+        {/* Live Chat Messages */}
+        {Array.isArray(item.messages) && item.messages.length > 0 && (
+          <View style={styles.chatBox}>
+            <Text style={styles.chatBoxLabel}>💬 Live Chat ({item.messages.length})</Text>
+            {item.messages.slice(-4).map((msg, idx) => (
+              <View
+                key={`${msg._id || idx}`}
+                style={[
+                  styles.chatBubble,
+                  msg.senderRole === myRole ? styles.chatBubbleMine : styles.chatBubbleOther
+                ]}
+              >
+                <Text style={styles.chatSender}>
+                  {msg.senderName || msg.senderRole}{msg.isVoice ? ' 🎙️' : ''}
+                </Text>
+                <Text style={styles.chatText}>{msg.text}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {!isRejected && (
+          <View style={styles.chatComposerRow}>
+            <TextInput
+              style={styles.chatInput}
+              placeholder="Send message to farmer/buyer..."
+              placeholderTextColor="#64748B"
+              value={chatDrafts[item._id] || ''}
+              onChangeText={(txt) => setChatDrafts((prev) => ({ ...prev, [item._id]: txt }))}
+              onSubmitEditing={() => handleSendQuickChat(item._id)}
+            />
+            <TouchableOpacity
+              style={styles.chatSendBtn}
+              disabled={sendingChatId === item._id}
+              onPress={() => handleSendQuickChat(item._id)}
+            >
+              <Text style={styles.chatSendText}>{sendingChatId === item._id ? '...' : 'Send'}</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* Action Buttons */}
@@ -1125,5 +1212,71 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontWeight: 'bold',
     fontSize: 14
+  },
+  chatBox: {
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#1E293B'
+  },
+  chatBoxLabel: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 2
+  },
+  chatBubble: {
+    padding: 8,
+    borderRadius: 10
+  },
+  chatBubbleMine: {
+    backgroundColor: 'rgba(14, 116, 144, 0.28)',
+    alignSelf: 'flex-end',
+    maxWidth: '88%'
+  },
+  chatBubbleOther: {
+    backgroundColor: '#1E293B',
+    alignSelf: 'flex-start',
+    maxWidth: '88%'
+  },
+  chatSender: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 2
+  },
+  chatText: {
+    color: '#F8FAFC',
+    fontSize: 12
+  },
+  chatComposerRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: '#F8FAFC',
+    fontSize: 12
+  },
+  chatSendBtn: {
+    backgroundColor: '#0284C7',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    justifyContent: 'center'
+  },
+  chatSendText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold'
   }
 });

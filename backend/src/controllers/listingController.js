@@ -52,7 +52,7 @@ async function enrichListings(listings = [], viewerCoords = null) {
   let mandiRates = [];
   try {
     mandiRates = await MandiRate.find({})
-      .select('commodity district marketCenter modalPrice minPrice maxPrice priceDate')
+      .select('commodity district marketCenter modalPrice minPrice maxPrice unit priceDate')
       .sort('-priceDate')
       .limit(100)
       .lean();
@@ -67,25 +67,22 @@ async function enrichListings(listings = [], viewerCoords = null) {
       const listingCoords = item.location?.coordinates;
       const distanceKm = calculateDistanceKm(viewerCoords, listingCoords);
 
-      let resolvedImageUrl =
-        Array.isArray(item.images) && item.images.find((img) => typeof img === 'string' && /^https?:\/\//i.test(img));
-      if (!resolvedImageUrl) {
-        resolvedImageUrl = await fetchCropImageUrl(item.cropName);
-      }
+      // Preserve the farmer's actual photos, including local /uploads/ URLs.
+      // A generic crop image is illustrative and must never be added to images.
+      const farmerImage = Array.isArray(item.images)
+        ? item.images.find((img) => typeof img === 'string' && (/^https?:\/\//i.test(img) || img.startsWith('/uploads/')))
+        : null;
+      const resolvedImageUrl = farmerImage || await fetchCropImageUrl(item.cropName);
 
       return {
         ...item,
         benchmarkRate: matchedRate ? matchedRate.modalPrice : null,
+        benchmarkUnit: matchedRate ? matchedRate.unit : null,
         benchmarkMarket: matchedRate ? matchedRate.marketCenter : null,
         benchmarkDate: matchedRate ? matchedRate.priceDate : null,
         distanceKm,
         resolvedImageUrl: resolvedImageUrl || null,
-        images:
-          Array.isArray(item.images) && item.images.length > 0
-            ? item.images
-            : resolvedImageUrl
-            ? [resolvedImageUrl]
-            : []
+        imageSource: farmerImage ? 'farmer' : resolvedImageUrl ? 'illustrative' : 'none'
       };
     })
   );
@@ -407,6 +404,7 @@ const deleteListing = async (req, res, next) => {
 };
 
 module.exports = {
+  enrichListings,
   createListing,
   getAllListings,
   getListingById,

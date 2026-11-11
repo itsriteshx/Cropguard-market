@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -56,9 +56,9 @@ const getCategoryEmoji = (category = '') => {
 
 const formatDate = (item) => {
   if (item.arrivalDateRaw) return item.arrivalDateRaw;
-  if (!item.priceDate) return 'Today';
+  if (!item.priceDate) return 'Date unavailable';
   const d = new Date(item.priceDate);
-  if (Number.isNaN(d.getTime())) return 'Today';
+  if (Number.isNaN(d.getTime())) return 'Date unavailable';
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 };
 
@@ -70,7 +70,8 @@ export default function MandiRatesScreen() {
   const [rates, setRates] = useState([]);
   const [weather, setWeather] = useState(null);
   const [totalAvailable, setTotalAvailable] = useState(null);
-  const [sourceLabel, setSourceLabel] = useState('data.gov.in (Agmarknet Live)');
+  const [sourceLabel, setSourceLabel] = useState('');
+  const requestId = useRef(0);
   const [nextOffset, setNextOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
@@ -86,20 +87,19 @@ export default function MandiRatesScreen() {
     append = false,
     isRefresh = false,
   } = {}) => {
+    const id = ++requestId.current;
     if (append) setLoadingMore(true);
     else if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setErrorMsg('');
 
-    const params = [`state=${encodeURIComponent(state)}`, 'limit=60', `offset=${offset}`];
+    const params = [`state=${encodeURIComponent(state)}`, 'limit=10', `offset=${offset}`];
     if (crop && crop !== 'ALL') {
       params.push(`commodity=${encodeURIComponent(crop)}`);
     }
 
-    const [liveRes, weatherRes] = await Promise.all([
-      apiRequest(`/mandi-rates/live?${params.join('&')}`),
-      append ? Promise.resolve(null) : apiRequest('/mandi-rates/weather?district=Dharwad'),
-    ]);
+    const liveRes = await apiRequest(`/mandi-rates/live?${params.join('&')}`, { timeoutMs: 25000 });
+    if (id !== requestId.current) return;
 
     if (liveRes?.success && Array.isArray(liveRes.rates)) {
       if (append) {
@@ -108,15 +108,12 @@ export default function MandiRatesScreen() {
         setRates(liveRes.rates);
       }
       setTotalAvailable(liveRes.totalAvailable ?? null);
-      setSourceLabel(liveRes.source || 'data.gov.in (Agmarknet Live)');
+      setSourceLabel(liveRes.source || 'Mandi rates (source unavailable)');
       setNextOffset(liveRes.nextOffset ?? offset + liveRes.rates.length);
       setHasMore(Boolean(liveRes.hasMore) && liveRes.rates.length > 0);
-    } else if (!append) {
-      setErrorMsg(liveRes?.message || 'Unable to load Agmarknet rates.');
-    }
-
-    if (weatherRes?.success && weatherRes.weather) {
-      setWeather(weatherRes.weather);
+    } else {
+      if (!append) { setRates([]); setHasMore(false); setTotalAvailable(null); setSourceLabel(''); }
+      setErrorMsg(liveRes?.message || 'Unable to load mandi rates.');
     }
 
     setLoading(false);
@@ -126,7 +123,14 @@ export default function MandiRatesScreen() {
 
   useEffect(() => {
     fetchMandiFeed({ state: selectedState, crop: selectedCrop, offset: 0 });
+    return () => { requestId.current += 1; };
   }, [selectedState, selectedCrop]);
+
+  useEffect(() => {
+    let active = true;
+    apiRequest('/mandi-rates/weather?district=Dharwad', { timeoutMs: 15000 }).then((res) => { if (active && res.success && res.weather) setWeather(res.weather); });
+    return () => { active = false; };
+  }, []);
 
   const handleSearchSubmit = () => {
     const clean = searchInput.trim();
@@ -195,10 +199,10 @@ export default function MandiRatesScreen() {
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.banner}>
-        <Text style={styles.heading}>📊 Live Agmarknet APMC Feed</Text>
+        <Text style={styles.heading}>📊 Mandi rates</Text>
         <Text style={styles.subHeading}>
           {rates.length} markets loaded
-          {totalAvailable ? ` • ${Number(totalAvailable).toLocaleString('en-IN')} live pan-India` : ''}
+          {totalAvailable ? ` • ${Number(totalAvailable).toLocaleString('en-IN')} available` : ''}
         </Text>
         <Text style={styles.sourceTag}>{sourceLabel}</Text>
         {weather && (
@@ -277,14 +281,14 @@ export default function MandiRatesScreen() {
           )
         }
         ListFooterComponent={
-          hasMore ? (
+          errorMsg && rates.length > 0 ? <TouchableOpacity style={styles.loadMoreBtn} onPress={() => fetchMandiFeed({ state: selectedState, crop: selectedCrop, offset: nextOffset, append: true })}><Text style={styles.loadMoreText}>{errorMsg} Tap to retry.</Text></TouchableOpacity> : hasMore ? (
             <TouchableOpacity
               style={styles.loadMoreBtn}
               disabled={loadingMore}
               onPress={() => fetchMandiFeed({ state: selectedState, crop: selectedCrop, offset: nextOffset, append: true })}
             >
               <Text style={styles.loadMoreText}>
-                {loadingMore ? 'Loading Next Page...' : 'Load More (+60 Mandis)'}
+                {loadingMore ? 'Loading Next Page...' : 'Load more'}
               </Text>
             </TouchableOpacity>
           ) : null

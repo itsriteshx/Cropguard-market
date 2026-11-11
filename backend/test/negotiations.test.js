@@ -52,3 +52,45 @@ test('initial offers reject non-buyers and invalid amounts before querying a lis
     assert.equal((await call(handlers.startNegotiation, 'buyer', { listingId: 'x', offeredPrice: -1, quantity: 1 })).status, 400);
   } finally { Listing.findById = original; }
 });
+
+test('sendNegotiationMessage allows participants to chat without changing price turn', async () => {
+  const originalFind = Negotiation.findById;
+  const originalUpdate = Negotiation.findOneAndUpdate;
+  let savedMessages = [];
+
+  try {
+    Negotiation.findById = async () => ({
+      _id: 'n1',
+      status: 'COUNTER_OFFERED',
+      currentTurn: 'BUYER',
+      buyer: person('buyer'),
+      farmer: person('farmer')
+    });
+    Negotiation.findOneAndUpdate = async (_filter, update) => {
+      savedMessages.push(update.$push.messages);
+      return {
+        _id: 'n1',
+        buyer: 'buyer',
+        farmer: 'farmer',
+        messages: savedMessages
+      };
+    };
+
+    // Farmer can still send a chat message even though currentTurn is BUYER
+    const res = await call(handlers.sendNegotiationMessage, 'farmer', {
+      text: 'Pickup available tomorrow morning',
+      isVoice: true
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.result.success, true);
+    assert.equal(res.result.chatMessage.isVoice, true);
+    assert.equal(savedMessages.length, 1);
+
+    // Outsider cannot send a message
+    const blocked = await call(handlers.sendNegotiationMessage, 'outsider', { text: 'Hello' });
+    assert.equal(blocked.status, 403);
+  } finally {
+    Negotiation.findById = originalFind;
+    Negotiation.findOneAndUpdate = originalUpdate;
+  }
+});

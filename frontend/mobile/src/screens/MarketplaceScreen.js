@@ -25,7 +25,7 @@ const getListingImage = (item) => {
     const resolved = resolveMediaUrl(item.images[0]);
     if (resolved) return resolved;
   }
-  return item.resolvedImageUrl || null;
+  return item.resolvedImageUrl ? resolveMediaUrl(item.resolvedImageUrl) : null;
 };
 
 const CATEGORIES = [
@@ -72,9 +72,10 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
 
   useEffect(() => {
     fetchListings(1);
-    fetchTickerRates();
     return () => { requestId.current += 1; };
   }, [selectedCategory, debouncedSearch]);
+
+  useEffect(() => { fetchTickerRates(); }, []);
 
   useEffect(() => {
     if (!debouncedSearch || debouncedSearch.length < 2) {
@@ -83,7 +84,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
     }
     let active = true;
     setLiveMandiLoading(true);
-    apiRequest(`/mandi-rates/live?state=ALL&commodity=${encodeURIComponent(debouncedSearch)}&limit=10`)
+    apiRequest(`/mandi-rates/live?state=ALL&commodity=${encodeURIComponent(debouncedSearch)}&limit=10`, { timeoutMs: 25000 })
       .then((res) => {
         if (active && res?.success && Array.isArray(res.rates)) {
           setLiveMandiMatches(res.rates);
@@ -198,7 +199,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
         <View style={styles.livePulseDot} />
         <Text style={styles.corridorBarText} numberOfLines={2}>
           {tickerRates.length > 0
-            ? `Agmarknet Live: ${tickerRates
+            ? `Mandi rates: ${tickerRates
                 .map((r) => `${r.commodity} ₹${Number(r.modalPrice).toLocaleString('en-IN')}/qtl`)
                 .join(' • ')}`
             : 'Browse produce listed by farmers'}
@@ -249,7 +250,6 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
     const imageUrl = getListingImage(item);
     const price = Number(item.pricePerUnit ?? item.expectedPrice ?? 0);
     const benchmark = item.benchmarkRate != null ? Number(item.benchmarkRate) : null;
-    const mspDiff = benchmark !== null ? price - benchmark : null;
     const distance = item.distanceKm != null ? item.distanceKm : null;
 
     const initial = (item.farmer?.name || 'F')[0].toUpperCase();
@@ -270,7 +270,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
             </View>
           )}
           <View style={styles.imageScrim} />
-          {!item.images?.length && <Text style={{ color: '#fff', position: 'absolute', right: 8, bottom: 8, backgroundColor: '#0f172a', padding: 4, fontSize: 10 }}>Illustrative image</Text>}
+          {item.imageSource === 'illustrative' && <Text style={{ color: '#fff', position: 'absolute', right: 8, bottom: 8, backgroundColor: '#0f172a', padding: 4, fontSize: 10 }}>Illustrative image</Text>}
 
           {/* Top Badges */}
           <View style={styles.imageTopRow}>
@@ -358,13 +358,9 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
                 <Text style={styles.priceValueText}>{price.toLocaleString('en-IN')}</Text>
                 <Text style={styles.priceUnitText}> / {item.unit || 'unit'}</Text>
               </View>
-              <Text style={styles.mspText}>
-                {mspDiff === null
-                  ? 'Direct Farm Quote'
-                  : mspDiff >= 0
-                  ? `+₹${mspDiff} vs APMC Modal`
-                  : `₹${Math.abs(mspDiff)} below APMC Modal`}
-              </Text>
+              {benchmark !== null && <Text style={styles.mspText}>
+                Mandi: ₹{benchmark.toLocaleString('en-IN')}/{item.benchmarkUnit || 'unit'}{item.benchmarkMarket ? ` · ${item.benchmarkMarket}` : ''}
+              </Text>}
             </View>
           </View>
 
@@ -405,7 +401,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
                 {loadError
                   ? 'Could not load listings.'
                   : debouncedSearch
-                  ? `No farmer lots for "${debouncedSearch}". Showing live Govt Agmarknet rates:`
+                  ? `No farmer lots for "${debouncedSearch}". Showing available mandi rates:`
                   : 'No listings found.'}
               </Text>
 

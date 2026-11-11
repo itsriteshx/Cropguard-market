@@ -10,6 +10,7 @@ import OrdersEscrowPage from './pages/OrdersEscrowPage';
 import ComplianceAuditPage from './pages/ComplianceAuditPage';
 import SystemHealthPage from './pages/SystemHealthPage';
 import LoginPage from './pages/LoginPage';
+import VoiceAssistantWidget from './components/VoiceAssistantWidget';
 
 function DashboardContent() {
   const { currentUser } = useAuth();
@@ -47,6 +48,8 @@ function DashboardContent() {
           {activeTab === 'system' && currentUser?.role === 'ADMIN' && <SystemHealthPage />}
         </main>
       </div>
+
+      <VoiceAssistantWidget activeTab={activeTab} onNavigateTab={setActiveTab} />
 
       <footer className="border-t border-slate-900 bg-slate-950/80 px-4 py-3 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">

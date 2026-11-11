@@ -631,7 +631,6 @@ export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiat
             const price = Number(lot.expectedPrice || lot.pricePerUnit || 0);
             const totalValue = lot.quantity * price;
             const benchmark = lot.benchmarkRate != null ? Number(lot.benchmarkRate) : null;
-            const spreadDelta = benchmark !== null ? price - benchmark : null;
             const cropImg = (Array.isArray(lot.images) && lot.images.find((u) => typeof u === 'string' && (/^https?:\/\//i.test(u) || u.startsWith('/uploads/')))) || lot.resolvedImageUrl || null;
             const middlemanSaved = Math.round(totalValue * 0.1);
             const localizedCrop = getLocalizedCropName(lot.cropName, language);
@@ -774,13 +773,7 @@ export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiat
                         ₹{price.toLocaleString('en-IN')} <span className="text-xs text-slate-500 font-normal">/ {lot.unit || 'qtl'}</span>
                       </div>
                       <div className="text-[10px] mt-1 font-semibold" style={{ color: '#6ee7b7' }}>
-                        {spreadDelta === null
-                          ? 'Direct Farm Quote'
-                          : spreadDelta > 0
-                          ? `+₹${spreadDelta} vs APMC Modal`
-                          : spreadDelta < 0
-                          ? `₹${Math.abs(spreadDelta)} below APMC Modal`
-                          : 'Matches APMC Modal'}
+                        {benchmark === null ? 'Direct Farm Quote' : `Mandi: ₹${benchmark.toLocaleString('en-IN')}/${lot.benchmarkUnit || 'unit'}${lot.benchmarkMarket ? ` · ${lot.benchmarkMarket}` : ''}`}
                       </div>
                     </div>
                   </div>

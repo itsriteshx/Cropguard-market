@@ -6,6 +6,7 @@ const {
   counterOffer,
   acceptDeal,
   rejectDeal,
+  sendNegotiationMessage,
   getMyNegotiations,
   getNegotiationById
 } = require('../controllers/negotiationController');
@@ -19,6 +20,7 @@ router.post('/', startNegotiation);
 router.get('/my', getMyNegotiations);
 router.get('/:id', getNegotiationById);
 router.post('/:id/counter', counterOffer);
+router.post('/:id/message', sendNegotiationMessage);
 router.post('/:id/accept', acceptDeal);
 router.post('/:id/reject', rejectDeal);
 

@@ -118,10 +118,11 @@ const getMandiRates = async (req, res, next) => {
         ? String(state).trim()
         : undefined;
 
-    const syncStatus = await ensureLiveRatesSynced({
-      state: cleanState || 'ALL',
-      force: sync === 'true'
-    });
+    // Normal reads serve the saved snapshot immediately while a refresh runs.
+    // Explicit sync requests may wait for the external source.
+    let syncStatus = { synced: false, reason: 'background_refresh' };
+    if (sync === 'true') syncStatus = await ensureLiveRatesSynced({ state: cleanState || 'ALL', force: true });
+    else void ensureLiveRatesSynced({ state: cleanState || 'ALL' });
 
     const query = {};
 
@@ -152,7 +153,7 @@ const getMandiRates = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      source: syncStatus.synced ? syncStatus.source : 'MongoDB Live Agmarknet Cache',
+      source: syncStatus.synced ? syncStatus.source : 'MongoDB saved mandi rates',
       syncedLive: Boolean(syncStatus.synced),
       totalAvailable: syncStatus.totalAvailable || null,
       updatedDate: syncStatus.updatedDate || null,
@@ -208,7 +209,10 @@ const getLiveAgmarknetRates = async (req, res, next) => {
     });
   } catch (error) {
     try {
-      const { state, district, commodity, limit = 100 } = req.query;
+      const { state, district, commodity, limit = 100, offset = 0 } = req.query;
+      // A snapshot is not the same result set as a live feed; never append it
+      // to a previously fetched live page.
+      if (Number(offset) > 0) return res.status(503).json({ success: false, message: 'Live rates unavailable. Please retry or refresh.' });
       const query = {};
       if (state && String(state).trim().toUpperCase() !== 'ALL') {
         query.state = state.trim().toUpperCase();
@@ -224,7 +228,7 @@ const getLiveAgmarknetRates = async (req, res, next) => {
 
       return res.status(200).json({
         success: true,
-        source: `MongoDB Synced Agmarknet Snapshot (${error.message})`,
+        source: 'Saved mandi rates (live source unavailable)',
         count: enrichedFallback.length,
         hasMore: false,
         rates: enrichedFallback
@@ -293,7 +297,13 @@ const getBenchmarkForCrop = async (req, res, next) => {
       });
     }
 
-    await ensureLiveRatesSynced({ state: state || 'Karnataka' });
+    void ensureLiveRatesSynced({ state: state || 'ALL' });
+
+    const cleanKeyword = String(targetCrop)
+      .replace(/\(.*?\)/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .pop() || targetCrop.trim();
 
     const query = {
       commodity: { $regex: targetCrop.trim(), $options: 'i' }
@@ -308,10 +318,10 @@ const getBenchmarkForCrop = async (req, res, next) => {
       query.state = state.trim().toUpperCase();
     }
 
-    // Try finding exact district (+ state if provided) match first
+    // Priority 1: exact crop + district (+ state when provided)
     let benchmark = await MandiRate.findOne(query).sort('-priceDate');
 
-    // Fallback 1: same state, any district
+    // Priority 2: same state, any district
     if (!benchmark && district && state) {
       benchmark = await MandiRate.findOne({
         commodity: { $regex: targetCrop.trim(), $options: 'i' },
@@ -319,11 +329,35 @@ const getBenchmarkForCrop = async (req, res, next) => {
       }).sort('-priceDate');
     }
 
-    // Fallback 2: any market globally
+    // Priority 3: any market globally, matching the original crop name
     if (!benchmark && (district || state)) {
       benchmark = await MandiRate.findOne({
         commodity: { $regex: targetCrop.trim(), $options: 'i' }
       }).sort('-priceDate');
+    }
+
+    if (!benchmark && cleanKeyword && cleanKeyword.toLowerCase() !== targetCrop.trim().toLowerCase()) {
+      benchmark = await MandiRate.findOne({
+        commodity: { $regex: cleanKeyword, $options: 'i' }
+      }).sort('-priceDate');
+    }
+
+    // Last resort: query live Agmarknet API directly for this crop
+    if (!benchmark) {
+      try {
+        const liveData = await fetchAgmarknetMandiRates({
+          commodity: cleanKeyword,
+          maxRecords: 10
+        });
+        if (Array.isArray(liveData.records) && liveData.records.length > 0) {
+          benchmark = liveData.records[0];
+          if (mongoose.connection.readyState === 1) {
+            upsertRecordsToDb(MandiRate, liveData.records, liveData.source).catch(() => {});
+          }
+        }
+      } catch {
+        // Fallback stays 404 below if live lookup unavailable
+      }
     }
 
     if (!benchmark) {
@@ -380,7 +414,7 @@ const getMandiAnalytics = async (req, res, next) => {
       });
     }
 
-    const syncStatus = await ensureLiveRatesSynced({ state: req.query.state || 'Karnataka' });
+    void ensureLiveRatesSynced({ state: req.query.state || 'Karnataka' });
     // Pipeline 1: Commodity price trends & spreads
     const commodityTrends = await MandiRate.aggregate([
       { $match: match },
@@ -436,7 +470,7 @@ const getMandiAnalytics = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      source: syncStatus.synced ? syncStatus.source : 'MongoDB Agmarknet Aggregation',
+      source: 'MongoDB saved mandi rates',
       corridor: 'Live APMC Corridor Analytics',
       commodityTrends,
       districtArrivals

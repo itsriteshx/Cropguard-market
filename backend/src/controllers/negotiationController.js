@@ -6,8 +6,13 @@ const ProduceListing = require('../models/ProduceListing');
 const notify = (req, negotiation, event, payload) => {
   const io = req.app.get('io');
   if (!io) return;
-  io.of('/negotiation').to(`user_${negotiation.buyer._id || negotiation.buyer}`)
-    .to(`user_${negotiation.farmer._id || negotiation.farmer}`).emit(event, payload);
+  const buyerId = negotiation.buyer._id || negotiation.buyer;
+  const farmerId = negotiation.farmer._id || negotiation.farmer;
+  io.of('/negotiation')
+    .to(`user_${buyerId}`)
+    .to(`user_${farmerId}`)
+    .to(`room_${negotiation._id}`)
+    .emit(event, payload);
 };
 const active = ['OPEN', 'COUNTER_OFFERED'];
 const revision = (negotiation) => ({ _id: negotiation._id, __v: negotiation.__v ?? 0, status: { $in: active } });
@@ -362,11 +367,94 @@ const getNegotiationById = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Send a free-text or voice-transcribed chat message inside negotiation (does not consume price turn)
+ * @route   POST /api/negotiations/:id/message
+ * @access  Private (Participants only)
+ */
+const sendNegotiationMessage = async (req, res, next) => {
+  try {
+    const rawText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    const isVoice = Boolean(req.body?.isVoice);
+
+    if (!rawText || rawText.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message text must be between 1 and 500 characters'
+      });
+    }
+
+    const negotiation = await Negotiation.findById(req.params.id);
+    if (!negotiation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Negotiation session not found'
+      });
+    }
+
+    const userId = req.user._id.toString();
+    const isBuyer = negotiation.buyer.toString() === userId;
+    const isFarmer = negotiation.farmer.toString() === userId;
+
+    if (!isBuyer && !isFarmer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to message in this negotiation'
+      });
+    }
+
+    if (['REJECTED', 'EXPIRED'].includes(negotiation.status)) {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot send messages after negotiation is ${negotiation.status}`
+      });
+    }
+
+    const chatMsg = {
+      sender: req.user._id,
+      senderRole: isBuyer ? 'BUYER' : 'FARMER',
+      senderName: req.user.name || (isBuyer ? 'Buyer' : 'Farmer'),
+      text: rawText,
+      isVoice,
+      timestamp: new Date()
+    };
+
+    const updated = await Negotiation.findOneAndUpdate(
+      { _id: negotiation._id, status: { $in: ['OPEN', 'COUNTER_OFFERED', 'ACCEPTED'] } },
+      { $push: { messages: chatMsg } },
+      { new: true, runValidators: true }
+    );
+
+    if (!updated) {
+      return res.status(409).json({
+        success: false,
+        message: 'Negotiation is no longer open for messages'
+      });
+    }
+
+    notify(req, updated, 'chat_message_received', {
+      success: true,
+      negotiationId: String(updated._id),
+      message: chatMsg,
+      messages: updated.messages
+    });
+
+    return res.status(200).json({
+      success: true,
+      chatMessage: chatMsg,
+      messages: updated.messages
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   startNegotiation,
   counterOffer,
   acceptDeal,
   rejectDeal,
+  sendNegotiationMessage,
   getMyNegotiations,
   getNegotiationById
 };
