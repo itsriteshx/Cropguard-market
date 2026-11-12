@@ -108,10 +108,23 @@ const createListing = async (req, res, next) => {
       location
     } = req.body;
 
-    // Use listing location if provided, otherwise default to farmer's registered location
-    const listingLocation = location || req.user.location || {
-      type: 'Point',
-      coordinates: [0, 0]
+    // Prefer the submitted location, then the farmer's registered location.
+    // Never fabricate GPS coordinates or copy the legacy [0, 0] placeholder.
+    const sourceLocation = location || req.user.location || {};
+    const sourceLocationData =
+      typeof sourceLocation.toObject === 'function'
+        ? sourceLocation.toObject()
+        : sourceLocation;
+    const hasPlaceholderCoordinates =
+      Array.isArray(sourceLocationData.coordinates) &&
+      sourceLocationData.coordinates.length === 2 &&
+      sourceLocationData.coordinates[0] === 0 &&
+      sourceLocationData.coordinates[1] === 0;
+
+    const listingLocation = {
+      ...sourceLocationData,
+      type: sourceLocationData.type || 'Point',
+      ...(hasPlaceholderCoordinates ? { coordinates: undefined } : {})
     };
 
     const listing = await ProduceListing.create({
