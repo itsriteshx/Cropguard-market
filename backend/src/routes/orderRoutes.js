@@ -11,6 +11,7 @@ const {
 } = require('../controllers/orderController');
 
 const { protect, authorize } = require('../middleware/authMiddleware');
+const { sanitizeParams } = require('../middleware/securityMiddleware');
 
 // All order endpoints require JWT authentication
 router.use(protect);
@@ -25,7 +26,8 @@ router.get('/my-orders', getMyOrders);
 // Order creation
 router.post('/', createOrder);
 
-// Single order operations
+// Single order operations - sanitize route params after matching
+router.use('/:id', sanitizeParams);
 router.get('/:id', getOrderById);
 router.get('/:id/receipt', getOrderReceipt);
 router.put('/:id/status', updateOrderStatus);
