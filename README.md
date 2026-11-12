@@ -1,230 +1,292 @@
-# 🌾 CropGuard Market — Direct Market Access Platform for Farmers
+<div align="center">
 
-[![Node.js](https://img.shields.io/badge/Node.js-v20+-green.svg?logo=node.js)](https://nodejs.org/)
-[![Express.js](https://img.shields.io/badge/Express.js-v4+-black.svg?logo=express)](https://expressjs.com/)
-[![React Native](https://img.shields.io/badge/React_Native-Expo-blue.svg?logo=react)](https://reactnative.dev/)
-[![React](https://img.shields.io/badge/React-Vite-61DAFB.svg?logo=react)](https://react.dev/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248.svg?logo=mongodb)](https://www.mongodb.com/)
-[![Socket.io](https://img.shields.io/badge/Socket.io-Real--Time-010101.svg?logo=socket.io)](https://socket.io/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC.svg?logo=tailwind-css)](https://tailwindcss.com/)
+# 🌾 CropGuard Market
 
-> **Empowering farmers through direct market linkages, live APMC price intelligence, real-time bargaining, and transparent digital transactions — eliminating middlemen exploitation.**
+### Direct Farmer-to-Buyer Agricultural Exchange • Live APMC Mandi Intelligence • 8-Language AI Assistant
 
----
+[![Live Web](https://img.shields.io/badge/Web_Portal-Live_on_Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://cropguard-market.vercel.app/)
+[![Android APK](https://img.shields.io/badge/Android_App-Download_APK-10B981?style=for-the-badge&logo=android&logoColor=white)](https://expo.dev/accounts/itsriteshxs/projects/cropguard-market-app/builds/52710454-a2f1-4b79-8285-8b33954dd0cd)
+[![Backend API](https://img.shields.io/badge/API_Gateway-Live_on_Render-46E3B7?style=for-the-badge&logo=render&logoColor=0F172A)](https://cropguard-market.onrender.com/api/health)
 
-## 📌 Problem Statement Overview
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-4.21-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com/)
+[![React](https://img.shields.io/badge/React-19.3-61DAFB?style=flat-square&logo=react&logoColor=0F172A)](https://react.dev/)
+[![Expo](https://img.shields.io/badge/Expo-SDK_58-000020?style=flat-square&logo=expo&logoColor=white)](https://expo.dev/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101?style=flat-square&logo=socket.io&logoColor=white)](https://socket.io/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
-* **Title:** Mobile App for Direct Market Access for Farmers
-* **Sponsoring Body:** Ministry of Agriculture and Farmers Welfare, Govt. of India
-* **Department:** University of Agricultural Sciences, Dharwad (UASD) & The Indian Council of Agricultural Research (ICAR)
-* **Domain:** Agriculture, FoodTech & Rural Development
-* **Category:** Software / Mobile & Distributed Web System
-* **Shared Repository:** [github.com/Itsriteshx/Cropguard-market](https://github.com/Itsriteshx/Cropguard-market)
+[Live Links](#-live-deployments) • [Architecture](#-system-architecture) • [Features](#-core-features) • [External APIs](#-live-open-apis--data-pipeline) • [Quick Start](#-local-development-setup) • [Tests](#-automated-verification-suite)
 
-### The Challenge
-Indian farmers frequently face extreme barriers accessing open consumer and retail markets. Traditional agricultural supply chains rely heavily on multiple layers of intermediaries (commission agents and middlemen), leading to price distortion where farmers receive only 20–30% of final consumer prices. Furthermore, lack of real-time mandi rate visibility forces farmers into distress sales.
-
-### The Solution: CropGuard Market
-A dual-platform digital marketplace connecting farmers directly with local consumers, retail shops, and bulk institutional buyers. The platform features an interactive real-time price negotiation engine, live APMC mandi price benchmarks, multilingual voice-assisted mobile workflows, and secure order lifecycle tracking.
+</div>
 
 ---
 
-## 👥 Team & Individual Evaluation Tracks
+## 🌐 Live Deployments
 
-| Team Role | Track | Tech Stack | Core Responsibilities & Viva Domain |
+| Surface | Stack | Hosting | Status | Access |
+|:---|:---|:---|:---|:---|
+| **Web Portal** | React 19 + Vite + Tailwind + Recharts | Vercel | `Online` | [cropguard-market.vercel.app](https://cropguard-market.vercel.app/) |
+| **Android Mobile App** | React Native + Expo SDK 58 | Expo EAS (`.apk`) | `Ready` | [Download & Install APK](https://expo.dev/accounts/itsriteshxs/projects/cropguard-market-app/builds/52710454-a2f1-4b79-8285-8b33954dd0cd) |
+| **API & Socket Gateway** | Node.js + Express + Socket.IO + MongoDB Atlas | Render | `Connected` | [Health Check (`/api/health`)](https://cropguard-market.onrender.com/api/health) |
+
+---
+
+## 📌 Problem Statement & Solution
+
+* **Problem Statement:** Mobile App for Direct Market Access for Farmers
+* **Domain:** AgriTech, Rural Supply Chain & Distributed Commerce
+* **Academic Context:** Inspired by **Ministry of Agriculture & Farmers Welfare**, **UASD Dharwad**, and **ICAR** guidelines
+* **Repository:** [github.com/itsriteshx/Cropguard-market](https://github.com/itsriteshx/Cropguard-market)
+
+### Why CropGuard Market?
+Traditional agricultural mandi chains force farmers through multiple commission agents (*arhatiyas*), reducing farmer realizations while leaving producers blind to real-time APMC modal rates. **CropGuard Market** connects verified farmers directly with retail and wholesale buyers across **Web** and **Mobile** with:
+1. Live **Agmarknet** modal/min/max rate benchmarks before accepting any offer.
+2. **Real-time WebSocket bargaining** with turn-based counter-offers, live chat, and typing indicators.
+3. **MongoDB ACID transaction-backed** order placement, inventory reservation, and a Digital Khata ledger.
+4. **8-Language localization & AI Assistant** for accessible regional onboarding.
+
+---
+
+## 🔄 How It Works — 5 Core Platform Workflows
+
+1. **Farmers List Produce (`Sell Produce`):**  
+   Farmers sign in and publish harvests with crop name, quantity (`KG`/`QUINTAL`), quality grade, produce photos, asking price, and an **India Post Pincode-verified** farm location.
+2. **Buyers Discover & Compare (`Wholesale Marketplace`):**  
+   Buyers browse active farmer lots, compare asking rates against **Government APMC modal benchmarks**, and check proximity (**Haversine distance in `km`**). If a searched crop (such as *Apple* or *Garlic*) has no local farmer listing, live **Agmarknet crop photo + mandi rate cards** appear automatically below.
+3. **Live Bargaining (`Negotiations via Socket.IO`):**  
+   Buyers tap **Make Offer** → Farmer and Buyer negotiate turn-by-turn inside an authenticated real-time **Socket.IO** room with counter-offers, live chat messages, typing indicators, and final **Accept / Reject** actions.
+4. **Order Booking, Stock Reservation & Ledger (`Bulk Orders & Digital Khata`):**  
+   On deal acceptance, placing an order atomically reserves crop inventory inside a **MongoDB transaction**, tracks order stages (`PLACED` → `ESCROW_HELD` → `DISPATCHED` → `DELIVERED` → `SETTLED`), restores stock on cancellation, and generates a **Digital Khata** entry and demo-simulated settlement receipt.
+5. **Pan-India Live Mandi Rates & Weather (`APMC Mandi Intelligence`):**  
+   Pulls live **Agmarknet (`data.gov.in`)** data (*State, District, APMC Market, Commodity, Variety, Grade, Arrival Date, Min/Modal/Max Price*), illustrative **Wikipedia REST** crop photos (served via backend proxy), **Open-Meteo / `wttr.in`** district weather advisories, **Best Mandi Comparison**, **CSV Export**, and an **Illustrative Price Threshold Simulator**.
+
+---
+
+## ✨ Core Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🌾 Marketplace & Produce Publishing
+* **Farmer Lot Publishing:** Unit conversion (`KG` / `QUINTAL`), quality grading (`GRADE_A`, `GRADE_B`, `ORGANIC`), live crop suggestions, and Agmarknet modal guidance.
+* **India Post Pincode Auto-Fill:** 6-digit pincodes resolve District, Taluk, and State automatically via India Post API.
+* **Smart Image Pipeline:** Client-side HEIC/image compression (`expo-image-manipulator`), Multer validation, Cloudinary / local `/uploads` storage, and a cached backend Wikimedia thumbnail proxy (`/api/mandi-rates/image`).
+
+### 🤝 Real-Time Negotiation & Chat
+* **Socket.IO `/negotiation` Namespace:** Authenticated rooms (`user_<id>`, `room_<negotiationId>`) broadcast instant updates while REST APIs enforce validated writes.
+* **Turn-Based Bidding & Free-Text Chat:** Counter-offers, live typing status (`typing_start` / `typing_stop`), individual chat message deletion, and closed-deal cleanup.
+
+</td>
+<td width="50%" valign="top">
+
+### 📊 APMC Mandi Intelligence & Analytics
+* **Live Market Explorer:** Filter across Indian states and commodities (`data.gov.in` Agmarknet feed) with MongoDB snapshot caching across 900+ saved market records.
+* **Web Oversight Charts:** Interactive price trend line charts, market spread comparisons, and simulated fairness threshold evaluation (`Recharts`).
+* **District Weather & Transit Advisory:** Live temperature, daily High/Low, humidity, wind speed, and harvest/transit advisories via **Open-Meteo** with automatic **`wttr.in`** fallback.
+
+### 📦 Orders, Khata Ledger & AI Assistant
+* **Transactional Order Engine:** Reserves produce stock atomically inside `mongoose.startSession()` transactions (`PLACED` → `ESCROW_HELD` → `DISPATCHED` → `DELIVERED` → `SETTLED`), restoring stock on cancellation.
+* **Digital Khata & Receipts:** Farmer revenue tracking, estimated middleman-margin savings, and printable demo receipts *(payment states are simulated for demonstration)*.
+* **8-Language AI Assistant:** Natural-language price lookups, weather checks, screen navigation, and midpoint counter-offer guidance with **Web Speech API** (Web) and **`expo-speech` Read-Aloud** (Mobile).
+
+</td>
+</tr>
+</table>
+
+### Supported Indian Languages (`8`)
+
+| Code | Language | Code | Language |
 |:---|:---|:---|:---|
-| **Backend & Systems Lead** | `Track: ISD` | Node.js, Express.js, Socket.io, Mongoose, JWT, Cloudinary | • Modular RESTful API Design & Server Architecture<br>• Real-time WebSocket Negotiation Engine<br>• JWT Authentication & Role-Based Access Control (RBAC)<br>• Order State Machine & Transaction Ledger Backend |
-| **Mobile Experience Lead** | `Track: ASD` | React Native (Expo), NativeWind (Tailwind), Vector Icons | • Farmer-Centric Mobile App (High-contrast, simple UX)<br>• 3-Step Camera Produce Listing & Media upload<br>• Real-Time Interactive Bidding Screen on Mobile<br>• Multilingual Localization (Kannada, Hindi, English) |
-| **Web Portal & Data Lead** | `Track: DE / Web` | React.js (Vite), Tailwind CSS, MongoDB Aggregations | • Bulk Wholesaler Procurement Web Portal<br>• UASD & ICAR Market Oversight Analytics Dashboard<br>• APMC Mandi Rate Benchmark pipeline & seed scripts<br>• Geospatial search queries & database indexing |
+| `en` | 🌐 English (Pan-India) | `te` | 🌶️ తెలుగు (AP & Telangana) |
+| `hi` | 🇮🇳 हिन्दी (North / Central) | `ta` | 🥥 தமிழ் (Tamil Nadu) |
+| `kn` | 🌾 ಕನ್ನಡ (Karnataka / UASD) | `gu` | 🥜 ગુજરાતી (Gujarat APMC) |
+| `mr` | 🚜 मराठी (Maharashtra APMC) | `pa` | 🌾 ਪੰਜਾਬੀ (Punjab Mandis) |
 
 ---
 
-## 🏛️ System Architecture
+## 🏛 System Architecture
 
-```text
-                                  +-------------------------------------------------+
-                                  |                 CLIENT INTERFACES               |
-                                  |                                                 |
-                                  |  [Farmer & Retail Mobile App]    [Wholesale Web] |
-                                  |      (React Native / Expo)      (React.js / Vite)|
-                                  +-----------------------+-------------------------+
-                                                          |
-                                         HTTPS (REST)     |     WSS (Socket.io)
-                                                          v
-                                  +-------------------------------------------------+
-                                  |           CROPGUARD API GATEWAY                 |
-                                  |         (Node.js / Express Server)              |
-                                  +-----------------------+-------------------------+
-                                                          |
-                      +-------------------+---------------+-------------------+
-                      |                   |                                   |
-                      v                   v                                   v
-             [ Auth & RBAC ]    [ Produce Engine ]                [ Negotiation Room ]
-             JWT & Role Guards  CRUD & GeoNear Search             Real-time Bidding (WSS)
-                      |                   |                                   |
-                      +-------------------+---------------+-------------------+
-                                                          |
-                                                          v
-                                  +-------------------------------------------------+
-                                  |                DATABASE & STORAGE               |
-                                  |  • MongoDB Atlas (Geospatial & Timeseries)      |
-                                  |  • Cloudinary (Produce Imagery CDN)             |
-                                  +-------------------------------------------------+
+```mermaid
+flowchart LR
+    subgraph Clients["Client Applications"]
+        Web["Web Portal (React 19 + Vite + Tailwind)"]
+        Mobile["Mobile App (Expo SDK 58 / Android APK)"]
+    end
+
+    subgraph Gateway["Backend API & Real-Time Gateway (Node.js + Express)"]
+        Sec["Security & Auth (JWT, RBAC, Helmet, CORS, Rate Limit, NoSQL Sanitizer)"]
+        REST["REST Controllers (Auth, Listings, Mandi, Negotiations, Orders, Upload, Assistant)"]
+        WS["Socket.IO Gateway (/negotiation Rooms & Typing)"]
+    end
+
+    subgraph Data["Persistence & External Services"]
+        DB[("MongoDB Atlas (6 Collections + ACID Transactions)")]
+        Cloud["Cloudinary / Local Storage"]
+        APIs["Open APIs: data.gov.in • Open-Meteo / wttr.in • India Post • Wikimedia"]
+    end
+
+    Web -->|HTTPS REST + WSS| Sec
+    Mobile -->|HTTPS REST + WSS| Sec
+    Sec --> REST
+    Sec --> WS
+    REST --> DB
+    REST --> Cloud
+    REST --> APIs
+    WS --> DB
 ```
 
 ---
 
-## ✨ Key Platform Features
+## 🔌 Live Open APIs & Data Pipeline
 
-### 1. 🌾 Farmer-Friendly Produce Listing
-* **Effortless 3-Step Flow:** Crop category, estimated harvest weight (Quintals/Kg), expected base rate, and farm location.
-* **Visual Quality Showcase:** High-resolution produce photography uploaded directly via mobile camera to Cloudinary.
-* **Geospatial Discovery:** Automatically tags listings with GPS coordinates and pincode for hyper-local buyer discovery.
+| Service | Usage in CropGuard | Caching & Reliability |
+|:---|:---|:---|
+| **Agmarknet (`data.gov.in`)** | Live daily modal/min/max mandi prices | In-memory TTL cache, in-flight deduplication & MongoDB snapshot fallback |
+| **Open-Meteo + `wttr.in`** | District temperature, High/Low, humidity & harvest advisory | Static Indian APMC coordinate fallback + automatic `wttr.in` failover on HTTP 429 |
+| **India Post Pincode API** | 6-digit postal code → District / Taluk / State autofill | 24-hour geocode cache |
+| **Wikipedia REST + Proxy** | Illustrative crop imagery (`/api/mandi-rates/image`) | SSRF-allowlisted host check + 24-hour buffer cache for mobile & cross-origin web |
+| **Mandi CSV ETL Pipeline** | `backend/scripts/mandiETL/` (`extract → transform → load`) | Strict schema/unit/date normalization & bulk upsert with rejection reporting |
 
-### 2. 🤝 Real-Time Price Negotiation Engine (WebSocket)
-* **Interactive Bidding Room:** Buyers can submit offers and connected participants receive live updates in the app.
-* **Counter-Offer Negotiation:** Farmers can instantly counter-offer (e.g., Buyer offers ₹24/kg ➔ Farmer counters at ₹27/kg).
-* **Deal Finalization:** The participant whose turn it is can accept the displayed price; order creation is a separate step.
+<details>
+<summary><strong>📡 Mounted REST API Route Groups (11 Modules)</strong></summary>
 
-### 3. 📊 APMC Mandi Price Benchmark (Anti-Exploitation)
-* Displays live benchmark rates from local APMC Agricultural Markets (Agmarknet data standard).
-* Provides farmers with an automated fair-price corridor so they are never forced to accept below-market offers.
+| Base Path | Responsibility | Auth |
+|:---|:---|:---|
+| `/api/health` | Service & MongoDB connection probe | Public |
+| `/api/auth` | Register, login, profile (`/me`), language sync | Public / JWT |
+| `/api/listings` | Produce CRUD, filters, geo-radius & benchmark enrichment | Public / Farmer JWT |
+| `/api/mandi-rates` | Saved rates, `/live`, `/weather`, `/pincode/:pin`, `/image`, `/benchmark`, `/analytics` | Public |
+| `/api/negotiations` | Offers, counters, accept/reject, chat send/delete, closed deal delete | JWT (Participant) |
+| `/api/orders` | Transactional orders, state transitions, `/farmer-ledger`, `/:id/receipt` | JWT (Participant / Admin) |
+| `/api/upload` | Multi-photo produce upload (`multer` 5MB/5 files) | JWT (Farmer / Admin) |
+| `/api/assistant` | Multilingual AI query parser (`POST /query`) | JWT |
+| `/api/audit` | Fair-trade summary & compliance logs | Public / Admin |
+| `/api/languages` | Supported 8-language catalog | Public |
+| `/api/docs` | API endpoint catalog for Admin Health dashboard | Public |
 
-### 4. 📦 Order State Machine & Digital Ledger
-* End-to-end transparent order tracking:
-  $$\text{Draft} \longrightarrow \text{Negotiated} \longrightarrow \text{Secured Escrow} \longrightarrow \text{Dispatched} \longrightarrow \text{Delivered} \longrightarrow \text{Settled}$$
-* **Digital Ledger:** Simple financial record book for farmers showing total sales, pending payments, and downloadable receipt slips.
-
-### 5. 🌐 Vernacular & Accessible UI
-* First-class support for **Kannada (UASD Dharwad local region)**, **Hindi**, and **English**.
-* Big tactile buttons and color-coded statuses designed specifically for rural low-literacy users.
+</details>
 
 ---
 
-## 📂 Project Repository Structure
+## 👥 Team & Evaluation Tracks
+
+| Track | Domain | Core Stack & Deliverables |
+|:---|:---|:---|
+| **ISD** | Backend & Systems | Express REST architecture, Socket.IO `/negotiation` gateway, JWT + RBAC, Helmet/CORS/NoSQL hardening, MongoDB transactional Orders & Ledger |
+| **ASD** | Mobile Experience | Expo SDK 58 cross-platform app (`8` screens), `expo-secure-store` sessions, `expo-image-manipulator` uploads, real-time chat & typing, `expo-speech` AI Assistant, EAS `.apk` |
+| **DE / Web** | Web Portal & Data Engineering | React 19 + Vite wholesale dashboard, Recharts analytics, Web Speech API assistant, Mandi CSV ETL suite (`extract/transform/load`), Weather/Pincode/Image services |
+
+---
+
+## 📂 Repository Structure
 
 ```text
 cropguard-market/
-├── backend/                    # Node.js + Express API & Socket.io (ISD Track)
+├── backend/
+│   ├── scripts/mandiETL/       # Agmarknet CSV Extract-Transform-Load & duplicate checks
 │   ├── src/
-│   │   ├── config/             # DB & Cloudinary configuration
-│   │   ├── controllers/        # Auth, Listing, Negotiation, Order controllers
-│   │   ├── middleware/         # JWT auth, RBAC, Error handlers
-│   │   ├── models/             # Mongoose Schemas (User, Listing, Bid, Order)
-│   │   ├── routes/             # RESTful API Route definitions
-│   │   ├── sockets/            # Socket.io Real-Time Negotiation handlers
-│   │   └── utils/              # Helper functions, Mandi price seeders
-│   ├── .env
-│   ├── .env.example
-│   └── package.json
+│   │   ├── config/             # MongoDB, Cloudinary, CORS & JWT production enforcement
+│   │   ├── controllers/        # Auth, Listing, Mandi, Negotiation, Order, Upload, Audit, Assistant
+│   │   ├── i18n/               # Backend locale metadata (8 languages)
+│   │   ├── middleware/         # Auth/RBAC, Rate limiters, NoSQL sanitizer, Multer, Error handler
+│   │   ├── models/             # User, ProduceListing, Negotiation, Order, MandiRate, AuditLog
+│   │   ├── routes/             # 11 modular Express routers
+│   │   ├── services/           # Agmarknet, Open-Meteo/wttr.in, India Post, Wikipedia integrations
+│   │   ├── sockets/            # Authenticated Socket.IO /negotiation rooms & typing
+│   │   └── utils/              # JWT generator & DB health check
+│   ├── test/                   # Backend unit, security, socket & assistant tests
+│   └── .env.example
 │
-├── frontend/                   # Client applications (ASD & DE Tracks)
-│   ├── mobile/                 # React Native / Expo App (Farmer & Buyer App)
-│   │   ├── App.js              # Expo Mobile entry
-│   │   ├── app.json            # Expo configuration
-│   │   └── package.json
-│   └── web/                    # React.js Admin & Wholesale Portal
-│       └── README.md
+├── frontend/
+│   ├── mobile/                 # Expo React Native App (Android APK & iOS/Android Expo Go)
+│   │   ├── src/
+│   │   │   ├── auth/           # Session manager & language sync
+│   │   │   ├── components/     # AssistantModal (TTS), CropImage (proxy + fallback)
+│   │   │   ├── config/         # API origin resolver & unauthorized session handler
+│   │   │   ├── context/        # AuthContext & SocketContext
+│   │   │   ├── i18n/           # 8-language mobile dictionary
+│   │   │   ├── screens/        # Auth, Marketplace, MandiRates, Sell, Negotiations, Orders, Ledger, Profile
+│   │   │   ├── services/       # Socket.IO client singleton
+│   │   │   └── utils/          # Photo prep, price unit converter, location validator, typing controller
+│   │   ├── test/               # Mobile client & helper tests
+│   │   ├── app.json
+│   │   └── eas.json
+│   │
+│   └── web/                    # React 19 + Vite Wholesale & Admin Web App (Vercel)
+│       ├── src/
+│       │   ├── components/     # Navbar, Sidebar, VoiceAssistantWidget, ReceiptInvoiceModal
+│       │   ├── context/        # AuthContext & 8-language provider
+│       │   ├── i18n/           # Web multilingual translations
+│       │   ├── pages/          # Login, Marketplace, Sell, Negotiations, MandiAnalytics, Orders, Compliance, SystemHealth
+│       │   └── services/       # Axios API client & Socket.IO connector
+│       └── vite.config.js
 │
-└── database/                   # Database Architecture, Schemas & Seeds
-    └── README.md
+└── database/
+    ├── ER_DIAGRAM.md           # 6-collection Mermaid ER diagram
+    └── README.md               # Schema & indexing guide
 ```
 
 ---
 
-## 🚀 40-Day Sprint Roadmap Summary
-
-| Sprint | Days | Milestones & Deliverables |
-|:---|:---|:---|
-| **Sprint 1** | Days 1–7 | Monorepo setup, Database Schemas, JWT Auth & RBAC Security |
-| **Sprint 2** | Days 8–14 | Produce Listing CRUD, Cloudinary media upload, Mandi price benchmark |
-| **Sprint 3** | Days 15–21 | Socket.io Real-Time Negotiation & Bidding Engine |
-| **Sprint 4** | Days 22–28 | Order State Machine, Escrow simulation, Farmer Digital Ledger |
-| **Sprint 5** | Days 29–35 | Full Cross-Platform Integration, UASD Dashboard, **Mid-November Viva Rehearsal** |
-| **Sprint 6** | Days 36–40 | Cloud Deployment (Render/Vercel), Dockerization, Final Documentation |
-
----
-
-## 🛠️ Local Development Setup
+## 🔧 Local Development Setup
 
 ### Prerequisites
-* **Node.js:** v18.0.0 or higher
-* **npm:** v9.0.0 or higher
-* **MongoDB:** Local instance or MongoDB Atlas Connection URI
-* **Expo Go App:** Installed on physical Android/iOS device for mobile testing
+* **Node.js** `v20+` & **npm** `v9+`
+* **MongoDB Atlas** URI (or local MongoDB replica set — required for order transactions)
+* **Expo Go** on Android/iOS (or download the prebuilt Android `.apk` above)
 
-### 1. Install dependencies and configure the backend
+### 1. Clone & Configure Backend
 ```bash
-git clone https://github.com/Itsriteshx/Cropguard-market.git
+git clone https://github.com/itsriteshx/Cropguard-market.git
 cd Cropguard-market
 npm install
 cp backend/.env.example backend/.env
 ```
-Edit `backend/.env` with a working MongoDB connection string and a private JWT secret. Cloudinary credentials are needed for cloud image uploads. Start the backend from the repository root:
+Update `backend/.env` with your `MONGO_URI` and a strong `JWT_SECRET` (32+ chars in production; optional `CLOUDINARY_*` keys for cloud image storage). Then start the API server:
 
 ```bash
 npm run backend
+# Verify at http://localhost:5001/api/health
 ```
 
-Order creation requires MongoDB Atlas or a replica set because it reserves stock and creates the order in a transaction; a standalone local MongoDB server cannot execute this step. It listens on port 5001 by default. Check `http://localhost:5001/api/health`; `database` must say `connected` for account and marketplace operations.
+### 2. Run Web Portal
+```bash
+npm run web
+# Opens Vite dev server at http://localhost:3000 with proxy to :5001
+```
 
-### 2. Connect a physical phone
-
-Connect the computer and phone to the same Wi-Fi network. Find the computer's LAN IPv4 address (on macOS, System Settings → Wi-Fi → Details, or `ipconfig getifaddr en0`). Copy the example configuration:
-
+### 3. Run Mobile App (Expo Go)
 ```bash
 cp frontend/mobile/.env.example frontend/mobile/.env
-```
-
-Set `EXPO_PUBLIC_API_ORIGIN` in `frontend/mobile/.env` to the computer's address and backend port, for example `http://192.168.1.20:5001`. Use the origin only: do not append `/api`. This address is shared by REST and Socket.IO. Expo public variables are included in the app; do not put secrets in them.
-
-From the phone's browser, open `http://YOUR_COMPUTER_IP:5001/api/health` first. If it fails, check the address, same-network connection, firewall and port. Then start Expo from the mobile directory:
-
-```bash
+# Set EXPO_PUBLIC_API_ORIGIN to your Render URL or http://<YOUR_LAN_IP>:5001
 cd frontend/mobile
 npx expo start
 ```
 
-Scan the QR code with Expo Go. Restart Expo and fully reload the app after changing the address. Android emulator defaults to `10.0.2.2`; iOS simulator defaults to `localhost`, but neither default points to your computer from a physical phone. A LAN address and HTTP are for a trusted development network only; use HTTPS for deployment.
+---
 
-### Testing negotiations
+## 🧪 Automated Verification Suite
 
-Run `npm test --workspace=backend` from the repository root for the automated API-controller and authenticated Socket.IO regression tests. These tests use mock database records; they do not replace a MongoDB-backed device test.
+All tests run via Node's built-in test runner with zero external test framework overhead:
 
-For a manual test, sign in with separate farmer and buyer accounts on two devices. Have the farmer publish produce, then the buyer send an offer. Verify the farmer sees it, counters it once, and the buyer sees the updated price. The buyer can accept the displayed price; repeat with a different listing and reject an offer. Check that only the participant whose turn it is can counter or accept, that a disconnected participant can refresh to recover updates, and that accepted or rejected negotiations cannot be changed. Socket notifications require the app to be connected; offers are submitted and saved using the REST API.
-
-### Testing orders
-
-With the transaction-capable MongoDB backend running, the buyer can place an order from an accepted negotiation. Retrying the same deal should show the existing order. Both accounts can open Orders: the buyer simulates payment, the farmer marks dispatch, and the buyer confirms delivery and simulates settlement. Refresh on the other device to see each change. Verify the farmer ledger and receipt show the demo payment state. No payment is actually transferred. The automated order tests use mocks; a full test requires the configured database and devices.
-
-### 3. Web portal
 ```bash
-cd frontend/web
-npm run dev
+# Backend unit, security, socket & assistant tests (84 tests)
+npm --prefix backend test
+
+# Mandi ETL CSV transformation & validation tests (24 tests)
+node backend/scripts/mandiETL/testTransform.js
+
+# Mobile API client, auth, photo prep, typing & location tests (43 tests)
+node --test frontend/mobile/test/*.test.cjs
+
+# Web production bundle verification
+npm --prefix frontend/web run build
 ```
 
 ---
 
-## 🌿 Contribution & Git Etiquette
+## 📄 Credits
 
-To maintain clean repository hygiene and continuous commit activity on the ADCMS academic portal:
-1. Always branch out from `dev`:
-   ```bash
-   git checkout dev
-   git pull origin dev
-   git checkout -b feat/your-feature-name
-   ```
-2. Commit with conventional prefixes:
-   - `feat:` New feature implementation
-   - `fix:` Bug fix
-   - `docs:` Documentation updates
-   - `refactor:` Code cleanup
-3. Make atomic, daily commits to reflect regular progress on the grading dashboard.
-
----
-
-## 📄 License & Institutional Credits
-
-Developed as part of the Major Capstone Project 2026.  
-**Affiliation:** Ajeenkya DY Patil University (ADYPU) / Newton School of Technology (NST).  
-**Mentored under:** Ministry of Agriculture & UASD Dharwad Problem Statement guidelines.
+Built as a Major Capstone Project (2026) — **Ajeenkya DY Patil University (ADYPU) / Newton School of Technology (NST)**, aligned with **Ministry of Agriculture & Farmers Welfare**, **UASD Dharwad**, and **ICAR** direct-market guidelines.
