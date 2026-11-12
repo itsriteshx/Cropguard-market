@@ -65,15 +65,30 @@ const startNegotiation = async (req, res, next) => {
       });
     }
 
+    const now = new Date();
+    // Expire stale sessions for this listing and buyer before checking for existing active negotiation
+    // Records with null or missing expiresAt must NOT be expired
+    await Negotiation.updateMany(
+      {
+        listing: listingId,
+        buyer: req.user._id,
+        status: { $in: ['OPEN', 'COUNTER_OFFERED'] },
+        expiresAt: { $exists: true, $ne: null, $lte: now }
+      },
+      {
+        $set: { status: 'EXPIRED' }
+      }
+    );
+
     // Check if buyer already has an active negotiation on this listing
-    let existingNeg = await Negotiation.findOne({
+    const existingNeg = await Negotiation.findOne({
       listing: listingId,
       buyer: req.user._id,
       status: { $in: ['OPEN', 'COUNTER_OFFERED'] }
     });
 
     if (existingNeg) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         message: 'You already have an active negotiation on this produce. Please submit a counter-offer.',
         negotiationId: existingNeg._id
@@ -85,20 +100,31 @@ const startNegotiation = async (req, res, next) => {
       bidderRole: 'BUYER',
       pricePerUnit: Number(offeredPrice),
       note: note || `Initial purchase offer of ₹${offeredPrice}/${listing.unit}`,
-      timestamp: new Date()
+      timestamp: now
     };
 
-    const negotiation = await Negotiation.create({
-      listing: listingId,
-      buyer: req.user._id,
-      farmer: listing.farmer,
-      quantity: Number(quantity),
-      originalListingPrice: listing.pricePerUnit,
-      currentOfferedPrice: Number(offeredPrice),
-      currentTurn: 'FARMER',
-      status: 'OPEN',
-      bidHistory: [initialBid]
-    });
+    let negotiation;
+    try {
+      negotiation = await Negotiation.create({
+        listing: listingId,
+        buyer: req.user._id,
+        farmer: listing.farmer,
+        quantity: Number(quantity),
+        originalListingPrice: listing.pricePerUnit,
+        currentOfferedPrice: Number(offeredPrice),
+        currentTurn: 'FARMER',
+        status: 'OPEN',
+        bidHistory: [initialBid]
+      });
+    } catch (createErr) {
+      if (createErr.code === 11000 || (createErr.message && createErr.message.includes('E11000'))) {
+        return res.status(409).json({
+          success: false,
+          message: 'An active negotiation already exists for this listing and buyer.'
+        });
+      }
+      throw createErr;
+    }
 
     notify(req, negotiation, 'negotiation_created', { negotiationId: String(negotiation._id) });
 

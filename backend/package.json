@@ -9,6 +9,7 @@
     "seed": "node src/seeds/masterSeeder.js",
     "db:seed": "node src/seeds/masterSeeder.js",
     "db:health": "node src/utils/dbHealthCheck.js",
+    "db:migrate-active-negotiations": "node scripts/migrate-active-negotiation-index.js",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
