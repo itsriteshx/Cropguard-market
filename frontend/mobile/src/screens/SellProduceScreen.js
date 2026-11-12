@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { preparePhoto } from '../utils/preparePhoto';
 import { convertPriceUnit } from '../utils/priceUnits';
+import { buildListingLocation } from '../utils/listingLocation';
 
 const CATEGORIES = [
   'OTHER',
@@ -59,6 +60,13 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
   const [description, setDescription] = useState('');
   const [photo, setPhoto] = useState(null);
   const [uploadedPhoto, setUploadedPhoto] = useState(null);
+  const [pincode, setPincode] = useState(user?.location?.pincode || '');
+  const [village, setVillage] = useState(user?.location?.village || '');
+  const [taluk, setTaluk] = useState(user?.location?.taluk || '');
+  const [district, setDistrict] = useState(user?.location?.district || '');
+  const [stateName, setStateName] = useState(user?.location?.state || '');
+  const [lookingUpPin, setLookingUpPin] = useState(false);
+  const [pinStatus, setPinStatus] = useState('');
 
   // Mandi Benchmark & Catalog State
   const [mandiBenchmark, setMandiBenchmark] = useState(null);
@@ -86,6 +94,15 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
     });
   }, []);
 
+  useEffect(() => {
+    if (!user?.location) return;
+    setPincode((prev) => prev || user.location.pincode || '');
+    setVillage((prev) => prev || user.location.village || '');
+    setTaluk((prev) => prev || user.location.taluk || '');
+    setDistrict((prev) => prev || user.location.district || '');
+    setStateName((prev) => prev || user.location.state || '');
+  }, [user?.location]);
+
   // Keep stale benchmark responses from changing a newer crop selection.
   useEffect(() => {
     let active = true;
@@ -94,15 +111,36 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
     if (trimmed.length < 3) { setLoadingBenchmark(false); return () => { active = false; }; }
     const timer = setTimeout(async () => {
       setLoadingBenchmark(true);
-      const district = user?.location?.district;
-      const params = `commodity=${encodeURIComponent(trimmed)}${district ? `&district=${encodeURIComponent(district)}` : ''}`;
+      const benchmarkDistrict = district.trim() || user?.location?.district;
+      const params = `commodity=${encodeURIComponent(trimmed)}${benchmarkDistrict ? `&district=${encodeURIComponent(benchmarkDistrict)}` : ''}`;
       const response = await apiRequest(`/mandi-rates/benchmark?${params}`);
       if (!active) return;
       setMandiBenchmark(response.success && response.farmerPriceGuidance ? response : null);
       setLoadingBenchmark(false);
     }, 500);
     return () => { active = false; clearTimeout(timer); };
-  }, [cropName, user?.location?.district]);
+  }, [cropName, district, user?.location?.district]);
+
+  const handlePincodeChange = async (raw) => {
+    const cleanPin = String(raw || '').replace(/\D/g, '').slice(0, 6);
+    setPincode(cleanPin);
+    if (cleanPin.length < 6) {
+      setPinStatus('');
+      return;
+    }
+    setLookingUpPin(true);
+    setPinStatus('Looking up India Post pincode...');
+    const res = await apiRequest(`/mandi-rates/pincode/${cleanPin}`);
+    setLookingUpPin(false);
+    if (res?.success && res.location) {
+      if (res.location.district) setDistrict(res.location.district);
+      if (res.location.state) setStateName(res.location.state);
+      if (res.location.taluk) setTaluk(res.location.taluk);
+      setPinStatus(`Verified: ${res.location.district}, ${res.location.state}`);
+    } else {
+      setPinStatus(res?.message || 'Pincode not found — enter district & state manually.');
+    }
+  };
 
   const pickPhoto = async () => {
     try {
@@ -145,6 +183,15 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
       return;
     }
 
+    const locationResult = buildListingLocation(
+      { village, taluk, district, state: stateName, pincode },
+      user?.location
+    );
+    if (!locationResult.valid) {
+      Alert.alert('Location required', locationResult.message);
+      return;
+    }
+
     setSubmitting(true);
     let photoUrl = uploadedPhoto;
     if (photo && !photoUrl) {
@@ -182,14 +229,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           qualityGrade,
           description: description.trim(),
           images: photoUrl ? [photoUrl] : [],
-          location: user?.location || {
-            type: 'Point',
-            coordinates: [75.0084, 15.3647],
-            village: 'Navalgund',
-            district: 'Dharwad',
-            state: 'Karnataka',
-            pincode: '580029'
-          }
+          location: locationResult.location
         })
       },
       token
@@ -455,6 +495,53 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
             </TouchableOpacity>
           ))}
         </View>
+
+        <Text style={styles.inputLabel}>📍 Farm Location</Text>
+        <View style={styles.dualRow}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              maxLength={6}
+              placeholder="Pincode (6 digits)"
+              placeholderTextColor="#64748B"
+              value={pincode}
+              onChangeText={handlePincodeChange}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="Village / Town"
+              placeholderTextColor="#64748B"
+              value={village}
+              onChangeText={setVillage}
+            />
+          </View>
+        </View>
+        <View style={[styles.dualRow, { marginTop: 8 }]}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="District *"
+              placeholderTextColor="#64748B"
+              value={district}
+              onChangeText={setDistrict}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="State *"
+              placeholderTextColor="#64748B"
+              value={stateName}
+              onChangeText={setStateName}
+            />
+          </View>
+        </View>
+        {(lookingUpPin || !!pinStatus) && (
+          <Text style={styles.photoHint}>{lookingUpPin ? 'Checking India Post pincode…' : pinStatus}</Text>
+        )}
 
         <Text style={styles.inputLabel}>📷 Produce photo (optional)</Text>
         {photo && <Image source={{ uri: photo.uri }} style={styles.photoPreview} accessibilityLabel="Selected produce photo" />}
