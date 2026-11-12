@@ -449,12 +449,128 @@ const sendNegotiationMessage = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Delete one of the caller's own chat messages inside a negotiation
+ * @route   DELETE /api/negotiations/:id/message/:messageId
+ * @access  Private (Sender only)
+ */
+const deleteNegotiationMessage = async (req, res, next) => {
+  try {
+    const negotiation = await Negotiation.findById(req.params.id);
+    if (!negotiation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Negotiation session not found'
+      });
+    }
+
+    const userId = req.user._id.toString();
+    const isBuyer = negotiation.buyer.toString() === userId;
+    const isFarmer = negotiation.farmer.toString() === userId;
+    if (!isBuyer && !isFarmer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to modify messages in this negotiation'
+      });
+    }
+
+    const targetMsg = (negotiation.messages || []).find(
+      (m) => String(m._id) === String(req.params.messageId)
+    );
+    if (!targetMsg) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    if (String(targetMsg.sender) !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only delete your own chat messages'
+      });
+    }
+
+    const updated = await Negotiation.findOneAndUpdate(
+      { _id: negotiation._id },
+      { $pull: { messages: { _id: req.params.messageId, sender: req.user._id } } },
+      { new: true }
+    );
+
+    const remaining = updated?.messages || [];
+    notify(req, negotiation, 'chat_message_deleted', {
+      success: true,
+      negotiationId: String(negotiation._id),
+      messageId: String(req.params.messageId),
+      messages: remaining
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Message deleted',
+      messages: remaining
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Delete a closed (REJECTED/EXPIRED) negotiation chat thread with no linked order
+ * @route   DELETE /api/negotiations/:id
+ * @access  Private (Participants only)
+ */
+const deleteClosedNegotiation = async (req, res, next) => {
+  try {
+    const negotiation = await Negotiation.findById(req.params.id);
+    if (!negotiation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Negotiation session not found'
+      });
+    }
+
+    const userId = req.user._id.toString();
+    const isBuyer = negotiation.buyer.toString() === userId;
+    const isFarmer = negotiation.farmer.toString() === userId;
+    if (!isBuyer && !isFarmer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this negotiation'
+      });
+    }
+
+    if (negotiation.order || !['REJECTED', 'EXPIRED'].includes(negotiation.status)) {
+      return res.status(409).json({
+        success: false,
+        message: 'Only rejected or expired negotiations without an order can be deleted'
+      });
+    }
+
+    await Negotiation.deleteOne({ _id: negotiation._id });
+    notify(req, negotiation, 'negotiation_deleted', {
+      success: true,
+      negotiationId: String(negotiation._id)
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Closed negotiation deleted',
+      negotiationId: String(negotiation._id)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   startNegotiation,
   counterOffer,
   acceptDeal,
   rejectDeal,
   sendNegotiationMessage,
+  deleteNegotiationMessage,
+  deleteClosedNegotiation,
   getMyNegotiations,
   getNegotiationById
 };

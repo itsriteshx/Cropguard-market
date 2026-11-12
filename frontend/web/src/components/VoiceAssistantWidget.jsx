@@ -9,36 +9,54 @@ import {
   Sparkles,
   ArrowRight,
   Bot,
+  Trash2,
 } from 'lucide-react';
 import { assistantService } from '../services/api';
+import { useAuth, WEB_LANGUAGES } from '../context/AuthContext';
+
+const VOICE_LOCALES = {
+  en: 'en-IN',
+  hi: 'hi-IN',
+  kn: 'kn-IN',
+  mr: 'mr-IN',
+  te: 'te-IN',
+  ta: 'ta-IN',
+  gu: 'gu-IN',
+  pa: 'pa-IN',
+};
 
 const QUICK_PROMPTS = {
-  en: [
-    'What is Onion price?',
-    'Check Dharwad weather',
-    'Open Sell Produce',
-    'Go to APMC Mandi',
-  ],
-  hi: [
-    'Onion ka rate kya hai?',
-    'Pune ka mausam batao',
-    'Open Sell Produce',
-    'Open Negotiations',
-  ],
+  en: ['What is Onion price?', 'Check Dharwad weather', 'Open Sell Produce', 'Go to APMC Mandi'],
+  hi: ['प्याज का भाव क्या है?', 'पुणे का मौसम बताओ', 'Open Sell Produce', 'Open Negotiations'],
+  kn: ['ಈರುಳ್ಳಿ ದರ ಎಷ್ಟು?', 'ಧಾರವಾಡ ಹವಾಮಾನ ಹೇಗಿದೆ?', 'Open Sell Produce', 'Open APMC Mandi'],
+  mr: ['कांदा भाव काय आहे?', 'पुणे हवामान सांगा', 'Open Sell Produce', 'Open APMC Mandi'],
+  te: ['ఉల్లిపాయ ధర ఎంత?', 'హైదరాబాద్ వాతావరణం', 'Open Sell Produce', 'Open APMC Mandi'],
+  ta: ['வெங்காயம் விலை என்ன?', 'கோவை வானிலை', 'Open Sell Produce', 'Open APMC Mandi'],
+  gu: ['ડુંગળીનો ભાવ શું છે?', 'સુરત હવામાન જણાવો', 'Open Sell Produce', 'Open APMC Mandi'],
+  pa: ['ਪਿਆਜ਼ ਦਾ ਭਾਅ ਕੀ ਹੈ?', 'ਲੁਧਿਆਣਾ ਮੌਸਮ ਦੱਸੋ', 'Open Sell Produce', 'Open APMC Mandi'],
+};
+
+const INITIAL_GREETING = {
+  en: 'Hi! Speak or type in any language: "What is Onion price?", "Check Pune weather", or "Open Sell Produce".',
+  hi: 'नमस्ते! बोलें या लिखें: "प्याज का भाव क्या है?", "पुणे का मौसम बताओ", या "Open Sell Produce"।',
+  kn: 'ನಮಸ್ಕಾರ! ಕೇಳಿ: "ಈರುಳ್ಳಿ ದರ ಎಷ್ಟು?", "ಧಾರವಾಡ ಹವಾಮಾನ", ಅಥವಾ "Open Sell Produce".',
+  mr: 'नमस्कार! विचारा: "कांदा भाव काय आहे?", "पुणे हवामान", किंवा "Open Sell Produce".',
+  te: 'నమస్కారం! అడగండి: "ఉల్లిపాయ ధర ఎంత?", "పుణె వాతావరణం", లేదా "Open Sell Produce".',
+  ta: 'வணக்கம்! கேளுங்கள்: "வெங்காயம் விலை என்ன?", "தார்வாட் வானிலை", அல்லது "Open Sell Produce".',
+  gu: 'નમસ્તે! પૂછો: "ડુંગળીનો ભાવ શું છે?", "સુરત હવામાન", અથવા "Open Sell Produce".',
+  pa: 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ! ਪੁੱਛੋ: "ਪਿਆਜ਼ ਦਾ ਭਾਅ ਕੀ ਹੈ?", "ਲੁਧਿਆਣਾ ਮੌਸਮ", ਜਾਂ "Open Sell Produce".',
 };
 
 export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
+  const { language } = useAuth();
   const [open, setOpen] = useState(false);
-  const [voiceLang, setVoiceLang] = useState('en');
+  const [voiceLang, setVoiceLang] = useState(language || 'en');
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
   const [inputText, setInputText] = useState('');
   const [history, setHistory] = useState([
-    {
-      role: 'assistant',
-      text: 'Hi! Tap the Mic or type a question: "Onion ka rate kya hai?", "Check Pune weather", or "Open Sell Produce".',
-    },
+    { role: 'assistant', text: INITIAL_GREETING[language] || INITIAL_GREETING.en },
   ]);
 
   const recognitionRef = useRef(null);
@@ -47,6 +65,12 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
   const speechSupported =
     typeof window !== 'undefined' &&
     Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  useEffect(() => {
+    if (language && VOICE_LOCALES[language]) {
+      setVoiceLang(language);
+    }
+  }, [language]);
 
   useEffect(() => {
     if (open && endRef.current) {
@@ -65,17 +89,33 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
     };
   }, []);
 
-  const speakText = (text, langOverride = voiceLang) => {
+  const speakText = (text, langCode = voiceLang) => {
     if (typeof window === 'undefined' || !window.speechSynthesis || !text) return;
     try {
       window.speechSynthesis.cancel();
+      const bcp47 = VOICE_LOCALES[langCode] || 'en-IN';
       const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = langOverride === 'hi' ? 'hi-IN' : 'en-IN';
+      utter.lang = bcp47;
+      const voices = window.speechSynthesis.getVoices?.() || [];
+      const matchedVoice =
+        voices.find((v) => v.lang?.toLowerCase() === bcp47.toLowerCase()) ||
+        voices.find((v) => v.lang?.toLowerCase().startsWith(langCode));
+      if (matchedVoice) utter.voice = matchedVoice;
       utter.rate = 1.0;
       window.speechSynthesis.speak(utter);
     } catch {
       // Ignore synthesis availability issues
     }
+  };
+
+  const handleClearAssistantChat = () => {
+    window?.speechSynthesis?.cancel();
+    setHistory([
+      {
+        role: 'assistant',
+        text: INITIAL_GREETING[voiceLang] || INITIAL_GREETING.en,
+      },
+    ]);
   };
 
   const runAssistantQuery = async (rawQuery) => {
@@ -109,7 +149,6 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
         speakText(replyText, voiceLang);
       }
 
-      // Immediate navigation only when user explicitly gave a navigate voice intent
       if (res?.intent === 'NAVIGATE' && res?.action?.navigateTo && onNavigateTab) {
         onNavigateTab(res.action.navigateTo);
       }
@@ -146,7 +185,7 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
 
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     const rec = new SpeechRec();
-    rec.lang = voiceLang === 'hi' ? 'hi-IN' : 'en-IN';
+    rec.lang = VOICE_LOCALES[voiceLang] || 'en-IN';
     rec.interimResults = false;
     rec.maxAlternatives = 1;
 
@@ -158,13 +197,8 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
       }
     };
 
-    rec.onerror = () => {
-      setListening(false);
-    };
-
-    rec.onend = () => {
-      setListening(false);
-    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
 
     recognitionRef.current = rec;
     setListening(true);
@@ -175,10 +209,12 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
     }
   };
 
+  const activePrompts = QUICK_PROMPTS[voiceLang] || QUICK_PROMPTS.en;
+
   return (
     <div className="fixed bottom-5 right-5 z-50">
       {open ? (
-        <div className="w-[350px] sm:w-[390px] rounded-2xl bg-slate-900 border border-emerald-700/60 shadow-2xl overflow-hidden flex flex-col max-h-[540px]">
+        <div className="w-[355px] sm:w-[400px] rounded-2xl bg-slate-900 border border-emerald-700/60 shadow-2xl overflow-hidden flex flex-col max-h-[550px]">
           {/* Header */}
           <div className="px-4 py-3 bg-gradient-to-r from-emerald-950 to-slate-900 border-b border-slate-800 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
@@ -187,22 +223,23 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-extrabold text-white truncate flex items-center gap-1">
-                  CropGuard AI Voice Assistant <Sparkles className="w-3 h-3 text-emerald-400" />
+                  AI Voice Assistant <Sparkles className="w-3 h-3 text-emerald-400" />
                 </div>
-                <div className="text-[10px] text-emerald-300">
-                  {listening ? 'Listening... speak now' : 'Mandi Prices • Weather • Voice Control'}
+                <div className="text-[10px] text-emerald-300 truncate">
+                  {listening ? 'Listening... speak now' : '8 Languages • Mandis • Weather'}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                onClick={() => setVoiceLang((prev) => (prev === 'en' ? 'hi' : 'en'))}
-                className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200"
-                title="Switch voice language"
+                onClick={handleClearAssistantChat}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-red-300"
+                title="Clear assistant chat"
+                aria-label="Clear assistant chat"
               >
-                {voiceLang === 'hi' ? 'HI' : 'EN'}
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
@@ -224,6 +261,37 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
               >
                 <X className="w-3.5 h-3.5" />
               </button>
+            </div>
+          </div>
+
+          {/* Dedicated Visible 8-Language Switcher Bar */}
+          <div className="px-3 py-2 bg-slate-900 border-b border-slate-800 space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Select Voice &amp; Chat Language:
+            </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+              {WEB_LANGUAGES.map((l) => {
+                const active = voiceLang === l.code;
+                return (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => {
+                      setVoiceLang(l.code);
+                      const greet = INITIAL_GREETING[l.code] || INITIAL_GREETING.en;
+                      setHistory((prev) => [...prev, { role: 'assistant', text: greet }]);
+                      if (autoSpeak) speakText(greet, l.code);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 border transition-colors ${
+                      active
+                        ? 'bg-emerald-600 border-emerald-400 text-white shadow-sm'
+                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-600/60 hover:text-white'
+                    }`}
+                  >
+                    {l.flag} {l.nativeName}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -294,7 +362,7 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
 
           {/* Quick Prompt Chips */}
           <div className="px-3 py-2 bg-slate-900/95 border-t border-slate-800 flex items-center gap-1.5 overflow-x-auto">
-            {QUICK_PROMPTS[voiceLang].map((q) => (
+            {activePrompts.map((q) => (
               <button
                 key={q}
                 type="button"
@@ -330,7 +398,7 @@ export default function VoiceAssistantWidget({ activeTab, onNavigateTab }) {
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder={voiceLang === 'hi' ? 'Boliye ya likhiye...' : 'Speak or type command...'}
+              placeholder={`Speak (${VOICE_LOCALES[voiceLang] || 'en-IN'}) or type...`}
               className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 text-xs text-white outline-none"
             />
             <button

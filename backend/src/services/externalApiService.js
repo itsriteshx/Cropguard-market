@@ -378,23 +378,38 @@ async function fetchDistrictWeather({ district = 'Dharwad', latitude, longitude 
   const cachedWeather = getCached(apiCache, weatherKey, CACHE_TTL_MS);
   if (cachedWeather) return cachedWeather;
 
-  const url = `${openMeteoForecastUrl}?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code`;
+  const url = `${openMeteoForecastUrl}?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&timezone=auto&forecast_days=4`;
   const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`Weather API responded with HTTP ${res.status}`);
   const data = await res.json();
   const current = data.current || {};
+  const daily = data.daily || {};
   const interpreted = interpretWeatherCode(current.weather_code);
+
+  const forecast = Array.isArray(daily.time)
+    ? daily.time.map((dateStr, i) => ({
+        date: dateStr,
+        maxC: daily.temperature_2m_max?.[i] ?? null,
+        minC: daily.temperature_2m_min?.[i] ?? null,
+        rainChancePct: daily.precipitation_probability_max?.[i] ?? null,
+        condition: interpretWeatherCode(daily.weather_code?.[i]).label
+      }))
+    : [];
 
   const payload = {
     district: resolvedName,
     state: adminState,
     coordinates: { latitude: lat, longitude: lon },
     temperatureC: current.temperature_2m ?? null,
+    todayMaxC: forecast[0]?.maxC ?? null,
+    todayMinC: forecast[0]?.minC ?? null,
+    rainChancePct: forecast[0]?.rainChancePct ?? null,
     humidityPercent: current.relative_humidity_2m ?? null,
     precipitationMm: current.precipitation ?? 0,
     windSpeedKmh: current.wind_speed_10m ?? null,
     condition: interpreted.label,
     advisory: interpreted.advisory,
+    forecast,
     observedAt: current.time || new Date().toISOString(),
     source: 'Open-Meteo Live Weather API'
   };

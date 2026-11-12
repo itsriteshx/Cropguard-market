@@ -207,7 +207,7 @@ export default function MandiRatesScreen() {
         <Text style={styles.sourceTag}>{sourceLabel}</Text>
         {weather && (
           <Text style={styles.weatherLine}>
-            🌤️ {weather.district || 'Dharwad'}: {weather.temperatureC ?? '--'}°C ({weather.condition}) • {weather.humidityPct ?? '--'}% RH
+            🌤️ {weather.district || 'Dharwad'}: {weather.temperatureC ?? '--'}°C ({weather.condition}) • {weather.humidityPercent ?? weather.humidityPct ?? '--'}% RH • {weather.windSpeedKmh ?? weather.windKmh ?? '--'} km/h
           </Text>
         )}
       </View>

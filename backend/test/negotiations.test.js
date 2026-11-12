@@ -94,3 +94,58 @@ test('sendNegotiationMessage allows participants to chat without changing price 
     Negotiation.findOneAndUpdate = originalUpdate;
   }
 });
+
+test('deleteNegotiationMessage restricts deletion to message sender and deleteClosedNegotiation rejects active/ordered deals', async () => {
+  const originalFind = Negotiation.findById;
+  const originalUpdate = Negotiation.findOneAndUpdate;
+  const originalDelete = Negotiation.deleteOne;
+
+  let docState = {
+    _id: 'n1',
+    status: 'COUNTER_OFFERED',
+    order: null,
+    buyer: person('buyer'),
+    farmer: person('farmer'),
+    messages: [{ _id: 'm1', sender: 'farmer', text: 'Grade A' }]
+  };
+
+  try {
+    Negotiation.findById = async () => docState;
+    Negotiation.findOneAndUpdate = async () => ({
+      ...docState,
+      messages: []
+    });
+    Negotiation.deleteOne = async () => ({ deletedCount: 1 });
+
+    // Buyer cannot delete Farmer's chat message
+    let status = 200;
+    let resBody;
+    await handlers.deleteNegotiationMessage(
+      { user: { _id: 'buyer', role: 'BUYER_RETAIL' }, params: { id: 'n1', messageId: 'm1' }, app: { get: () => null } },
+      { status(c) { status = c; return this; }, json(v) { resBody = v; return this; } },
+      (err) => { throw err; }
+    );
+    assert.equal(status, 403);
+
+    // Farmer deletes own chat message
+    status = 200;
+    await handlers.deleteNegotiationMessage(
+      { user: { _id: 'farmer', role: 'FARMER' }, params: { id: 'n1', messageId: 'm1' }, app: { get: () => null } },
+      { status(c) { status = c; return this; }, json(v) { resBody = v; return this; } },
+      (err) => { throw err; }
+    );
+    assert.equal(status, 200);
+    assert.deepEqual(resBody.messages, []);
+
+    // Cannot delete active negotiation room
+    assert.equal((await call(handlers.deleteClosedNegotiation, 'farmer')).status, 409);
+
+    // Can delete rejected room with no order
+    docState.status = 'REJECTED';
+    assert.equal((await call(handlers.deleteClosedNegotiation, 'farmer')).status, 200);
+  } finally {
+    Negotiation.findById = originalFind;
+    Negotiation.findOneAndUpdate = originalUpdate;
+    Negotiation.deleteOne = originalDelete;
+  }
+});

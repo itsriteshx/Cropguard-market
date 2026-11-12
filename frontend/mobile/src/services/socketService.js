@@ -95,6 +95,18 @@ class SocketService {
     return () => this.socket?.off('chat_message_received', callback);
   }
 
+  onChatMessageDeleted(callback) {
+    if (!this.socket) return () => {};
+    this.socket.on('chat_message_deleted', callback);
+    return () => this.socket?.off('chat_message_deleted', callback);
+  }
+
+  onNegotiationDeleted(callback) {
+    if (!this.socket) return () => {};
+    this.socket.on('negotiation_deleted', callback);
+    return () => this.socket?.off('negotiation_deleted', callback);
+  }
+
   onDealLocked(callback) {
     if (!this.socket) return () => {};
     this.socket.on('deal_locked', callback);
