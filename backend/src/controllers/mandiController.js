@@ -367,10 +367,12 @@ const getBenchmarkForCrop = async (req, res, next) => {
       });
     }
 
-    // 1 Quintal = 100 Kilograms
-    const modalPerKg = Math.round((benchmark.modalPrice / 100) * 10) / 10;
-    const minPerKg = Math.round((benchmark.minPrice / 100) * 10) / 10;
-    const maxPerKg = Math.round((benchmark.maxPrice / 100) * 10) / 10;
+    const kgPerUnit = { KG: 1, QUINTAL: 100, TON: 1000 }[String(benchmark.unit || 'QUINTAL').toUpperCase()];
+    if (!kgPerUnit) return res.status(422).json({ success: false, message: 'Mandi rate has an unsupported price unit' });
+    const perKg = (value) => Math.round((Number(value) / kgPerUnit) * 10000) / 10000;
+    const modalPerKg = perKg(benchmark.modalPrice);
+    const minPerKg = perKg(benchmark.minPrice);
+    const maxPerKg = perKg(benchmark.maxPrice);
 
     return res.status(200).json({
       success: true,
@@ -379,9 +381,9 @@ const getBenchmarkForCrop = async (req, res, next) => {
       district: benchmark.district,
       state: benchmark.state,
       apmcRates: {
-        modalPricePerQuintal: benchmark.modalPrice,
-        minPricePerQuintal: benchmark.minPrice,
-        maxPricePerQuintal: benchmark.maxPrice,
+        modalPricePerQuintal: Math.round(modalPerKg * 10000) / 100,
+        minPricePerQuintal: Math.round(minPerKg * 10000) / 100,
+        maxPricePerQuintal: Math.round(maxPerKg * 10000) / 100,
         unit: benchmark.unit,
         priceDate: benchmark.priceDate
       },
@@ -390,7 +392,7 @@ const getBenchmarkForCrop = async (req, res, next) => {
         minimumAcceptablePerKg: minPerKg,
         maximumMarketPerKg: maxPerKg,
         recommendedAskingPrice: modalPerKg,
-        antiExploitationNotice: `Market average in ${benchmark.district} is ₹${modalPerKg}/kg. Do not accept buyer offers below ₹${minPerKg}/kg.`
+        antiExploitationNotice: `Market average in ${benchmark.district} is ₹${modalPerKg}/kg. Rates are a market reference; review the date and market before deciding.`
       }
     });
   } catch (error) {

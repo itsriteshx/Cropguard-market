@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../config/api';
 import * as ImagePicker from 'expo-image-picker';
+import { convertPriceUnit } from '../utils/priceUnits';
 
 const CATEGORIES = [
   'OTHER',
@@ -82,36 +83,23 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
     });
   }, []);
 
-  // Auto-check Mandi rates when crop name changes
+  // Keep stale benchmark responses from changing a newer crop selection.
   useEffect(() => {
+    let active = true;
     const trimmed = cropName.trim();
-    if (trimmed.length >= 3) {
-      const timer = setTimeout(() => {
-        fetchMandiBenchmark(trimmed);
-      }, 500);
-      return () => clearTimeout(timer);
-    } else {
-      setMandiBenchmark(null);
-    }
-  }, [cropName]);
-
-  const fetchMandiBenchmark = async (commodity) => {
-    setLoadingBenchmark(true);
-    const district = user?.location?.district || 'DHARWAD';
-    const res = await apiRequest(
-      `/mandi-rates/benchmark?commodity=${encodeURIComponent(commodity)}&district=${encodeURIComponent(district)}`
-    );
-    if (res.success && res.farmerPriceGuidance) {
-      setMandiBenchmark(res);
-      // If price not entered yet, auto-suggest the recommended asking price!
-      if (!pricePerUnit) {
-        setPricePerUnit(String(res.farmerPriceGuidance.modalRatePerKg * (unit === 'QUINTAL' ? 100 : 1)));
-      }
-    } else {
-      setMandiBenchmark(null);
-    }
-    setLoadingBenchmark(false);
-  };
+    setMandiBenchmark(null);
+    if (trimmed.length < 3) { setLoadingBenchmark(false); return () => { active = false; }; }
+    const timer = setTimeout(async () => {
+      setLoadingBenchmark(true);
+      const district = user?.location?.district;
+      const params = `commodity=${encodeURIComponent(trimmed)}${district ? `&district=${encodeURIComponent(district)}` : ''}`;
+      const response = await apiRequest(`/mandi-rates/benchmark?${params}`);
+      if (!active) return;
+      setMandiBenchmark(response.success && response.farmerPriceGuidance ? response : null);
+      setLoadingBenchmark(false);
+    }, 500);
+    return () => { active = false; clearTimeout(timer); };
+  }, [cropName, user?.location?.district]);
 
   const pickPhoto = async () => {
     try {
@@ -244,7 +232,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
       {loadingBenchmark ? (
         <View style={styles.benchmarkLoadingCard}>
           <ActivityIndicator size="small" color="#10B981" />
-          <Text style={styles.benchmarkLoadingText}>Checking live APMC Mandi rates...</Text>
+          <Text style={styles.benchmarkLoadingText}>Checking saved mandi rates...</Text>
         </View>
       ) : mandiBenchmark ? (
         <View style={styles.benchmarkCard}>
@@ -253,7 +241,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
             <Text style={styles.benchmarkYardText}>{mandiBenchmark.marketCenter}</Text>
           </View>
           <Text style={styles.benchmarkRatesText}>
-            Market Average: <Text style={styles.benchmarkHighlight}>₹{mandiBenchmark.farmerPriceGuidance.modalRatePerKg}/kg</Text>
+            Reference modal price: <Text style={styles.benchmarkHighlight}>₹{mandiBenchmark.farmerPriceGuidance.modalRatePerKg}/kg</Text>
             {'  '}(Range: ₹{mandiBenchmark.farmerPriceGuidance.minimumAcceptablePerKg} - ₹{mandiBenchmark.farmerPriceGuidance.maximumMarketPerKg}/kg)
           </Text>
           <View style={styles.adviceBanner}>
@@ -295,10 +283,6 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
                 onPress={() => {
                   setCropName(item.name);
                   if (CATEGORIES.includes(item.category)) setCategory(item.category);
-                  if (item.modalPrice && !pricePerUnit) {
-                    const scaled = unit === 'QUINTAL' ? item.modalPrice : Math.round((item.modalPrice / 100) * 10) / 10;
-                    setPricePerUnit(String(scaled));
-                  }
                 }}
               >
                 <Text style={styles.suggestionText}>
@@ -352,7 +336,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
                 <TouchableOpacity
                   key={u}
                   style={[styles.unitBtn, unit === u && styles.unitBtnActive]}
-                  onPress={() => setUnit(u)}
+                  onPress={() => { setPricePerUnit((value) => convertPriceUnit(value, unit, u)); setUnit(u); }}
                 >
                   <Text style={[styles.unitBtnText, unit === u && styles.unitBtnTextActive]}>
                     {u}
