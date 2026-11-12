@@ -79,3 +79,69 @@ test('cancellation restores stock once and rolls back if the listing is missing'
     assert.equal(await call(), 400); assert.equal(quantity, 10);
   } finally { mongoose.startSession = originalSession; Order.findById = originalFind; Order.findOneAndUpdate = originalUpdate; Listing.findOneAndUpdate = originalListing; }
 });
+
+test('direct order ignores client-supplied price and uses listing price', async () => {
+  const originals = {
+    session: mongoose.startSession,
+    listing: Listing.findById,
+    reserve: Listing.findOneAndUpdate,
+    create: Order.create
+  };
+
+  const listing = {
+    _id: 'l1',
+    farmer: 'farmer',
+    quantity: 10,
+    cropName: 'Wheat',
+    unit: 'KG',
+    pricePerUnit: 25,
+    status: 'AVAILABLE'
+  };
+
+  let createdOrder;
+
+  try {
+    mongoose.startSession = async () => ({
+      withTransaction: async (fn) => fn(),
+      endSession: async () => {}
+    });
+
+    Listing.findById = () => query(listing);
+    Listing.findOneAndUpdate = async () => listing;
+
+    Order.create = async ([data]) => {
+      createdOrder = data;
+      return [data];
+    };
+
+    let status;
+
+    await createOrder(
+      {
+        user: { _id: 'buyer', role: 'BUYER_RETAIL' },
+        body: {
+          listingId: 'l1',
+          quantity: 2,
+          agreedPrice: 1
+        }
+      },
+      {
+        status(value) {
+          status = value;
+          return this;
+        },
+        json() {}
+      },
+      (error) => { throw error; }
+    );
+
+    assert.equal(status, 201);
+    assert.equal(createdOrder.unitPrice, 25);
+    assert.equal(createdOrder.totalAmount, 50);
+  } finally {
+    mongoose.startSession = originals.session;
+    Listing.findById = originals.listing;
+    Listing.findOneAndUpdate = originals.reserve;
+    Order.create = originals.create;
+  }
+});

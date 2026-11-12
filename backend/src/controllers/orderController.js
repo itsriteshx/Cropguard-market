@@ -15,7 +15,7 @@ class OrderError extends Error {
 const createOrder = async (req, res, next) => {
   let session;
   try {
-    const { negotiationId, listingId, quantity: requestedQuantity, agreedPrice, deliveryAddress, paymentMethod, notes } = req.body;
+    const { negotiationId, listingId, quantity: requestedQuantity, deliveryAddress, paymentMethod, notes } = req.body;
     if (!negotiationId && !listingId) throw new OrderError(400, 'Provide a negotiation or listing ID');
     if (negotiationId && listingId) throw new OrderError(400, 'Provide only one order source');
     if (!['BUYER_RETAIL', 'BUYER_WHOLESALE', 'ADMIN'].includes(req.user.role)) throw new OrderError(403, 'Only buyers can place orders');
@@ -44,7 +44,7 @@ const createOrder = async (req, res, next) => {
       } else {
         listing = await ProduceListing.findById(listingId).session(session);
         quantity = requestedQuantity === undefined ? Number(listing?.quantity) : Number(requestedQuantity);
-        unitPrice = agreedPrice === undefined ? Number(listing?.pricePerUnit) : Number(agreedPrice);
+        unitPrice = Number(listing?.pricePerUnit);
       }
       if (!listing) throw new OrderError(404, 'Produce listing not found');
       if (String(listing.farmer) === String(req.user._id)) throw new OrderError(403, 'You cannot order your own produce');
