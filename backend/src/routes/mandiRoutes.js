@@ -6,6 +6,7 @@ const {
   getLiveAgmarknetRates,
   getDistrictWeather,
   lookupPincode,
+  getCropImageProxy,
   getBenchmarkForCrop,
   getMandiAnalytics,
   getMandiPriceTrends,
@@ -16,6 +17,7 @@ const {
 router.get('/live', getLiveAgmarknetRates);
 router.get('/weather', getDistrictWeather);
 router.get('/pincode/:pincode', lookupPincode);
+router.get('/image', getCropImageProxy);
 
 // Analytics aggregation endpoint
 router.get('/analytics', getMandiAnalytics);

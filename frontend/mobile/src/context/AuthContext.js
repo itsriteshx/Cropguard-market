@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { apiRequest } from '../config/api';
+import { apiRequest, subscribeUnauthorized } from '../config/api';
 import { translations } from '../i18n/translations';
 import { createSessionManager } from '../auth/sessionManager';
 import { syncLanguagePreference } from '../auth/languageSync';
@@ -72,6 +72,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => { restoreSession(); }, [restoreSession]);
+
+  useEffect(() => {
+    return subscribeUnauthorized(async (msg) => {
+      try { await sessionManager.clear(); } catch (_) {}
+      setToken(null);
+      setUser(null);
+      setRole(null);
+      setRestoreError(msg || 'Session expired. Please sign in again.');
+    });
+  }, []);
   const t = translations[language] || translations.en;
 
   const authenticate = async (mode, fields) => {

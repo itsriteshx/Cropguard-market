@@ -4,7 +4,7 @@ const helmet = require('helmet');
 // Helper to check if a request should skip general API rate limiting
 const shouldSkipApiLimiter = (req) => {
   const url = req.originalUrl || req.url || '';
-  return url.startsWith('/api/auth');
+  return url.startsWith('/api/auth') || url.startsWith('/api/mandi-rates/image');
 };
 
 // General API rate limiter (150 requests per 15 minutes)
@@ -105,7 +105,9 @@ const sanitizeParams = (req, res, next) => {
 };
 
 module.exports = {
-  helmetMiddleware: helmet(),
+  helmetMiddleware: helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+  }),
   apiLimiter,
   authLimiter,
   shouldSkipApiLimiter,

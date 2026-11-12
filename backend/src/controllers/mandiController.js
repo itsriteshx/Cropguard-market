@@ -5,6 +5,7 @@ const {
   syncAgmarknetRatesToDb,
   upsertRecordsToDb,
   attachCropImagesToRates,
+  fetchCropImageUrl,
   fetchDistrictWeather,
   fetchPincodeInfo
 } = require('../services/externalApiService');
@@ -602,11 +603,85 @@ const getMandiMarketComparison = async (req, res, next) => {
 
 
 
+const ALLOWED_IMAGE_HOSTS = new Set(['thumb.wikimedia.org', 'upload.wikimedia.org']);
+const IMAGE_PROXY_TTL_MS = 24 * 60 * 60 * 1000;
+const imageProxyCache = new Map();
+
+/**
+ * Proxies allowlisted Wikimedia crop thumbnails so mobile clients never receive 403 from OkHttp User-Agent checks.
+ * Supports ?url=<wikimedia_https_url> or ?crop=<crop_name>.
+ */
+const getCropImageProxy = async (req, res) => {
+  try {
+    let targetUrl = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+    const cropQuery = typeof req.query.crop === 'string' ? req.query.crop.trim() : '';
+
+    if (!targetUrl && cropQuery) {
+      targetUrl = (await fetchCropImageUrl(cropQuery)) || '';
+    }
+
+    if (!targetUrl) {
+      return res.status(404).json({ success: false, message: 'Crop image unavailable' });
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(targetUrl);
+    } catch {
+      return res.status(400).json({ success: false, message: 'Invalid image URL' });
+    }
+
+    if (parsed.protocol !== 'https:' || !ALLOWED_IMAGE_HOSTS.has(parsed.hostname.toLowerCase())) {
+      return res.status(400).json({ success: false, message: 'Unsupported image host' });
+    }
+
+    const cached = imageProxyCache.get(targetUrl);
+    if (cached && Date.now() - cached.timestamp < IMAGE_PROXY_TTL_MS) {
+      res.set('Content-Type', cached.contentType);
+      res.set('Cache-Control', 'public, max-age=86400');
+      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+      return res.status(200).send(cached.buffer);
+    }
+
+    const upstream = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'CropGuardMarket/1.0 (https://cropguard-market.onrender.com)',
+        Accept: 'image/*'
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (!upstream.ok) {
+      return res.status(502).json({ success: false, message: `Upstream image HTTP ${upstream.status}` });
+    }
+
+    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.toLowerCase().startsWith('image/')) {
+      return res.status(502).json({ success: false, message: 'Upstream response is not an image' });
+    }
+
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    if (imageProxyCache.size >= 150) {
+      const oldestKey = imageProxyCache.keys().next().value;
+      imageProxyCache.delete(oldestKey);
+    }
+    imageProxyCache.set(targetUrl, { buffer, contentType, timestamp: Date.now() });
+
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    return res.status(200).send(buffer);
+  } catch (error) {
+    return res.status(502).json({ success: false, message: error.message || 'Image fetch failed' });
+  }
+};
+
 module.exports = {
   getMandiRates,
   getLiveAgmarknetRates,
   getDistrictWeather,
   lookupPincode,
+  getCropImageProxy,
   getBenchmarkForCrop,
   getMandiAnalytics,
   getMandiPriceTrends,
