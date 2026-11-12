@@ -19,7 +19,8 @@ const getAuditLogs = async (req, res, next) => {
 
     const total = await AuditLog.countDocuments(query);
     const logs = await AuditLog.find(query)
-      .populate('actor', 'name phone role location')
+      .select('-ipAddress')
+      .populate('actor', 'name role location')
       .sort('-createdAt')
       .skip(skip)
       .limit(limitNum);

@@ -11,6 +11,7 @@ const {
 } = require('../controllers/listingController');
 
 const { protect, authorize, optionalProtect } = require('../middleware/authMiddleware');
+const { sanitizeParams } = require('../middleware/securityMiddleware');
 
 // Public listing browsing & farmer protected creation
 router
@@ -23,7 +24,8 @@ router
   .route('/my-listings')
   .get(protect, authorize('FARMER', 'ADMIN'), getMyListings);
 
-// Single listing operations
+// Single listing operations - sanitize route params after route matching
+router.use('/:id', sanitizeParams);
 router
   .route('/:id')
   .get(getListingById)
