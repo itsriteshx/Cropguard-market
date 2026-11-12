@@ -136,6 +136,17 @@ const counterOffer = async (req, res, next) => {
       });
     }
 
+    const userId = req.user._id.toString();
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
+
+    if (!isBuyer && !isFarmer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to participate in this negotiation session'
+      });
+    }
+
     // Verify session is active
     if (!['OPEN', 'COUNTER_OFFERED'].includes(negotiation.status)) {
       return res.status(400).json({
@@ -144,15 +155,14 @@ const counterOffer = async (req, res, next) => {
       });
     }
 
-    const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer.toString() === userId;
-    const isFarmer = negotiation.farmer.toString() === userId;
-
-    if (!isBuyer && !isFarmer) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to participate in this negotiation session'
-      });
+    // Check expiry only after participant authorization
+    const now = new Date();
+    if (negotiation.expiresAt && new Date(negotiation.expiresAt) <= now) {
+      await Negotiation.findOneAndUpdate(
+        { ...revision(negotiation) },
+        { $set: { status: 'EXPIRED' }, $inc: { __v: 1 } }
+      );
+      return res.status(409).json({ success: false, message: 'Negotiation has expired' });
     }
 
     const role = isBuyer ? 'BUYER' : 'FARMER';
@@ -164,15 +174,31 @@ const counterOffer = async (req, res, next) => {
       bidderRole: role,
       pricePerUnit: Number(counterPrice),
       note: note || `Counter-offer of ₹${counterPrice}`,
-      timestamp: new Date()
+      timestamp: now
+    };
+
+    const updateFilter = {
+      ...revision(negotiation),
+      currentTurn: role,
+      $or: [{ expiresAt: { $gt: now } }, { expiresAt: null }, { expiresAt: { $exists: false } }]
     };
 
     const updated = await Negotiation.findOneAndUpdate(
-      { ...revision(negotiation), currentTurn: role },
+      updateFilter,
       { $set: { currentOfferedPrice: Number(counterPrice), currentTurn: nextTurn, status: 'COUNTER_OFFERED' }, $push: { bidHistory: newBid }, $inc: { __v: 1 } },
       { new: true, runValidators: true }
     );
-    if (!updated) return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    if (!updated) {
+      const latest = await Negotiation.findById(req.params.id);
+      if (latest && latest.expiresAt && new Date(latest.expiresAt) <= now && active.includes(latest.status)) {
+        await Negotiation.findOneAndUpdate(
+          { ...revision(latest) },
+          { $set: { status: 'EXPIRED' }, $inc: { __v: 1 } }
+        );
+        return res.status(409).json({ success: false, message: 'Negotiation has expired' });
+      }
+      return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    }
     notify(req, updated, 'counter_offer_received', { success: true, negotiationId: String(updated._id), latestBid: newBid, currentOfferedPrice: updated.currentOfferedPrice, currentTurn: updated.currentTurn, status: updated.status, bidHistory: updated.bidHistory });
 
     return res.status(200).json({
@@ -204,6 +230,17 @@ const acceptDeal = async (req, res, next) => {
       });
     }
 
+    const userId = req.user._id.toString();
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
+
+    if (!isBuyer && !isFarmer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to accept this deal'
+      });
+    }
+
     if (!['OPEN', 'COUNTER_OFFERED'].includes(negotiation.status)) {
       return res.status(400).json({
         success: false,
@@ -211,15 +248,14 @@ const acceptDeal = async (req, res, next) => {
       });
     }
 
-    const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer._id.toString() === userId;
-    const isFarmer = negotiation.farmer._id.toString() === userId;
-
-    if (!isBuyer && !isFarmer) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to accept this deal'
-      });
+    // Check expiry only after participant authorization
+    const now = new Date();
+    if (negotiation.expiresAt && new Date(negotiation.expiresAt) <= now) {
+      await Negotiation.findOneAndUpdate(
+        { ...revision(negotiation) },
+        { $set: { status: 'EXPIRED' }, $inc: { __v: 1 } }
+      );
+      return res.status(409).json({ success: false, message: 'Negotiation has expired' });
     }
 
     const role = isBuyer ? 'BUYER' : 'FARMER';
@@ -231,16 +267,32 @@ const acceptDeal = async (req, res, next) => {
     }
     const agreedTotalAmount = Math.round(agreedPrice * negotiation.quantity * 100) / 100;
 
+    const updateFilter = {
+      ...revision(negotiation),
+      currentTurn: role,
+      $or: [{ expiresAt: { $gt: now } }, { expiresAt: null }, { expiresAt: { $exists: false } }]
+    };
+
     const updated = await Negotiation.findOneAndUpdate(
-      { ...revision(negotiation), currentTurn: role },
+      updateFilter,
       { $set: { status: 'ACCEPTED', agreedPrice, agreedTotalAmount }, $inc: { __v: 1 } },
       { new: true, runValidators: true }
     );
-    if (!updated) return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    if (!updated) {
+      const latest = await Negotiation.findById(req.params.id);
+      if (latest && latest.expiresAt && new Date(latest.expiresAt) <= now && active.includes(latest.status)) {
+        await Negotiation.findOneAndUpdate(
+          { ...revision(latest) },
+          { $set: { status: 'EXPIRED' }, $inc: { __v: 1 } }
+        );
+        return res.status(409).json({ success: false, message: 'Negotiation has expired' });
+      }
+      return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    }
     const dealSummary = {
       negotiationId: String(negotiation._id), crop: negotiation.listing?.cropName || 'Produce',
       unit: negotiation.listing?.unit, quantity: negotiation.quantity, agreedPricePerUnit: agreedPrice,
-      agreedTotalAmount, farmer: negotiation.farmer.name, buyer: negotiation.buyer.name, status: 'ACCEPTED'
+      agreedTotalAmount, farmer: negotiation.farmer?.name, buyer: negotiation.buyer?.name, status: 'ACCEPTED'
     };
     notify(req, updated, 'deal_locked', { success: true, dealSummary });
 
@@ -272,8 +324,8 @@ const rejectDeal = async (req, res, next) => {
     }
 
     const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer.toString() === userId;
-    const isFarmer = negotiation.farmer.toString() === userId;
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
 
     if (!isBuyer && !isFarmer) {
       return res.status(403).json({
@@ -348,8 +400,8 @@ const getNegotiationById = async (req, res, next) => {
     }
 
     const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer._id.toString() === userId;
-    const isFarmer = negotiation.farmer._id.toString() === userId;
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
 
     if (!isBuyer && !isFarmer && req.user.role !== 'ADMIN') {
       return res.status(403).json({
@@ -393,8 +445,8 @@ const sendNegotiationMessage = async (req, res, next) => {
     }
 
     const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer.toString() === userId;
-    const isFarmer = negotiation.farmer.toString() === userId;
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
 
     if (!isBuyer && !isFarmer) {
       return res.status(403).json({

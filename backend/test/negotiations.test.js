@@ -44,6 +44,125 @@ test('only the participant whose turn it is can counter or accept; closed deals 
   } finally { Negotiation.findById = originalFind; Negotiation.findOneAndUpdate = originalUpdate; }
 });
 
+test('negotiation expiry enforcement: counter-offer, accept, non-participant check, and atomic write blocking', async () => {
+  const originalFind = Negotiation.findById, originalUpdate = Negotiation.findOneAndUpdate;
+  const pastDate = new Date(Date.now() - 60 * 1000); // 1 minute ago
+  const futureDate = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours in future
+
+  let state = {
+    _id: 'n1',
+    __v: 0,
+    status: 'OPEN',
+    currentTurn: 'FARMER',
+    currentOfferedPrice: 20,
+    quantity: 10,
+    buyer: person('buyer'),
+    farmer: person('farmer'),
+    listing: { cropName: 'Wheat', unit: 'KG' },
+    bidHistory: [],
+    expiresAt: pastDate
+  };
+
+  try {
+    Negotiation.findById = () => {
+      const doc = { ...state, bidHistory: [...state.bidHistory] };
+      doc.populate = () => doc;
+      return doc;
+    };
+    Negotiation.findOneAndUpdate = async (filter, update) => {
+      if (filter.__v !== state.__v || !filter.status.$in.includes(state.status) || (filter.currentTurn && filter.currentTurn !== state.currentTurn)) return null;
+      if (filter.$or && state.expiresAt) {
+        const notExpired = filter.$or.some((cond) => {
+          if (cond.expiresAt?.$gt) return state.expiresAt > cond.expiresAt.$gt;
+          if (cond.expiresAt === null) return state.expiresAt === null;
+          if (cond.expiresAt?.$exists === false) return !('expiresAt' in state);
+          return false;
+        });
+        if (!notExpired) return null;
+      }
+      state = {
+        ...state,
+        ...update.$set,
+        __v: state.__v + 1,
+        bidHistory: update.$push ? [...state.bidHistory, update.$push.bidHistory] : state.bidHistory
+      };
+      return { ...state };
+    };
+
+    // 1. Non-participant cannot trigger expiration on expired negotiation (returns 403, does not set EXPIRED)
+    const outsiderCounter = await call(handlers.counterOffer, 'outsider', { counterPrice: 25 });
+    assert.equal(outsiderCounter.status, 403);
+    assert.equal(state.status, 'OPEN');
+
+    const outsiderAccept = await call(handlers.acceptDeal, 'outsider', { expectedPrice: 20 });
+    assert.equal(outsiderAccept.status, 403);
+    assert.equal(state.status, 'OPEN');
+
+    // 2. Expired counter-offer by participant returns 409 and persists EXPIRED
+    const expiredCounter = await call(handlers.counterOffer, 'farmer', { counterPrice: 25 });
+    assert.equal(expiredCounter.status, 409);
+    assert.match(expiredCounter.result.message, /expired/i);
+    assert.equal(state.status, 'EXPIRED');
+
+    // Reset state to active and expired for accept test
+    state.status = 'OPEN';
+    state.currentTurn = 'BUYER';
+    state.currentOfferedPrice = 25;
+    state.__v = 0;
+    state.expiresAt = pastDate;
+
+    // 3. Expired acceptance returns 409 and persists EXPIRED
+    const expiredAccept = await call(handlers.acceptDeal, 'buyer', { expectedPrice: 25 });
+    assert.equal(expiredAccept.status, 409);
+    assert.match(expiredAccept.result.message, /expired/i);
+    assert.equal(state.status, 'EXPIRED');
+
+    // 4. Non-expired negotiation still supports counter and accept flow
+    state.status = 'OPEN';
+    state.currentTurn = 'FARMER';
+    state.currentOfferedPrice = 20;
+    state.__v = 0;
+    state.expiresAt = futureDate;
+
+    const validCounter = await call(handlers.counterOffer, 'farmer', { counterPrice: 22 });
+    assert.equal(validCounter.status, 200);
+    assert.equal(state.status, 'COUNTER_OFFERED');
+    assert.equal(state.currentOfferedPrice, 22);
+    assert.equal(state.currentTurn, 'BUYER');
+
+    const validAccept = await call(handlers.acceptDeal, 'buyer', { expectedPrice: 22 });
+    assert.equal(validAccept.status, 200);
+    assert.equal(state.status, 'ACCEPTED');
+    assert.equal(state.agreedPrice, 22);
+
+    // 5. Atomic filter prevents writes when negotiation expires between read and update
+    state.status = 'OPEN';
+    state.currentTurn = 'FARMER';
+    state.currentOfferedPrice = 20;
+    state.__v = 0;
+    state.expiresAt = futureDate;
+
+    let findCount = 0;
+    Negotiation.findById = () => {
+      findCount++;
+      const exp = findCount === 1 ? futureDate : pastDate;
+      const doc = { ...state, expiresAt: exp, bidHistory: [...state.bidHistory] };
+      doc.populate = () => doc;
+      state.expiresAt = pastDate;
+      return doc;
+    };
+
+    const midRaceCounter = await call(handlers.counterOffer, 'farmer', { counterPrice: 24 });
+    assert.equal(midRaceCounter.status, 409);
+    assert.match(midRaceCounter.result.message, /expired/i);
+    assert.equal(state.status, 'EXPIRED');
+
+  } finally {
+    Negotiation.findById = originalFind;
+    Negotiation.findOneAndUpdate = originalUpdate;
+  }
+});
+
 test('initial offers reject non-buyers and invalid amounts before querying a listing', async () => {
   const original = Listing.findById;
   try {
