@@ -14,6 +14,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../config/api';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { preparePhoto } from '../utils/preparePhoto';
 import { convertPriceUnit } from '../utils/priceUnits';
 
 const CATEGORIES = [
@@ -63,6 +65,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
   const [loadingBenchmark, setLoadingBenchmark] = useState(false);
   const [liveCropCatalog, setLiveCropCatalog] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
 
   useEffect(() => {
     apiRequest('/mandi-rates?state=ALL&limit=150').then((res) => {
@@ -103,22 +106,21 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
 
   const pickPhoto = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
       if (result.canceled) return;
-      const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
-        Alert.alert('Photo too large', 'Choose an image smaller than 5 MB.');
-        return;
-      }
-      setPhoto(asset);
+      setPreparingPhoto(true);
+      const prepared = await preparePhoto(result.assets[0], Platform.OS, ImageManipulator);
+      setPhoto(prepared);
       setUploadedPhoto(null);
     } catch (error) {
-      Alert.alert('Photo unavailable', 'Could not open your photo library. Check your permissions and try again.');
+      Alert.alert('Photo unavailable', error.message || 'Could not prepare this photo. Please choose another image.');
+    } finally {
+      setPreparingPhoto(false);
     }
   };
 
   const handleSubmitListing = async () => {
-    if (submitting) return;
+    if (submitting || preparingPhoto) return;
     if (role !== 'FARMER') {
       Alert.alert('Farmer account required', 'Sign in as a farmer to publish produce.');
       return;
@@ -457,18 +459,18 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
         <Text style={styles.inputLabel}>📷 Produce photo (optional)</Text>
         {photo && <Image source={{ uri: photo.uri }} style={styles.photoPreview} accessibilityLabel="Selected produce photo" />}
         <View style={styles.photoActions}>
-          <TouchableOpacity onPress={pickPhoto} disabled={submitting} style={styles.photoButton} accessibilityRole="button">
-            <Text style={styles.photoButtonText}>{photo ? 'Change photo' : 'Choose photo'}</Text>
+          <TouchableOpacity onPress={pickPhoto} disabled={submitting || preparingPhoto} style={styles.photoButton} accessibilityRole="button">
+            <Text style={styles.photoButtonText}>{preparingPhoto ? 'Preparing photo…' : photo ? 'Change photo' : 'Choose photo'}</Text>
           </TouchableOpacity>
-          {photo && <TouchableOpacity onPress={() => { setPhoto(null); setUploadedPhoto(null); }} disabled={submitting} style={styles.photoButton} accessibilityRole="button"><Text style={styles.photoButtonText}>Remove</Text></TouchableOpacity>}
+          {photo && <TouchableOpacity onPress={() => { setPhoto(null); setUploadedPhoto(null); }} disabled={submitting || preparingPhoto} style={styles.photoButton} accessibilityRole="button"><Text style={styles.photoButtonText}>Remove</Text></TouchableOpacity>}
         </View>
-        <Text style={styles.photoHint}>Choose an image under 5 MB.</Text>
+        <Text style={styles.photoHint}>Choose a produce photo. Browser uploads must be JPG, PNG, or WebP under 5 MB.</Text>
 
         {/* Publish Button */}
         <TouchableOpacity
           style={styles.publishButton}
           onPress={handleSubmitListing}
-          disabled={submitting}
+          disabled={submitting || preparingPhoto}
         >
           {submitting ? (
             <ActivityIndicator color="#0F172A" />
