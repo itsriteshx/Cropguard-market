@@ -170,16 +170,6 @@ flowchart LR
 
 ---
 
-## 👥 Team & Evaluation Tracks
-
-| Track | Domain | Core Stack & Deliverables |
-|:---|:---|:---|
-| **ISD** | Backend & Systems | Express REST architecture, Socket.IO `/negotiation` gateway, JWT + RBAC, Helmet/CORS/NoSQL hardening, MongoDB transactional Orders & Ledger |
-| **ASD** | Mobile Experience | Expo SDK 58 cross-platform app (`8` screens), `expo-secure-store` sessions, `expo-image-manipulator` uploads, real-time chat & typing, `expo-speech` AI Assistant, EAS `.apk` |
-| **DE / Web** | Web Portal & Data Engineering | React 19 + Vite wholesale dashboard, Recharts analytics, Web Speech API assistant, Mandi CSV ETL suite (`extract/transform/load`), Weather/Pincode/Image services |
-
----
-
 ## 📂 Repository Structure
 
 ```text
@@ -284,9 +274,3 @@ node --test frontend/mobile/test/*.test.cjs
 # Web production bundle verification
 npm --prefix frontend/web run build
 ```
-
----
-
-## 📄 Credits
-
-Built as a Major Capstone Project (2026) — **Ajeenkya DY Patil University (ADYPU) / Newton School of Technology (NST)**, aligned with **Ministry of Agriculture & Farmers Welfare**, **UASD Dharwad**, and **ICAR** direct-market guidelines.
