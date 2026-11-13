@@ -1,7 +1,8 @@
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 const emailService = require('../services/email/emailService');
-const { normalizeEmail, maskEmail } = require('../utils/otpUtils');
+const smsService = require('../services/sms/smsService');
+const { normalizeEmail, normalizePhone, maskEmail, maskPhone } = require('../utils/otpUtils');
 
 /**
  * Normalizes Indian mobile number by removing non-digits, country code (+91/91),
@@ -350,11 +351,130 @@ const resendEmailOtp = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Verify Phone using 6-digit SMS OTP
+ * @route   POST /api/auth/verify-phone
+ * @access  Public (Optional Bearer token for session association)
+ */
+const verifyPhone = async (req, res, next) => {
+  try {
+    const { otp } = req.body;
+    let phone = req.body.phone;
+
+    if (!phone && req.user && req.user.phone) {
+      phone = req.user.phone;
+    }
+
+    const cleanPhone = normalizePhone(phone);
+    if (!cleanPhone || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide mobile number and verification code'
+      });
+    }
+
+    // Call SMS verification service (atomic consumption & validation)
+    const verification = await smsService.verifyPhoneOtp({ phone: cleanPhone, otp });
+    if (!verification.success) {
+      return res.status(400).json(verification);
+    }
+
+    // Update user record if exists
+    let user = req.user || (await User.findOne({ phone: cleanPhone }));
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'Mobile number verified successfully'
+      });
+    }
+
+    user.phoneVerified = true;
+    user.phoneVerifiedAt = new Date();
+    user.syncVerificationState();
+    await user.save();
+
+    const verificationStatus = user.getVerificationStatus();
+    const token = user.isVerified ? generateToken(user._id, user.role) : undefined;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Mobile number verified successfully',
+      isFullyVerified: user.isVerified,
+      verificationStatus,
+      ...(token && { token }),
+      user: {
+        _id: user._id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Resend Phone SMS OTP
+ * @route   POST /api/auth/resend-phone-otp
+ * @access  Public (Optional Bearer token)
+ */
+const resendPhoneOtp = async (req, res, next) => {
+  try {
+    let phone = req.body.phone;
+    if (!phone && req.user && req.user.phone) {
+      phone = req.user.phone;
+    }
+
+    const cleanPhone = normalizePhone(phone);
+    if (!cleanPhone || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid 10-digit Indian mobile number'
+      });
+    }
+
+    const user = req.user || (await User.findOne({ phone: cleanPhone }));
+    if (user && user.phoneVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number is already verified'
+      });
+    }
+
+    const result = await smsService.sendPhoneOtp({
+      userId: user?._id,
+      phone: cleanPhone
+    });
+
+    if (!result.success) {
+      const statusCode = result.cooldown ? 429 : 400;
+      return res.status(statusCode).json(result);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Verification code sent to your mobile number',
+      maskedPhone: result.maskedPhone,
+      resendAvailableAt: result.resendAvailableAt,
+      expiresAt: result.expiresAt
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
   updateLanguagePreference,
   verifyEmail,
-  resendEmailOtp
+  resendEmailOtp,
+  verifyPhone,
+  resendPhoneOtp
 };
