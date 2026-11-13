@@ -20,13 +20,41 @@ const ROLES = [
 ];
 
 export default function AuthScreen() {
-  const { authenticate, loading } = useAuth();
+  const { authenticate, verifyEmailOtp, resendEmailOtp, verifyPhoneOtp, resendPhoneOtp, loading } = useAuth();
   const [register, setRegister] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('FARMER');
   const [error, setError] = useState('');
+
+  // Verification step state: null | 'PHONE_OTP' | 'EMAIL_OTP' | 'SUCCESS'
+  const [verificationStep, setVerificationStep] = useState(null);
+  const [verificationToken, setVerificationToken] = useState(null);
+  const [verificationUser, setVerificationUser] = useState(null);
+  const [emailOtp, setEmailOtp] = useState('');
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [emailCooldown, setEmailCooldown] = useState(0);
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
+  const [verificationError, setVerificationError] = useState('');
+  const [verificationSuccessMsg, setVerificationSuccessMsg] = useState('');
+
+  useEffect(() => {
+    if (emailCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setEmailCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [emailCooldown]);
+
+  useEffect(() => {
+    if (phoneCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setPhoneCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phoneCooldown]);
 
   const handlePhoneChange = (text) => {
     let clean = text.replace(/\D/g, '');
@@ -46,13 +74,59 @@ export default function AuthScreen() {
     if (password.length < 6) return setError('Password must have at least 6 characters.');
     setError('');
 
+    const cleanEmail = email && email.trim() ? email.trim().toLowerCase() : undefined;
     const fields = register
-      ? { name: name.trim(), phone: cleanPhone, password, role }
+      ? { name: name.trim(), phone: cleanPhone, email: cleanEmail, password, role }
       : { phone: cleanPhone, password };
 
     const result = await authenticate(register ? 'register' : 'login', fields);
+
+    if (result.requiresVerification) {
+      setVerificationToken(result.verificationToken || result.token);
+      setVerificationUser(result.user);
+      const pending = result.verificationStatus?.pending || ['phone'];
+      if (pending.includes('phone')) {
+        setVerificationStep('PHONE_OTP');
+      } else if (pending.includes('email')) {
+        setVerificationStep('EMAIL_OTP');
+      }
+      return;
+    }
+
     if (!result.success) {
       setError(result.message || 'Unable to authenticate. Please check your network & credentials.');
+    }
+  };
+
+  const handleVerifyEmail = async () => {
+    if (!emailOtp || emailOtp.trim().length !== 6) {
+      setVerificationError('Please enter the 6-digit email verification code.');
+      return;
+    }
+    setVerificationError('');
+    const targetEmail = verificationUser?.email || email;
+    const res = await verifyEmailOtp(targetEmail, emailOtp.trim(), verificationToken);
+    if (!res.success) {
+      setVerificationError(res.message || 'Invalid verification code. Please check and try again.');
+      return;
+    }
+    if (res.verificationStatus?.pending?.includes('phone')) {
+      setVerificationStep('PHONE_OTP');
+    } else {
+      setVerificationStep('SUCCESS');
+    }
+  };
+
+  const handleResendEmail = async () => {
+    if (emailCooldown > 0) return;
+    setVerificationError('');
+    const targetEmail = verificationUser?.email || email;
+    const res = await resendEmailOtp(targetEmail, verificationToken);
+    if (res.success) {
+      setEmailCooldown(60);
+      setVerificationSuccessMsg('A new verification code has been sent to your email.');
+    } else {
+      setVerificationError(res.message || 'Failed to resend verification email.');
     }
   };
 
@@ -80,21 +154,117 @@ export default function AuthScreen() {
             </Text>
           </View>
 
-          {/* Form Card */}
-          <View style={styles.card}>
-            {register && (
+          {/* Verification Step: Email OTP */}
+          {verificationStep === 'EMAIL_OTP' ? (
+            <View style={styles.card}>
+              <View style={styles.verificationBadge}>
+                <Text style={styles.verificationBadgeText}>✉️ EMAIL VERIFICATION</Text>
+              </View>
+              <Text style={styles.cardTitle}>Verify Your Email</Text>
+              <Text style={styles.cardSubtitle}>
+                We sent a 6-digit verification code to{' '}
+                <Text style={{ color: '#34d399', fontWeight: 'bold' }}>
+                  {verificationUser?.email || email}
+                </Text>
+              </Text>
+
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Full Name</Text>
+                <Text style={styles.label}>Enter 6-Digit Code</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Ramesh Patil"
+                  style={[styles.input, styles.otpInput]}
+                  placeholder="000000"
                   placeholderTextColor="#64748b"
-                  value={name}
-                  onChangeText={setName}
-                  autoComplete="name"
+                  value={emailOtp}
+                  onChangeText={(val) => {
+                    setEmailOtp(val.replace(/\D/g, '').slice(0, 6));
+                    if (verificationError) setVerificationError('');
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={6}
                 />
               </View>
-            )}
+
+              {!!verificationError && (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>⚠️ {verificationError}</Text>
+                </View>
+              )}
+
+              {!!verificationSuccessMsg && (
+                <View style={[styles.errorBox, { borderColor: 'rgba(52, 211, 153, 0.4)', backgroundColor: 'rgba(52, 211, 153, 0.1)' }]}>
+                  <Text style={[styles.errorText, { color: '#34d399' }]}>✅ {verificationSuccessMsg}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.button, (loading || emailOtp.length !== 6) && styles.buttonDisabled]}
+                onPress={handleVerifyEmail}
+                disabled={loading || emailOtp.length !== 6}
+                accessibilityRole="button"
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.buttonText}>Verify Email Address</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.resendBtn, emailCooldown > 0 && styles.buttonDisabled]}
+                onPress={handleResendEmail}
+                disabled={emailCooldown > 0}
+                accessibilityRole="button"
+              >
+                <Text style={styles.resendText}>
+                  {emailCooldown > 0
+                    ? `Resend code in ${emailCooldown}s`
+                    : "Didn't receive code? Resend Email"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={() => {
+                  setVerificationStep(null);
+                  setVerificationError('');
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.backBtnText}>← Back to Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            /* Form Card */
+            <View style={styles.card}>
+              {register && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Full Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Ramesh Patil"
+                    placeholderTextColor="#64748b"
+                    value={name}
+                    onChangeText={setName}
+                    autoComplete="name"
+                  />
+                </View>
+              )}
+
+              {register && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email Address (Optional / Recommended)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. ramesh@uasd.agri.in"
+                    placeholderTextColor="#64748b"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                  />
+                </View>
+              )}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Mobile Number</Text>
@@ -187,6 +357,7 @@ export default function AuthScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+        )}
 
           {/* Trust Footer */}
           <View style={styles.footer}>
@@ -362,5 +533,60 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     textAlign: 'center'
+  },
+  cardTitle: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 4
+  },
+  cardSubtitle: {
+    color: '#94a3b8',
+    fontSize: 13,
+    marginBottom: 16,
+    lineHeight: 18
+  },
+  verificationBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(52, 211, 153, 0.15)',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginBottom: 10
+  },
+  verificationBadgeText: {
+    color: '#34d399',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8
+  },
+  otpInput: {
+    textAlign: 'center',
+    fontSize: 24,
+    letterSpacing: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: '#34d399',
+    fontWeight: 'bold'
+  },
+  resendBtn: {
+    marginTop: 14,
+    alignItems: 'center',
+    padding: 8
+  },
+  resendText: {
+    color: '#38bdf8',
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  backBtn: {
+    marginTop: 6,
+    alignItems: 'center',
+    padding: 8
+  },
+  backBtnText: {
+    color: '#94a3b8',
+    fontSize: 12
   }
 });
