@@ -131,6 +131,7 @@ negotiationSchema.index(
     name: 'active_negotiation_listing_buyer_unique'
   }
 );
+negotiationSchema.index({ listing: 1, status: 1 });
 negotiationSchema.index({ farmer: 1, status: 1 });
 negotiationSchema.index({ buyer: 1, status: 1 });
 

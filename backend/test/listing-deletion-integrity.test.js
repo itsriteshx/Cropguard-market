@@ -40,7 +40,7 @@ test('delete listing: succeeds (200) when no active orders or negotiations exist
   const listingId = new mongoose.Types.ObjectId().toString();
 
   const originalFindById = ProduceListing.findById;
-  const originalFindByIdAndDelete = ProduceListing.findByIdAndDelete;
+  const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
   const originalOrderExists = Order.exists;
   const originalNegotiationExists = Negotiation.exists;
 
@@ -51,9 +51,9 @@ test('delete listing: succeeds (200) when no active orders or negotiations exist
       _id: listingId,
       farmer: farmerId
     });
-    ProduceListing.findByIdAndDelete = async (id) => {
-      deletedId = id;
-      return { _id: id };
+    ProduceListing.findOneAndDelete = async (filter) => {
+      deletedId = filter._id;
+      return { _id: filter._id };
     };
     Order.exists = async () => null;
     Negotiation.exists = async () => null;
@@ -69,7 +69,7 @@ test('delete listing: succeeds (200) when no active orders or negotiations exist
     assert.equal(deletedId, listingId);
   } finally {
     ProduceListing.findById = originalFindById;
-    ProduceListing.findByIdAndDelete = originalFindByIdAndDelete;
+    ProduceListing.findOneAndDelete = originalFindOneAndDelete;
     Order.exists = originalOrderExists;
     Negotiation.exists = originalNegotiationExists;
   }
@@ -81,7 +81,7 @@ for (const orderStatus of ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED', '
     const listingId = new mongoose.Types.ObjectId().toString();
 
     const originalFindById = ProduceListing.findById;
-    const originalFindByIdAndDelete = ProduceListing.findByIdAndDelete;
+    const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
     const originalOrderExists = Order.exists;
     const originalNegotiationExists = Negotiation.exists;
 
@@ -90,7 +90,7 @@ for (const orderStatus of ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED', '
         _id: listingId,
         farmer: farmerId
       });
-      ProduceListing.findByIdAndDelete = async () => {
+      ProduceListing.findOneAndDelete = async () => {
         throw new Error('Should not delete listing when order exists');
       };
       Order.exists = async (filter) => {
@@ -109,7 +109,7 @@ for (const orderStatus of ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED', '
       assert.match(res.body.message, /order/i);
     } finally {
       ProduceListing.findById = originalFindById;
-      ProduceListing.findByIdAndDelete = originalFindByIdAndDelete;
+      ProduceListing.findOneAndDelete = originalFindOneAndDelete;
       Order.exists = originalOrderExists;
       Negotiation.exists = originalNegotiationExists;
     }
@@ -121,7 +121,7 @@ test('delete listing: allows deletion (200) when only CANCELLED orders exist', a
   const listingId = new mongoose.Types.ObjectId().toString();
 
   const originalFindById = ProduceListing.findById;
-  const originalFindByIdAndDelete = ProduceListing.findByIdAndDelete;
+  const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
   const originalOrderExists = Order.exists;
   const originalNegotiationExists = Negotiation.exists;
 
@@ -132,7 +132,7 @@ test('delete listing: allows deletion (200) when only CANCELLED orders exist', a
       _id: listingId,
       farmer: farmerId
     });
-    ProduceListing.findByIdAndDelete = async () => {
+    ProduceListing.findOneAndDelete = async () => {
       deleted = true;
       return { _id: listingId };
     };
@@ -152,7 +152,7 @@ test('delete listing: allows deletion (200) when only CANCELLED orders exist', a
     assert.equal(deleted, true);
   } finally {
     ProduceListing.findById = originalFindById;
-    ProduceListing.findByIdAndDelete = originalFindByIdAndDelete;
+    ProduceListing.findOneAndDelete = originalFindOneAndDelete;
     Order.exists = originalOrderExists;
     Negotiation.exists = originalNegotiationExists;
   }
@@ -164,7 +164,7 @@ for (const negStatus of ['OPEN', 'COUNTER_OFFERED']) {
     const listingId = new mongoose.Types.ObjectId().toString();
 
     const originalFindById = ProduceListing.findById;
-    const originalFindByIdAndDelete = ProduceListing.findByIdAndDelete;
+    const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
     const originalOrderExists = Order.exists;
     const originalNegotiationExists = Negotiation.exists;
 
@@ -173,7 +173,7 @@ for (const negStatus of ['OPEN', 'COUNTER_OFFERED']) {
         _id: listingId,
         farmer: farmerId
       });
-      ProduceListing.findByIdAndDelete = async () => {
+      ProduceListing.findOneAndDelete = async () => {
         throw new Error('Should not delete listing when active negotiation exists');
       };
       Order.exists = async () => null;
@@ -189,7 +189,7 @@ for (const negStatus of ['OPEN', 'COUNTER_OFFERED']) {
       assert.match(res.body.message, /negotiation/i);
     } finally {
       ProduceListing.findById = originalFindById;
-      ProduceListing.findByIdAndDelete = originalFindByIdAndDelete;
+      ProduceListing.findOneAndDelete = originalFindOneAndDelete;
       Order.exists = originalOrderExists;
       Negotiation.exists = originalNegotiationExists;
     }
@@ -201,7 +201,7 @@ test('delete listing: blocked (409) when ACCEPTED negotiation without order exis
   const listingId = new mongoose.Types.ObjectId().toString();
 
   const originalFindById = ProduceListing.findById;
-  const originalFindByIdAndDelete = ProduceListing.findByIdAndDelete;
+  const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
   const originalOrderExists = Order.exists;
   const originalNegotiationExists = Negotiation.exists;
 
@@ -210,7 +210,7 @@ test('delete listing: blocked (409) when ACCEPTED negotiation without order exis
       _id: listingId,
       farmer: farmerId
     });
-    ProduceListing.findByIdAndDelete = async () => {
+    ProduceListing.findOneAndDelete = async () => {
       throw new Error('Should not delete listing');
     };
     Order.exists = async () => null;
@@ -230,7 +230,7 @@ test('delete listing: blocked (409) when ACCEPTED negotiation without order exis
     assert.match(res.body.message, /negotiation/i);
   } finally {
     ProduceListing.findById = originalFindById;
-    ProduceListing.findByIdAndDelete = originalFindByIdAndDelete;
+    ProduceListing.findOneAndDelete = originalFindOneAndDelete;
     Order.exists = originalOrderExists;
     Negotiation.exists = originalNegotiationExists;
   }
@@ -241,7 +241,7 @@ test('delete listing: allows deletion (200) when negotiations are EXPIRED or REJ
   const listingId = new mongoose.Types.ObjectId().toString();
 
   const originalFindById = ProduceListing.findById;
-  const originalFindByIdAndDelete = ProduceListing.findByIdAndDelete;
+  const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
   const originalOrderExists = Order.exists;
   const originalNegotiationExists = Negotiation.exists;
 
@@ -252,7 +252,7 @@ test('delete listing: allows deletion (200) when negotiations are EXPIRED or REJ
       _id: listingId,
       farmer: farmerId
     });
-    ProduceListing.findByIdAndDelete = async () => {
+    ProduceListing.findOneAndDelete = async () => {
       deleted = true;
       return { _id: listingId };
     };
@@ -268,7 +268,7 @@ test('delete listing: allows deletion (200) when negotiations are EXPIRED or REJ
     assert.equal(deleted, true);
   } finally {
     ProduceListing.findById = originalFindById;
-    ProduceListing.findByIdAndDelete = originalFindByIdAndDelete;
+    ProduceListing.findOneAndDelete = originalFindOneAndDelete;
     Order.exists = originalOrderExists;
     Negotiation.exists = originalNegotiationExists;
   }
@@ -323,7 +323,7 @@ test('delete listing: allows deletion (200) by ADMIN even if not owner', async (
   const listingId = new mongoose.Types.ObjectId().toString();
 
   const originalFindById = ProduceListing.findById;
-  const originalFindByIdAndDelete = ProduceListing.findByIdAndDelete;
+  const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
   const originalOrderExists = Order.exists;
   const originalNegotiationExists = Negotiation.exists;
 
@@ -334,7 +334,7 @@ test('delete listing: allows deletion (200) by ADMIN even if not owner', async (
       _id: listingId,
       farmer: ownerFarmerId
     });
-    ProduceListing.findByIdAndDelete = async () => {
+    ProduceListing.findOneAndDelete = async () => {
       deleted = true;
       return { _id: listingId };
     };
@@ -350,7 +350,170 @@ test('delete listing: allows deletion (200) by ADMIN even if not owner', async (
     assert.equal(deleted, true);
   } finally {
     ProduceListing.findById = originalFindById;
-    ProduceListing.findByIdAndDelete = originalFindByIdAndDelete;
+    ProduceListing.findOneAndDelete = originalFindOneAndDelete;
+    Order.exists = originalOrderExists;
+    Negotiation.exists = originalNegotiationExists;
+  }
+});
+
+test('models declare referential indexes: Order { listing: 1, orderStatus: 1 } and Negotiation { listing: 1, status: 1 }', () => {
+  const orderIndexes = Order.schema.indexes();
+  const hasOrderListingStatus = orderIndexes.some(
+    ([fields]) => fields.listing === 1 && fields.orderStatus === 1
+  );
+  assert.ok(hasOrderListingStatus, 'Order schema must declare { listing: 1, orderStatus: 1 } index');
+
+  const negIndexes = Negotiation.schema.indexes();
+  const hasNegListingStatus = negIndexes.some(
+    ([fields]) => fields.listing === 1 && fields.status === 1
+  );
+  assert.ok(hasNegListingStatus, 'Negotiation schema must declare { listing: 1, status: 1 } index');
+});
+
+test('delete listing concurrency: two simultaneous delete requests result in exactly one 200 and one 404', async () => {
+  const farmerId = new mongoose.Types.ObjectId();
+  const listingId = new mongoose.Types.ObjectId().toString();
+
+  const originalFindById = ProduceListing.findById;
+  const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
+  const originalOrderExists = Order.exists;
+  const originalNegotiationExists = Negotiation.exists;
+
+  let activeListing = { _id: listingId, farmer: farmerId };
+
+  try {
+    ProduceListing.findById = () => ({
+      session() {
+        return this;
+      },
+      then(resolve) {
+        resolve(activeListing ? { ...activeListing } : null);
+      }
+    });
+
+    Order.exists = () => ({
+      session() {
+        return this;
+      },
+      then(resolve) {
+        resolve(null);
+      }
+    });
+
+    Negotiation.exists = () => ({
+      session() {
+        return this;
+      },
+      then(resolve) {
+        resolve(null);
+      }
+    });
+
+    ProduceListing.findOneAndDelete = () => ({
+      then(resolve) {
+        if (activeListing) {
+          const doc = { ...activeListing };
+          activeListing = null; // Atomically consumed by first caller
+          resolve(doc);
+        } else {
+          resolve(null);
+        }
+      }
+    });
+
+    const results = await Promise.all([
+      callDeleteListing({ listingId, user: { _id: farmerId, role: 'FARMER' } }),
+      callDeleteListing({ listingId, user: { _id: farmerId, role: 'FARMER' } })
+    ]);
+
+    const statuses = results.map((r) => r.status).sort();
+    assert.deepEqual(statuses, [200, 404]);
+    assert.equal(activeListing, null);
+  } finally {
+    ProduceListing.findById = originalFindById;
+    ProduceListing.findOneAndDelete = originalFindOneAndDelete;
+    Order.exists = originalOrderExists;
+    Negotiation.exists = originalNegotiationExists;
+  }
+});
+
+test('delete listing runs inside MongoDB session when session is active', async () => {
+  const farmerId = new mongoose.Types.ObjectId();
+  const listingId = new mongoose.Types.ObjectId().toString();
+
+  const originalStartSession = mongoose.startSession;
+  const originalFindById = ProduceListing.findById;
+  const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
+  const originalOrderExists = Order.exists;
+  const originalNegotiationExists = Negotiation.exists;
+
+  let sessionCreated = false;
+  let transactionCommitted = false;
+  let sessionEnded = false;
+
+  const mockSession = {
+    withTransaction: async (fn) => {
+      await fn();
+      transactionCommitted = true;
+    },
+    endSession: async () => {
+      sessionEnded = true;
+    }
+  };
+
+  try {
+    mongoose.startSession = async () => {
+      sessionCreated = true;
+      return mockSession;
+    };
+    mongoose.startSession.__isMock = true;
+
+    ProduceListing.findById = () => ({
+      session() {
+        return this;
+      },
+      then(resolve) {
+        resolve({ _id: listingId, farmer: farmerId });
+      }
+    });
+
+    Order.exists = () => ({
+      session() {
+        return this;
+      },
+      then(resolve) {
+        resolve(null);
+      }
+    });
+
+    Negotiation.exists = () => ({
+      session() {
+        return this;
+      },
+      then(resolve) {
+        resolve(null);
+      }
+    });
+
+    ProduceListing.findOneAndDelete = () => ({
+      then(resolve) {
+        resolve({ _id: listingId });
+      }
+    });
+
+    const res = await callDeleteListing({
+      listingId,
+      user: { _id: farmerId, role: 'FARMER' }
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(sessionCreated, true);
+    assert.equal(transactionCommitted, true);
+    assert.equal(sessionEnded, true);
+  } finally {
+    mongoose.startSession = originalStartSession;
+    ProduceListing.findById = originalFindById;
+    ProduceListing.findOneAndDelete = originalFindOneAndDelete;
     Order.exists = originalOrderExists;
     Negotiation.exists = originalNegotiationExists;
   }

@@ -380,77 +380,117 @@ const updateListing = async (req, res, next) => {
   }
 };
 
+class ListingError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
 /**
  * @desc    Delete / Cancel a produce listing
  * @route   DELETE /api/listings/:id
  * @access  Private (FARMER or ADMIN)
  */
 const deleteListing = async (req, res, next) => {
+  let session = null;
+  const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
+  const isMocked = mongoose.startSession && mongoose.startSession.__isMock;
+
   try {
-    const listing = await ProduceListing.findById(req.params.id);
-
-    if (!listing) {
-      return res.status(404).json({
-        success: false,
-        message: 'Produce listing not found'
-      });
+    if (isConnected || isMocked) {
+      try {
+        session = await mongoose.startSession();
+      } catch (err) {
+        session = null;
+      }
     }
 
-    // Authorization check
-    if (
-      listing.farmer.toString() !== req.user._id.toString() &&
-      req.user.role !== 'ADMIN'
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this listing'
+    const executeDeletion = async (sess) => {
+      const listingQuery = ProduceListing.findById(req.params.id);
+      if (sess) listingQuery.session(sess);
+      const listing = await listingQuery;
+
+      if (!listing) {
+        throw new ListingError(404, 'Produce listing not found');
+      }
+
+      // Authorization check
+      if (
+        listing.farmer.toString() !== req.user._id.toString() &&
+        req.user.role !== 'ADMIN'
+      ) {
+        throw new ListingError(403, 'Not authorized to delete this listing');
+      }
+
+      // Referential integrity check: active or settled orders
+      const orderQuery = Order.exists({
+        listing: req.params.id,
+        orderStatus: { $in: ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED', 'SETTLED'] }
       });
-    }
+      if (sess) orderQuery.session(sess);
+      const activeOrderExists = await orderQuery;
 
-    // Referential integrity check: active or settled orders
-    const activeOrderExists = await Order.exists({
-      listing: req.params.id,
-      orderStatus: { $in: ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED', 'SETTLED'] }
-    });
+      if (activeOrderExists) {
+        throw new ListingError(409, 'Cannot delete listing with active or settled orders');
+      }
 
-    if (activeOrderExists) {
-      return res.status(409).json({
-        success: false,
-        message: 'Cannot delete listing with active or settled orders'
+      // Referential integrity check: active or unfulfilled accepted negotiations
+      const negQuery = Negotiation.exists({
+        listing: req.params.id,
+        $or: [
+          {
+            status: { $in: ['OPEN', 'COUNTER_OFFERED'] },
+            expiresAt: { $gt: new Date() },
+            order: null
+          },
+          {
+            status: 'ACCEPTED',
+            order: null
+          }
+        ]
       });
-    }
+      if (sess) negQuery.session(sess);
+      const activeNegotiationExists = await negQuery;
 
-    // Referential integrity check: active or unfulfilled accepted negotiations
-    const activeNegotiationExists = await Negotiation.exists({
-      listing: req.params.id,
-      $or: [
-        {
-          status: { $in: ['OPEN', 'COUNTER_OFFERED'] },
-          expiresAt: { $gt: new Date() },
-          order: null
-        },
-        {
-          status: 'ACCEPTED',
-          order: null
-        }
-      ]
-    });
+      if (activeNegotiationExists) {
+        throw new ListingError(409, 'Cannot delete listing with active negotiations');
+      }
 
-    if (activeNegotiationExists) {
-      return res.status(409).json({
-        success: false,
-        message: 'Cannot delete listing with active negotiations'
+      const deleteQuery = sess
+        ? ProduceListing.findOneAndDelete({ _id: req.params.id }, { session: sess })
+        : ProduceListing.findOneAndDelete({ _id: req.params.id });
+      const deleted = await deleteQuery;
+
+      if (!deleted) {
+        throw new ListingError(404, 'Produce listing not found');
+      }
+    };
+
+    if (session && typeof session.withTransaction === 'function') {
+      await session.withTransaction(async () => {
+        await executeDeletion(session);
       });
+    } else {
+      await executeDeletion(null);
     }
-
-    await ProduceListing.findByIdAndDelete(req.params.id);
 
     return res.status(200).json({
       success: true,
       message: 'Produce listing deleted successfully'
     });
   } catch (error) {
+    if (error instanceof ListingError || error.status) {
+      return res.status(error.status).json({
+        success: false,
+        message: error.message
+      });
+    }
     next(error);
+  } finally {
+    if (session && typeof session.endSession === 'function') {
+      await session.endSession();
+    }
   }
 };
 
