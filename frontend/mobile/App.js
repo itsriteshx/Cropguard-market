@@ -142,6 +142,15 @@ function MainApp() {
         </View>
       </View>
 
+      {/* Verification Notice Banner if user profile is unverified */}
+      {user && user.isVerified === false && (
+        <View style={styles.unverifiedBanner}>
+          <Text style={styles.unverifiedBannerText}>
+            ⚠️ Account verification pending. Complete mobile & email verification to access full trading features.
+          </Text>
+        </View>
+      )}
+
       {/* Main Screen Content */}
       <View style={styles.mainContent}>
         {renderActiveScreen()}
@@ -511,5 +520,18 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontWeight: '900',
     fontSize: 13
+  },
+  unverifiedBanner: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f59e0b',
+    paddingVertical: 8,
+    paddingHorizontal: 16
+  },
+  unverifiedBannerText: {
+    color: '#fbbf24',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center'
   }
 });
