@@ -70,7 +70,7 @@ const produceListingSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
-        default: [0, 0]
+        default: undefined,
       },
       village: { type: String, trim: true },
       taluk: { type: String, trim: true },
@@ -97,10 +97,10 @@ produceListingSchema.virtual('expectedPrice').get(function () {
 });
 
 produceListingSchema.virtual('locationName').get(function () {
-  if (this.location && this.location.taluk && this.location.district) {
+  if (this.location?.taluk && this.location?.district) {
     return `${this.location.taluk}, ${this.location.district}`;
   }
-  return this.location?.district || 'Dharwad';
+  return this.location?.district || '';
 });
 
 produceListingSchema.virtual('organicCertified').get(function () {

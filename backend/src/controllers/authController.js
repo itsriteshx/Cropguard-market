@@ -79,10 +79,7 @@ const register = async (req, res, next) => {
       password,
       role: role || 'FARMER',
       languagePreference: languagePreference || 'en',
-      location: location || {
-        type: 'Point',
-        coordinates: [0, 0]
-      }
+      location: location || { type: 'Point' }
     });
 
     // Generate JWT Token

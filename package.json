@@ -14,7 +14,8 @@
     "mobile": "npm --prefix frontend/mobile start",
     "install:backend": "npm --prefix backend install",
     "db:seed": "npm --prefix backend run db:seed",
-    "db:health": "npm --prefix backend run db:health"
+    "db:health": "npm --prefix backend run db:health",
+    "db:migrate-active-negotiations": "npm --prefix backend run db:migrate-active-negotiations"
   },
   "keywords": [
     "agritech",
