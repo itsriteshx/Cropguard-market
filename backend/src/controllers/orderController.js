@@ -305,6 +305,34 @@ const getMyOrders = async (req, res, next) => {
     const { status, role = 'all' } = req.query;
     const userId = req.user._id;
 
+    // Validate and parse pagination parameters
+    let page = 1;
+    let limit = 50;
+
+    if (req.query.page !== undefined) {
+      const pageStr = String(req.query.page).trim();
+      const pageNum = Number(pageStr);
+      if (!/^\d+$/.test(pageStr) || !Number.isInteger(pageNum) || pageNum < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid page number. Page must be a positive integer greater than or equal to 1'
+        });
+      }
+      page = pageNum;
+    }
+
+    if (req.query.limit !== undefined) {
+      const limitStr = String(req.query.limit).trim();
+      const limitNum = Number(limitStr);
+      if (!/^\d+$/.test(limitStr) || !Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid limit. Limit must be a positive integer between 1 and 100'
+        });
+      }
+      limit = limitNum;
+    }
+
     const query = {};
 
     if (req.user.role === 'ADMIN') {
@@ -321,15 +349,27 @@ const getMyOrders = async (req, res, next) => {
       query.orderStatus = status.toUpperCase();
     }
 
-    const orders = await Order.find(query)
-      .populate('buyer', 'name phone location')
-      .populate('farmer', 'name phone location')
-      .populate('listing', 'cropName category expectedPrice pricePerUnit location')
-      .sort('-createdAt');
+    const skip = (page - 1) * limit;
+
+    const [total, orders] = await Promise.all([
+      Order.countDocuments(query),
+      Order.find(query)
+        .populate('buyer', 'name phone location')
+        .populate('farmer', 'name phone location')
+        .populate('listing', 'cropName category expectedPrice pricePerUnit location')
+        .sort('-createdAt')
+        .skip(skip)
+        .limit(limit)
+    ]);
+
+    const pages = total > 0 ? Math.ceil(total / limit) : 0;
 
     return res.status(200).json({
       success: true,
       count: orders.length,
+      total,
+      page,
+      pages,
       orders
     });
   } catch (error) {
