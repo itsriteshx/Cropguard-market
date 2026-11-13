@@ -13,14 +13,8 @@ const initNegotiationSocket = (io) => {
   namespace.use(async (socket, next) => {
     try {
       const decoded = jwt.verify(socket.handshake.auth?.token, getJwtSecret());
-      if (decoded.scope === 'verification_pending') {
-        return next(new Error('Unauthorized: Verification required'));
-      }
       const user = await User.findById(decoded.id).select('-password');
       if (!user) return next(new Error('Unauthorized'));
-      if (user.isVerified === false) {
-        return next(new Error('Unauthorized: Account verification required'));
-      }
       socket.data.user = { id: String(user._id), role: user.role };
       next();
     } catch (error) {

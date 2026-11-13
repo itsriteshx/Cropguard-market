@@ -5,7 +5,6 @@ import { apiRequest, subscribeUnauthorized } from '../config/api';
 import { translations } from '../i18n/translations';
 import { createSessionManager } from '../auth/sessionManager';
 import { syncLanguagePreference } from '../auth/languageSync';
-import * as verificationService from '../auth/verificationService';
 
 const AuthContext = createContext();
 const SESSION_KEY = 'cropguard_session_token';
@@ -91,9 +90,6 @@ export const AuthProvider = ({ children }) => {
       const data = await apiRequest(`/auth/${mode}`, {
         method: 'POST', body: JSON.stringify(fields)
       });
-      if (data.requiresVerification) {
-        return data;
-      }
       if (data.success && data.token && data.user) {
         try {
           await sessionManager.save(data.token);
@@ -109,61 +105,6 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const verifyEmailOtp = async (email, otp, verificationToken) => {
-    setLoading(true);
-    try {
-      const activeToken = verificationToken || token;
-      const res = await verificationService.verifyEmail(apiRequest, { email, otp }, activeToken);
-      if (res.success && res.token && res.isFullyVerified) {
-        try { await sessionManager.save(res.token); } catch (_) {}
-        setToken(res.token);
-        if (res.user) {
-          setUser(res.user);
-          setRole(res.user.role);
-          setLanguageState(res.user.languagePreference || 'en');
-        }
-      }
-      return res;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resendEmailOtp = async (email, verificationToken) => {
-    const activeToken = verificationToken || token;
-    return await verificationService.resendEmailOtp(apiRequest, { email }, activeToken);
-  };
-
-  const verifyPhoneOtp = async (phone, otp, verificationToken) => {
-    setLoading(true);
-    try {
-      const activeToken = verificationToken || token;
-      const res = await verificationService.verifyPhone(apiRequest, { phone, otp }, activeToken);
-      if (res.success && res.token && res.isFullyVerified) {
-        try { await sessionManager.save(res.token); } catch (_) {}
-        setToken(res.token);
-        if (res.user) {
-          setUser(res.user);
-          setRole(res.user.role);
-          setLanguageState(res.user.languagePreference || 'en');
-        }
-      }
-      return res;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resendPhoneOtp = async (phone, verificationToken) => {
-    const activeToken = verificationToken || token;
-    return await verificationService.resendPhoneOtp(apiRequest, { phone }, activeToken);
-  };
-
-  const checkVerificationStatus = async (query = {}, verificationToken) => {
-    const activeToken = verificationToken || token;
-    return await verificationService.getVerificationStatus(apiRequest, query, activeToken);
   };
 
   const logout = async () => {
@@ -218,11 +159,6 @@ export const AuthProvider = ({ children }) => {
         setLanguage,
         toggleLanguage,
         authenticate,
-        verifyEmailOtp,
-        resendEmailOtp,
-        verifyPhoneOtp,
-        resendPhoneOtp,
-        checkVerificationStatus,
         logout,
         loading,
         restoring,

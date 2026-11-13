@@ -83,22 +83,6 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
-    emailVerified: {
-      type: Boolean,
-      default: false
-    },
-    phoneVerified: {
-      type: Boolean,
-      default: false
-    },
-    emailVerifiedAt: {
-      type: Date,
-      default: null
-    },
-    phoneVerifiedAt: {
-      type: Date,
-      default: null
-    },
     avatar: {
       type: String,
       default: ''
@@ -111,52 +95,6 @@ const userSchema = new mongoose.Schema(
 
 // 2dsphere index for geospatial proximity search
 userSchema.index({ 'location.coordinates': '2dsphere' });
-
-// Method: Synchronize verification state & legacy compatibility
-userSchema.methods.syncVerificationState = function () {
-  // Legacy migration / compatibility: If marked isVerified: true (e.g. seeds), ensure flags match
-  if (this.isVerified && !this.phoneVerified) {
-    this.phoneVerified = true;
-    if (!this.phoneVerifiedAt) this.phoneVerifiedAt = new Date();
-    if (this.email && !this.emailVerified) {
-      this.emailVerified = true;
-      if (!this.emailVerifiedAt) this.emailVerifiedAt = new Date();
-    }
-  }
-
-  // Active status sync: account is fully verified if phone is verified AND (no email OR email is verified)
-  if (this.phoneVerified && (!this.email || this.emailVerified)) {
-    this.isVerified = true;
-  } else if (!this.phoneVerified || (this.email && !this.emailVerified)) {
-    // If phone is unverified, or if email was added but remains unverified
-    this.isVerified = false;
-  }
-
-  return this.isVerified;
-};
-
-// Pre-save hook: Synchronize verification state before save
-userSchema.pre('save', function (next) {
-  this.syncVerificationState();
-  next();
-});
-
-// Instance method: Returns breakdown of remaining verification steps
-userSchema.methods.getVerificationStatus = function () {
-  const pending = [];
-  if (!this.phoneVerified) pending.push('phone');
-  if (this.email && !this.emailVerified) pending.push('email');
-
-  return {
-    isVerified: this.isVerified,
-    phoneVerified: this.phoneVerified,
-    emailVerified: this.emailVerified,
-    phoneVerifiedAt: this.phoneVerifiedAt,
-    emailVerifiedAt: this.emailVerifiedAt,
-    pending,
-    hasEmail: Boolean(this.email)
-  };
-};
 
 // Pre-save hook: Hash password with bcrypt before saving
 userSchema.pre('save', async function (next) {

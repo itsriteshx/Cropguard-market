@@ -1,10 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { getJwtSecret } = require('../config/jwtSecret');
-const OTP_CONFIG = require('../config/otpConfig');
 
 /**
- * Protect routes - Verifies JWT Bearer token, enforces verified status, and attaches user to req.user
+ * Protect routes - Verifies JWT Bearer token and attaches user to req.user
  */
 const protect = async (req, res, next) => {
   const authorization = req.headers.authorization || '';
@@ -19,34 +18,9 @@ const protect = async (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Not authorized, invalid or expired token' });
   }
 
-  const isMeEndpoint = (req.originalUrl || req.url || '').split('?')[0].endsWith('/auth/me');
-
-  // Restricted verification tokens cannot access operational endpoints
-  if (decoded.scope === 'verification_pending' && !isMeEndpoint) {
-    return res.status(403).json({
-      success: false,
-      requiresVerification: true,
-      message: 'Account verification pending. Please verify your mobile number and email to access market features.'
-    });
-  }
-
   try {
     req.user = await User.findById(decoded.id).select('-password');
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: 'User belonging to this token no longer exists' });
-    }
-
-    req.user.syncVerificationState();
-
-    // Enforce that active user has completed verification on operational routes
-    if (OTP_CONFIG.REQUIRE_VERIFICATION && !req.user.isVerified && !isMeEndpoint) {
-      return res.status(403).json({
-        success: false,
-        requiresVerification: true,
-        message: 'Account verification required. Please verify your mobile number and email to continue.'
-      });
-    }
-
+    if (!req.user) return res.status(401).json({ success: false, message: 'User belonging to this token no longer exists' });
     return next();
   } catch (error) {
     // Database failures are server errors, not evidence that the token expired.

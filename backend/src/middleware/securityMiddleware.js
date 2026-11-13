@@ -33,18 +33,6 @@ const authLimiter = rateLimit({
   }
 });
 
-// OTP generation & resend rate limiter (Protects against SMS/email bombing & exhaustion attacks)
-const otpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 10 : 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Too many OTP requests from this IP address, please try again after 15 minutes'
-  }
-});
-
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
@@ -122,7 +110,6 @@ module.exports = {
   }),
   apiLimiter,
   authLimiter,
-  otpLimiter,
   shouldSkipApiLimiter,
   sanitizeData,
   sanitizeMiddleware,
