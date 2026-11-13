@@ -100,6 +100,8 @@ test('concurrent update detects version conflict and returns 409', async () => {
     farmer: { ...persisted.farmer },
     timeline: [...persisted.timeline]
   };
+  const orderId = snapshot._id;
+  const buyerId = snapshot.buyer._id;
   const originalFindById = Order.findById;
   const originalFindOneAndUpdate = Order.findOneAndUpdate;
 
@@ -143,7 +145,7 @@ test('concurrent update detects version conflict and returns 409', async () => {
     const callTransition = async () => {
       let status, result;
       await updateOrderStatus(
-        { params: { id: persisted._id }, user: { _id: persisted.buyer._id, role: 'BUYER_RETAIL' }, body: { nextStatus: 'ESCROW_HELD' } },
+        { params: { id: orderId }, user: { _id: buyerId, role: 'BUYER_RETAIL' }, body: { nextStatus: 'ESCROW_HELD' } },
         { status(s) { status = s; return this; }, json(v) { result = v; return this; } },
         e => { throw e; }
       );
@@ -162,6 +164,7 @@ test('concurrent update detects version conflict and returns 409', async () => {
     assert.equal(writeCount, 1);
     assert.equal(persisted.__v, 1);
     assert.equal(persisted.orderStatus, 'ESCROW_HELD');
+    assert.equal(persisted.timeline.length, 1);
   } finally {
     Order.findById = originalFindById;
     Order.findOneAndUpdate = originalFindOneAndUpdate;
