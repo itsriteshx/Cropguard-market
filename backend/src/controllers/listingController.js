@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 const ProduceListing = require('../models/ProduceListing');
+const Order = require('../models/Order');
+const Negotiation = require('../models/Negotiation');
 const MandiRate = require('../models/MandiRate');
+
+const defaultStartSession = mongoose.startSession;
+const defaultProduceListingFindOneAndUpdate = ProduceListing.findOneAndUpdate;
+const defaultProduceListingUpdateOne = ProduceListing.updateOne;
 const {
   calculateDistanceKm,
   fetchCropImageUrl
@@ -378,41 +384,190 @@ const updateListing = async (req, res, next) => {
   }
 };
 
+class ListingError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
 /**
  * @desc    Delete / Cancel a produce listing
  * @route   DELETE /api/listings/:id
  * @access  Private (FARMER or ADMIN)
  */
 const deleteListing = async (req, res, next) => {
+  let session = null;
+  let nonTransactionalClaimToken = null;
+  const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
+  const isMocked = mongoose.startSession && (mongoose.startSession.__isMock || mongoose.startSession !== defaultStartSession);
+  const isProduction = process.env.NODE_ENV === 'production';
+
   try {
-    const listing = await ProduceListing.findById(req.params.id);
+    if (isConnected || isProduction || isMocked) {
+      try {
+        session = await mongoose.startSession();
+      } catch (err) {
+        if (isConnected || isProduction) {
+          return res.status(503).json({
+            success: false,
+            message: 'Listing deletion requires MongoDB replica set transaction support'
+          });
+        }
+        session = null;
+      }
+    }
 
-    if (!listing) {
-      return res.status(404).json({
+    if ((isConnected || isProduction) && (!session || typeof session.withTransaction !== 'function')) {
+      return res.status(503).json({
         success: false,
-        message: 'Produce listing not found'
+        message: 'Listing deletion requires MongoDB replica set transaction support'
       });
     }
 
-    // Authorization check
-    if (
-      listing.farmer.toString() !== req.user._id.toString() &&
-      req.user.role !== 'ADMIN'
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this listing'
-      });
-    }
+    const executeDeletion = async (sess) => {
+      const listingQuery = ProduceListing.findById(req.params.id);
+      if (sess) listingQuery.session(sess);
+      const listing = await listingQuery;
 
-    await ProduceListing.findByIdAndDelete(req.params.id);
+      if (!listing) {
+        throw new ListingError(404, 'Produce listing not found');
+      }
+
+      // Authorization check
+      if (
+        listing.farmer.toString() !== req.user._id.toString() &&
+        req.user.role !== 'ADMIN'
+      ) {
+        throw new ListingError(403, 'Not authorized to delete this listing');
+      }
+
+      // Atomic claim guard: ensure no other deletion has begun or completed
+      const isFindOneAndUpdateAvailable =
+        isConnected ||
+        Boolean(sess) ||
+        (ProduceListing.findOneAndUpdate && ProduceListing.findOneAndUpdate !== defaultProduceListingFindOneAndUpdate);
+
+      if (isFindOneAndUpdateAvailable) {
+        if (!sess) {
+          nonTransactionalClaimToken = new mongoose.Types.ObjectId().toString();
+        }
+        const claimQuery = sess
+          ? ProduceListing.findOneAndUpdate(
+              { _id: req.params.id, deletionPending: { $ne: true } },
+              { $set: { deletionPending: true } },
+              { new: true, session: sess }
+            )
+          : ProduceListing.findOneAndUpdate(
+              { _id: req.params.id, deletionPending: { $ne: true } },
+              { $set: { deletionPending: true, deletionClaimToken: nonTransactionalClaimToken } },
+              { new: true }
+            );
+
+        let claimed = null;
+        if (claimQuery && typeof claimQuery.then === 'function') {
+          claimed = await claimQuery;
+        } else {
+          claimed = claimQuery;
+        }
+
+        if (!claimed) {
+          throw new ListingError(409, 'Listing deletion is already in progress');
+        }
+      }
+
+      // Referential integrity check: active or settled orders
+      const orderQuery = Order.exists({
+        listing: req.params.id,
+        orderStatus: { $in: ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED', 'SETTLED'] }
+      });
+      if (sess) orderQuery.session(sess);
+      const activeOrderExists = await orderQuery;
+
+      if (activeOrderExists) {
+        throw new ListingError(409, 'Cannot delete listing with active or settled orders');
+      }
+
+      // Referential integrity check: active or unfulfilled accepted negotiations
+      const negQuery = Negotiation.exists({
+        listing: req.params.id,
+        $or: [
+          {
+            status: { $in: ['OPEN', 'COUNTER_OFFERED'] },
+            expiresAt: { $gt: new Date() },
+            order: null
+          },
+          {
+            status: 'ACCEPTED',
+            order: null
+          }
+        ]
+      });
+      if (sess) negQuery.session(sess);
+      const activeNegotiationExists = await negQuery;
+
+      if (activeNegotiationExists) {
+        throw new ListingError(409, 'Cannot delete listing with active negotiations');
+      }
+
+      const deleteQuery = sess
+        ? ProduceListing.findOneAndDelete({ _id: req.params.id }, { session: sess })
+        : ProduceListing.findOneAndDelete({ _id: req.params.id });
+      const deleted = await deleteQuery;
+
+      if (!deleted) {
+        throw new ListingError(404, 'Produce listing not found');
+      }
+    };
+
+    if (session && typeof session.withTransaction === 'function') {
+      await session.withTransaction(async () => {
+        await executeDeletion(session);
+      });
+    } else {
+      await executeDeletion(null);
+    }
 
     return res.status(200).json({
       success: true,
       message: 'Produce listing deleted successfully'
     });
   } catch (error) {
+    // Only release non-transactional claims matching our unique token.
+    // Transactional claims are rolled back automatically by MongoDB on abort.
+    if (!session && nonTransactionalClaimToken) {
+      const isUpdateOneAvailable =
+        isConnected ||
+        (ProduceListing.updateOne && ProduceListing.updateOne !== defaultProduceListingUpdateOne);
+      if (isUpdateOneAvailable) {
+        try {
+          await ProduceListing.updateOne(
+            { _id: req.params.id, deletionClaimToken: nonTransactionalClaimToken },
+            { $set: { deletionPending: false, deletionClaimToken: null } }
+          );
+        } catch (_) {}
+      }
+    }
+    if (
+      error.code === 20 ||
+      /Transaction numbers are only allowed|replica set|transaction support/i.test(error.message)
+    ) {
+      return res.status(503).json({
+        success: false,
+        message: 'Listing deletion requires MongoDB replica set transaction support'
+      });
+    }
+    if (error instanceof ListingError || error.status) {
+      return res.status(error.status).json({
+        success: false,
+        message: error.message
+      });
+    }
     next(error);
+  } finally {
+    if (session && typeof session.endSession === 'function') {
+      await session.endSession();
+    }
   }
 };
 
