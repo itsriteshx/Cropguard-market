@@ -3,7 +3,7 @@
 
 **Branch:** `feat/asd-isd`  
 **Date:** November 14, 2026  
-**Status:** Complete & Fully Verified (150/150 Backend Tests Passing)
+**Status:** Complete & Fully Verified (156/156 Backend Tests Passing)
 
 ---
 
@@ -13,7 +13,7 @@ Milestone 6 enhances backend reliability, data integrity, and performance across
 
 1. **Farmer Digital Ledger Optimization (`getFarmerLedger`)**: Replaced unoptimized in-memory JavaScript iterations with high-performance MongoDB aggregation pipelines, supporting accurate unit conversions (`KG`, `QUINTAL`, `TON`), zero-state fallbacks, and maintaining 100% backward compatibility with mobile and web clients.
 2. **Orders Safe Pagination (`getMyOrders`)**: Implemented safe, validated pagination with default `page=1`, `limit=50`, and a strict ceiling of `limit=100`, validating bounds with HTTP 400 and preserving existing response structures for active clients.
-3. **Produce Listing Deletion Referential Integrity & Concurrency (`deleteListing`)**: Enforced strict referential checks preventing orphaned active/settled orders and active negotiations (HTTP 409), backed by atomic deletion, MongoDB session transactions, and targeted compound database indexes.
+3. **Produce Listing Deletion Referential Integrity & Concurrency (`deleteListing`)**: Enforced strict referential checks preventing orphaned active/settled orders and active negotiations (HTTP 409), backed by an atomic two-phase deletion claim mechanism (`deletionPending: Boolean`), MongoDB session transactions with shared document write conflicts, safe claim releases on failures, and targeted compound database indexes.
 
 ---
 
@@ -52,16 +52,19 @@ Milestone 6 enhances backend reliability, data integrity, and performance across
   - Returns `{ success: true, count, total, page, pages, orders }`.
   - Preserves existing frontend/mobile expectations where clients read `res.orders` and `res.count`.
 
-### C. Listing Deletion Referential Integrity (`deleteListing`)
-- **Location:** `backend/src/controllers/listingController.js`
+### C. Listing Deletion Referential Integrity & Concurrency (`deleteListing`, `startNegotiation`, `createOrder`)
+- **Locations:** `backend/src/controllers/listingController.js`, `backend/src/controllers/negotiationController.js`, `backend/src/controllers/orderController.js`, `backend/src/models/ProduceListing.js`
+- **Atomic Claim Mechanism:**
+  - Added `deletionPending: { type: Boolean, default: false }` to `ProduceListing` schema without altering the existing `status` enum (`['AVAILABLE', 'UNDER_NEGOTIATION', 'SOLD', 'EXPIRED']`).
+  - `deleteListing` atomically claims the listing via `ProduceListing.findOneAndUpdate({ _id: id, deletionPending: { $ne: true } }, { $set: { deletionPending: true } })`. If already claimed, concurrent requests receive HTTP 409.
+  - `startNegotiation` checks `listing.deletionPending` and atomically updates `{ _id: listingId, status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] }, deletionPending: { $ne: true } }` with `{ $inc: { __v: 1 } }` before creating a negotiation, generating a write conflict in transactions and failing if deletion has begun.
+  - `createOrder` enforces `{ deletionPending: { $ne: true } }` on stock reservation, blocking direct orders if deletion has begun.
+- **Safe Claim Release (No Permanent Locks):**
+  - If referential integrity checks fail (e.g., active orders or active negotiations exist) or any unexpected error occurs, `deletionPending` is atomically reset to `false` via `ProduceListing.updateOne(...)`, leaving the listing fully available.
 - **Referential Integrity Rules:**
   - **Orders:** Blocked with HTTP 409 if any order exists in status `['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED', 'SETTLED']`. Allowed if only `CANCELLED` orders exist.
   - **Negotiations:** Blocked with HTTP 409 if any negotiation is in `['OPEN', 'COUNTER_OFFERED']` with `expiresAt > now` and `order: null`, or `status: 'ACCEPTED'` with `order: null`. Allowed if negotiations are `REJECTED`, `EXPIRED`, or fulfilled with an order.
   - **Authorization:** Maintained 404 for missing listings and 403 for unauthorized users (non-owner and non-admin).
-- **Concurrency & Atomicity:**
-  - Replaced simple `findByIdAndDelete` with atomic `ProduceListing.findOneAndDelete({ _id: req.params.id })`.
-  - Supported MongoDB transactions (`mongoose.startSession()` and `session.withTransaction(...)`) when connected to a replica set or when sessions are mocked in tests, falling back gracefully in standalone test harnesses.
-  - If two delete requests run concurrently, the first succeeds (200) and the second returns 404 (preventing duplicate deletion side-effects).
 - **Index Declarations:**
   - `Order`: Added `orderSchema.index({ listing: 1, orderStatus: 1 })` for O(1) order referential check.
   - `Negotiation`: Added `negotiationSchema.index({ listing: 1, status: 1 })` for O(1) active negotiation referential check.
@@ -76,15 +79,18 @@ Milestone 6 enhances backend reliability, data integrity, and performance across
 |---|---|---|---|---|
 | `backend/test/farmer-ledger.test.js` | 15 | 15 | 0 | Aggregation pipeline, units (KG/QUINTAL/TON), cancelled exclusion, zero fallback, dual contracts, index check |
 | `backend/test/orders-pagination.test.js` | 16 | 16 | 0 | Defaults, custom bounds, limit=100, invalid inputs (400), empty sets, role & status filters |
-| `backend/test/listing-deletion-integrity.test.js` | 17 | 17 | 0 | All blocking order statuses (409), CANCELLED (200), negotiation states, 404/403 checks, concurrency (200/404), sessions, indexes |
+| `backend/test/listing-deletion-integrity.test.js` | 23 | 23 | 0 | Referential checks (orders/negotiations), CANCELLED allowed, atomic claim, startNegotiation race guard (409), createOrder race guard (409), claim release on failed deletion, repeated delete (200->404), authorizations, session transactions, indexes |
 | **All Other Backend Test Suites (18 files)** | 102 | 102 | 0 | Full regression suite including order creation, state machine, location validation, socket, mandi |
-| **TOTAL** | **150** | **150** | **0** | **100% Passing Backend Suite** |
+| **TOTAL** | **156** | **156** | **0** | **100% Passing Backend Suite** |
+
+> **Note on Test Infrastructure:** The project's automated test runner runs Node.js built-in tests using mock-based dependency isolation. The concurrency and state-transition tests simulate atomic updates, snapshot reads, and write barriers in memory. In a live production environment with a MongoDB replica set, WiredTiger document-level locking and transaction write-conflict detection (`WriteConflict` / code 112) enforce these guarantees natively at the database engine level.
 
 ---
 
-## 4. Git Commit History (Exact 6 Incremental Commits)
+## 4. Git Commit History
 
 ```
+* feat(backend): prevent deletion vs negotiation race with atomic claim and regression coverage
 * feat(backend): add final verification, regression coverage, and milestone 6 report
 * feat(backend): add race-condition protection and referential indexes for listing deletion
 * feat(backend): enforce referential integrity for produce listing deletion

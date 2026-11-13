@@ -47,6 +47,7 @@ const createOrder = async (req, res, next) => {
         unitPrice = Number(listing?.pricePerUnit);
       }
       if (!listing) throw new OrderError(404, 'Produce listing not found');
+      if (listing.deletionPending) throw new OrderError(409, 'Produce listing is currently being deleted or unavailable');
       if (String(listing.farmer) === String(req.user._id)) throw new OrderError(403, 'You cannot order your own produce');
       if (!Number.isFinite(quantity) || quantity < 1 || !Number.isFinite(unitPrice) || unitPrice < 0.1) throw new OrderError(400, 'Enter a valid quantity and price');
       const totalAmount = Math.round(unitPrice * quantity * 100) / 100;
@@ -54,7 +55,7 @@ const createOrder = async (req, res, next) => {
 
       // Reserve conditionally, including legacy UNDER_NEGOTIATION listings.
       const reserved = await ProduceListing.findOneAndUpdate(
-        { _id: listing._id, status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] }, quantity: { $gte: quantity } },
+        { _id: listing._id, status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] }, deletionPending: { $ne: true }, quantity: { $gte: quantity } },
         [{ $set: { quantity: { $subtract: ['$quantity', quantity] }, status: { $cond: [{ $lte: [{ $subtract: ['$quantity', quantity] }, 0] }, 'SOLD', '$status'] } } }],
         { new: true, session }
       );

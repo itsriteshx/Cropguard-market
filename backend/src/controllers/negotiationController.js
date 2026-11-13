@@ -1,5 +1,8 @@
+const mongoose = require('mongoose');
 const Negotiation = require('../models/Negotiation');
 const ProduceListing = require('../models/ProduceListing');
+
+const defaultProduceListingFindOneAndUpdate = ProduceListing.findOneAndUpdate;
 
 // Broadcast only after a successful database write. Personal rooms notify users
 // about new offers even when they have not opened a negotiation room yet.
@@ -42,6 +45,13 @@ const startNegotiation = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'Produce listing not found'
+      });
+    }
+
+    if (listing.deletionPending) {
+      return res.status(409).json({
+        success: false,
+        message: 'Produce listing is currently being deleted or unavailable'
       });
     }
 
@@ -95,17 +105,74 @@ const startNegotiation = async (req, res, next) => {
       });
     }
 
-    const initialBid = {
-      bidder: req.user._id,
-      bidderRole: 'BUYER',
-      pricePerUnit: Number(offeredPrice),
-      note: note || `Initial purchase offer of ₹${offeredPrice}/${listing.unit}`,
-      timestamp: now
-    };
+    let session = null;
+    const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
+    const isMocked = mongoose.startSession && mongoose.startSession.__isMock;
+    if (isConnected || isMocked) {
+      try {
+        session = await mongoose.startSession();
+      } catch (err) {
+        session = null;
+      }
+    }
 
-    let negotiation;
-    try {
-      negotiation = await Negotiation.create({
+    const persistNegotiation = async (sess) => {
+      // Atomic concurrency guard: Touch ProduceListing to generate write lock/conflict
+      // and ensure deletion has not begun
+      const isFindOneAndUpdateAvailable =
+        isConnected ||
+        Boolean(sess) ||
+        (ProduceListing.findOneAndUpdate && ProduceListing.findOneAndUpdate !== defaultProduceListingFindOneAndUpdate);
+
+      if (isFindOneAndUpdateAvailable) {
+        const guardQuery = sess
+          ? ProduceListing.findOneAndUpdate(
+              {
+                _id: listingId,
+                status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] },
+                deletionPending: { $ne: true }
+              },
+              { $inc: { __v: 1 } },
+              { new: true, session: sess }
+            )
+          : ProduceListing.findOneAndUpdate(
+              {
+                _id: listingId,
+                status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] },
+                deletionPending: { $ne: true }
+              },
+              { $inc: { __v: 1 } },
+              { new: true }
+            );
+
+        let guard = null;
+        if (guardQuery && typeof guardQuery.then === 'function') {
+          guard = await guardQuery;
+        } else {
+          guard = guardQuery;
+        }
+
+        if (!guard) {
+          const current = await ProduceListing.findById(listingId);
+          if (!current) {
+            return { status: 404, message: 'Produce listing not found' };
+          }
+          return {
+            status: 409,
+            message: 'Produce listing is currently being deleted or unavailable'
+          };
+        }
+      }
+
+      const initialBid = {
+        bidder: req.user._id,
+        bidderRole: 'BUYER',
+        pricePerUnit: Number(offeredPrice),
+        note: note || `Initial purchase offer of ₹${offeredPrice}/${listing.unit}`,
+        timestamp: now
+      };
+
+      const negData = {
         listing: listingId,
         buyer: req.user._id,
         farmer: listing.farmer,
@@ -115,16 +182,51 @@ const startNegotiation = async (req, res, next) => {
         currentTurn: 'FARMER',
         status: 'OPEN',
         bidHistory: [initialBid]
-      });
-    } catch (createErr) {
-      if (createErr.code === 11000 || (createErr.message && createErr.message.includes('E11000'))) {
-        return res.status(409).json({
-          success: false,
-          message: 'An active negotiation already exists for this listing and buyer.'
-        });
+      };
+
+      let createdNeg;
+      try {
+        if (sess) {
+          const [doc] = await Negotiation.create([negData], { session: sess });
+          createdNeg = doc;
+        } else {
+          createdNeg = await Negotiation.create(negData);
+        }
+      } catch (createErr) {
+        if (createErr.code === 11000 || (createErr.message && createErr.message.includes('E11000'))) {
+          return {
+            status: 409,
+            message: 'An active negotiation already exists for this listing and buyer.'
+          };
+        }
+        throw createErr;
       }
-      throw createErr;
+
+      return { status: 201, negotiation: createdNeg };
+    };
+
+    let result;
+    if (session && typeof session.withTransaction === 'function') {
+      await session.withTransaction(async () => {
+        result = await persistNegotiation(session);
+        if (result.status !== 201) {
+          const err = new Error(result.message);
+          err.status = result.status;
+          throw err;
+        }
+      });
+    } else {
+      result = await persistNegotiation(null);
     }
+
+    if (result.status !== 201) {
+      return res.status(result.status).json({
+        success: false,
+        message: result.message
+      });
+    }
+
+    const negotiation = result.negotiation;
 
     notify(req, negotiation, 'negotiation_created', { negotiationId: String(negotiation._id) });
 

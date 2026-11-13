@@ -5,6 +5,8 @@ const ProduceListing = require('../src/models/ProduceListing');
 const Order = require('../src/models/Order');
 const Negotiation = require('../src/models/Negotiation');
 const { deleteListing } = require('../src/controllers/listingController');
+const { startNegotiation } = require('../src/controllers/negotiationController');
+const { createOrder } = require('../src/controllers/orderController');
 
 const callDeleteListing = async ({
   listingId = new mongoose.Types.ObjectId().toString(),
@@ -31,6 +33,65 @@ const callDeleteListing = async ({
     errorCaught = err;
   };
   await deleteListing(req, res, next);
+  if (errorCaught) throw errorCaught;
+  return { status: statusCode, body: responseData };
+};
+
+const callStartNegotiation = async ({
+  body = {},
+  user = { _id: new mongoose.Types.ObjectId(), role: 'BUYER_RETAIL' }
+} = {}) => {
+  let statusCode = 200;
+  let responseData = null;
+  const req = {
+    body,
+    user,
+    app: { get: () => null }
+  };
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json(data) {
+      responseData = data;
+      return this;
+    }
+  };
+  let errorCaught = null;
+  const next = (err) => {
+    errorCaught = err;
+  };
+  await startNegotiation(req, res, next);
+  if (errorCaught) throw errorCaught;
+  return { status: statusCode, body: responseData };
+};
+
+const callCreateOrder = async ({
+  body = {},
+  user = { _id: new mongoose.Types.ObjectId(), role: 'BUYER_RETAIL' }
+} = {}) => {
+  let statusCode = 200;
+  let responseData = null;
+  const req = {
+    body,
+    user
+  };
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json(data) {
+      responseData = data;
+      return this;
+    }
+  };
+  let errorCaught = null;
+  const next = (err) => {
+    errorCaught = err;
+  };
+  await createOrder(req, res, next);
   if (errorCaught) throw errorCaught;
   return { status: statusCode, body: responseData };
 };
@@ -444,6 +505,7 @@ test('delete listing runs inside MongoDB session when session is active', async 
   const originalStartSession = mongoose.startSession;
   const originalFindById = ProduceListing.findById;
   const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
+  const originalFindOneAndUpdate = ProduceListing.findOneAndUpdate;
   const originalOrderExists = Order.exists;
   const originalNegotiationExists = Negotiation.exists;
 
@@ -474,6 +536,12 @@ test('delete listing runs inside MongoDB session when session is active', async 
       },
       then(resolve) {
         resolve({ _id: listingId, farmer: farmerId });
+      }
+    });
+
+    ProduceListing.findOneAndUpdate = () => ({
+      then(resolve) {
+        resolve({ _id: listingId, deletionPending: true });
       }
     });
 
@@ -514,7 +582,327 @@ test('delete listing runs inside MongoDB session when session is active', async 
     mongoose.startSession = originalStartSession;
     ProduceListing.findById = originalFindById;
     ProduceListing.findOneAndDelete = originalFindOneAndDelete;
+    ProduceListing.findOneAndUpdate = originalFindOneAndUpdate;
     Order.exists = originalOrderExists;
     Negotiation.exists = originalNegotiationExists;
+  }
+});
+
+test('concurrency: startNegotiation cannot create an active negotiation once listing deletion has begun (409)', async () => {
+  const farmerId = new mongoose.Types.ObjectId();
+  const buyerId = new mongoose.Types.ObjectId();
+  const listingId = new mongoose.Types.ObjectId().toString();
+
+  const originalListingFindById = ProduceListing.findById;
+  const originalListingFindOneAndUpdate = ProduceListing.findOneAndUpdate;
+  const originalNegFindOne = Negotiation.findOne;
+  const originalNegUpdateMany = Negotiation.updateMany;
+  const originalNegCreate = Negotiation.create;
+
+  let state = {
+    _id: listingId,
+    farmer: farmerId,
+    cropName: 'Wheat',
+    quantity: 100,
+    unit: 'KG',
+    pricePerUnit: 50,
+    status: 'AVAILABLE',
+    deletionPending: true // Deletion has begun!
+  };
+
+  try {
+    ProduceListing.findById = async () => ({ ...state });
+    ProduceListing.findOneAndUpdate = async (filter, update) => {
+      if (filter.deletionPending?.$ne === true && state.deletionPending) {
+        return null; // Blocked by deletion claim!
+      }
+      return { ...state };
+    };
+    ProduceListing.findOneAndUpdate.__isMock = true;
+
+    Negotiation.updateMany = async () => ({ modifiedCount: 0 });
+    Negotiation.findOne = async () => null;
+    Negotiation.create = async () => {
+      throw new Error('Should not create negotiation on deleting listing');
+    };
+
+    const res = await callStartNegotiation({
+      body: { listingId, offeredPrice: 45, quantity: 10 },
+      user: { _id: buyerId, role: 'BUYER_RETAIL' }
+    });
+
+    assert.equal(res.status, 409);
+    assert.equal(res.body.success, false);
+    assert.match(res.body.message, /deleted|unavailable/i);
+  } finally {
+    ProduceListing.findById = originalListingFindById;
+    ProduceListing.findOneAndUpdate = originalListingFindOneAndUpdate;
+    Negotiation.findOne = originalNegFindOne;
+    Negotiation.updateMany = originalNegUpdateMany;
+    Negotiation.create = originalNegCreate;
+  }
+});
+
+test('concurrency: direct createOrder cannot place an order against a listing whose deletion has begun (409)', async () => {
+  const farmerId = new mongoose.Types.ObjectId();
+  const buyerId = new mongoose.Types.ObjectId();
+  const listingId = new mongoose.Types.ObjectId().toString();
+
+  const originalStartSession = mongoose.startSession;
+  const originalListingFindById = ProduceListing.findById;
+  const originalListingFindOneAndUpdate = ProduceListing.findOneAndUpdate;
+  const originalOrderCreate = Order.create;
+
+  const mockSession = {
+    withTransaction: async (fn) => {
+      await fn();
+    },
+    endSession: async () => {}
+  };
+
+  try {
+    mongoose.startSession = async () => mockSession;
+
+    ProduceListing.findById = () => ({
+      session() {
+        return this;
+      },
+      then(resolve) {
+        resolve({
+          _id: listingId,
+          farmer: farmerId,
+          cropName: 'Wheat',
+          quantity: 100,
+          unit: 'KG',
+          pricePerUnit: 50,
+          status: 'AVAILABLE',
+          deletionPending: true // Deletion in progress
+        });
+      }
+    });
+
+    ProduceListing.findOneAndUpdate = async (filter) => {
+      // Stock reservation check ensures deletionPending !== true
+      if (filter.deletionPending?.$ne === true) {
+        return null;
+      }
+      return { _id: listingId };
+    };
+
+    Order.create = async () => {
+      throw new Error('Should not create order on deleting listing');
+    };
+
+    const res = await callCreateOrder({
+      body: { listingId, quantity: 10 },
+      user: { _id: buyerId, role: 'BUYER_RETAIL' }
+    });
+
+    assert.equal(res.status, 409);
+    assert.equal(res.body.success, false);
+    assert.match(res.body.message, /deleted|unavailable/i);
+  } finally {
+    mongoose.startSession = originalStartSession;
+    ProduceListing.findById = originalListingFindById;
+    ProduceListing.findOneAndUpdate = originalListingFindOneAndUpdate;
+    Order.create = originalOrderCreate;
+  }
+});
+
+test('concurrency: failed deletion (due to active order) releases deletionPending claim so listing is not locked', async () => {
+  const farmerId = new mongoose.Types.ObjectId();
+  const listingId = new mongoose.Types.ObjectId().toString();
+
+  const originalFindById = ProduceListing.findById;
+  const originalFindOneAndUpdate = ProduceListing.findOneAndUpdate;
+  const originalUpdateOne = ProduceListing.updateOne;
+  const originalOrderExists = Order.exists;
+  const originalNegotiationExists = Negotiation.exists;
+
+  let state = {
+    _id: listingId,
+    farmer: farmerId,
+    deletionPending: false
+  };
+
+  let claimReleased = false;
+
+  try {
+    ProduceListing.findById = async () => ({ ...state });
+    ProduceListing.findOneAndUpdate = async (filter, update) => {
+      if (filter.deletionPending?.$ne === true && !state.deletionPending) {
+        state.deletionPending = true; // Claim acquired
+        return { ...state };
+      }
+      return null;
+    };
+    ProduceListing.findOneAndUpdate.__isMock = true;
+
+    ProduceListing.updateOne = async (filter, update) => {
+      if (update.$set?.deletionPending === false) {
+        state.deletionPending = false;
+        claimReleased = true;
+      }
+      return { modifiedCount: 1 };
+    };
+    ProduceListing.updateOne.__isMock = true;
+
+    // Active order exists!
+    Order.exists = async () => ({ _id: new mongoose.Types.ObjectId() });
+    Negotiation.exists = async () => null;
+
+    const res = await callDeleteListing({
+      listingId,
+      user: { _id: farmerId, role: 'FARMER' }
+    });
+
+    assert.equal(res.status, 409);
+    assert.equal(res.body.success, false);
+    assert.match(res.body.message, /order/i);
+    assert.equal(claimReleased, true);
+    assert.equal(state.deletionPending, false); // Fully unlocked!
+  } finally {
+    ProduceListing.findById = originalFindById;
+    ProduceListing.findOneAndUpdate = originalFindOneAndUpdate;
+    ProduceListing.updateOne = originalUpdateOne;
+    Order.exists = originalOrderExists;
+    Negotiation.exists = originalNegotiationExists;
+  }
+});
+
+test('concurrency: failed negotiation creation does not lock the listing', async () => {
+  const farmerId = new mongoose.Types.ObjectId();
+  const buyerId = new mongoose.Types.ObjectId();
+  const listingId = new mongoose.Types.ObjectId().toString();
+
+  const originalListingFindById = ProduceListing.findById;
+  const originalListingFindOneAndUpdate = ProduceListing.findOneAndUpdate;
+  const originalNegFindOne = Negotiation.findOne;
+  const originalNegUpdateMany = Negotiation.updateMany;
+  const originalNegCreate = Negotiation.create;
+
+  let state = {
+    _id: listingId,
+    farmer: farmerId,
+    quantity: 100,
+    pricePerUnit: 50,
+    status: 'AVAILABLE',
+    deletionPending: false
+  };
+
+  try {
+    ProduceListing.findById = async () => ({ ...state });
+    ProduceListing.findOneAndUpdate = async () => ({ ...state });
+    ProduceListing.findOneAndUpdate.__isMock = true;
+
+    Negotiation.updateMany = async () => ({ modifiedCount: 0 });
+    Negotiation.findOne = async () => null;
+
+    // Simulate database duplicate error
+    Negotiation.create = async () => {
+      const err = new Error('E11000 duplicate key error');
+      err.code = 11000;
+      throw err;
+    };
+
+    const res = await callStartNegotiation({
+      body: { listingId, offeredPrice: 45, quantity: 10 },
+      user: { _id: buyerId, role: 'BUYER_RETAIL' }
+    });
+
+    assert.equal(res.status, 409);
+    assert.equal(state.deletionPending, false);
+    assert.equal(state.status, 'AVAILABLE');
+  } finally {
+    ProduceListing.findById = originalListingFindById;
+    ProduceListing.findOneAndUpdate = originalListingFindOneAndUpdate;
+    Negotiation.findOne = originalNegFindOne;
+    Negotiation.updateMany = originalNegUpdateMany;
+    Negotiation.create = originalNegCreate;
+  }
+});
+
+test('concurrency: repeated deletion requests handle state safely (200, then 404)', async () => {
+  const farmerId = new mongoose.Types.ObjectId();
+  const listingId = new mongoose.Types.ObjectId().toString();
+
+  const originalFindById = ProduceListing.findById;
+  const originalFindOneAndDelete = ProduceListing.findOneAndDelete;
+  const originalFindOneAndUpdate = ProduceListing.findOneAndUpdate;
+  const originalOrderExists = Order.exists;
+  const originalNegotiationExists = Negotiation.exists;
+
+  let state = {
+    _id: listingId,
+    farmer: farmerId,
+    deletionPending: false
+  };
+
+  try {
+    ProduceListing.findById = async () => (state ? { ...state } : null);
+    ProduceListing.findOneAndUpdate = async () => {
+      if (!state) return null;
+      state.deletionPending = true;
+      return { ...state };
+    };
+    ProduceListing.findOneAndDelete = async () => {
+      if (!state) return null;
+      const doc = { ...state };
+      state = null; // deleted!
+      return doc;
+    };
+    Order.exists = async () => null;
+    Negotiation.exists = async () => null;
+
+    // First deletion succeeds
+    const firstRes = await callDeleteListing({
+      listingId,
+      user: { _id: farmerId, role: 'FARMER' }
+    });
+    assert.equal(firstRes.status, 200);
+    assert.equal(state, null);
+
+    // Second deletion of already deleted listing returns 404
+    const secondRes = await callDeleteListing({
+      listingId,
+      user: { _id: farmerId, role: 'FARMER' }
+    });
+    assert.equal(secondRes.status, 404);
+  } finally {
+    ProduceListing.findById = originalFindById;
+    ProduceListing.findOneAndDelete = originalFindOneAndDelete;
+    ProduceListing.findOneAndUpdate = originalFindOneAndUpdate;
+    Order.exists = originalOrderExists;
+    Negotiation.exists = originalNegotiationExists;
+  }
+});
+
+test('authorization: non-owner buyer and non-owner farmer cannot delete listing (403)', async () => {
+  const ownerFarmerId = new mongoose.Types.ObjectId();
+  const otherFarmerId = new mongoose.Types.ObjectId();
+  const buyerId = new mongoose.Types.ObjectId();
+  const listingId = new mongoose.Types.ObjectId().toString();
+
+  const originalFindById = ProduceListing.findById;
+
+  try {
+    ProduceListing.findById = async () => ({
+      _id: listingId,
+      farmer: ownerFarmerId
+    });
+
+    const buyerRes = await callDeleteListing({
+      listingId,
+      user: { _id: buyerId, role: 'BUYER_RETAIL' }
+    });
+    assert.equal(buyerRes.status, 403);
+
+    const otherFarmerRes = await callDeleteListing({
+      listingId,
+      user: { _id: otherFarmerId, role: 'FARMER' }
+    });
+    assert.equal(otherFarmerRes.status, 403);
+  } finally {
+    ProduceListing.findById = originalFindById;
   }
 });

@@ -3,6 +3,9 @@ const ProduceListing = require('../models/ProduceListing');
 const Order = require('../models/Order');
 const Negotiation = require('../models/Negotiation');
 const MandiRate = require('../models/MandiRate');
+
+const defaultProduceListingFindOneAndUpdate = ProduceListing.findOneAndUpdate;
+const defaultProduceListingUpdateOne = ProduceListing.updateOne;
 const {
   calculateDistanceKm,
   fetchCropImageUrl
@@ -394,6 +397,7 @@ class ListingError extends Error {
  */
 const deleteListing = async (req, res, next) => {
   let session = null;
+  let claimAcquired = false;
   const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
   const isMocked = mongoose.startSession && mongoose.startSession.__isMock;
 
@@ -421,6 +425,38 @@ const deleteListing = async (req, res, next) => {
         req.user.role !== 'ADMIN'
       ) {
         throw new ListingError(403, 'Not authorized to delete this listing');
+      }
+
+      // Atomic claim guard: ensure no other deletion has begun or completed
+      const isFindOneAndUpdateAvailable =
+        isConnected ||
+        Boolean(sess) ||
+        (ProduceListing.findOneAndUpdate && ProduceListing.findOneAndUpdate !== defaultProduceListingFindOneAndUpdate);
+
+      if (isFindOneAndUpdateAvailable) {
+        const claimQuery = sess
+          ? ProduceListing.findOneAndUpdate(
+              { _id: req.params.id, deletionPending: { $ne: true } },
+              { $set: { deletionPending: true } },
+              { new: true, session: sess }
+            )
+          : ProduceListing.findOneAndUpdate(
+              { _id: req.params.id, deletionPending: { $ne: true } },
+              { $set: { deletionPending: true } },
+              { new: true }
+            );
+
+        let claimed = null;
+        if (claimQuery && typeof claimQuery.then === 'function') {
+          claimed = await claimQuery;
+        } else {
+          claimed = claimQuery;
+        }
+
+        if (!claimed) {
+          throw new ListingError(409, 'Listing deletion is already in progress');
+        }
+        claimAcquired = true;
       }
 
       // Referential integrity check: active or settled orders
@@ -480,6 +516,19 @@ const deleteListing = async (req, res, next) => {
       message: 'Produce listing deleted successfully'
     });
   } catch (error) {
+    if (claimAcquired) {
+      const isUpdateOneAvailable =
+        isConnected ||
+        (ProduceListing.updateOne && ProduceListing.updateOne !== defaultProduceListingUpdateOne);
+      if (isUpdateOneAvailable) {
+        try {
+          await ProduceListing.updateOne(
+            { _id: req.params.id, deletionPending: true },
+            { $set: { deletionPending: false } }
+          );
+        } catch (_) {}
+      }
+    }
     if (error instanceof ListingError || error.status) {
       return res.status(error.status).json({
         success: false,

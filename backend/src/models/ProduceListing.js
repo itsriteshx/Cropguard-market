@@ -82,6 +82,10 @@ const produceListingSchema = new mongoose.Schema(
       type: String,
       enum: ['AVAILABLE', 'UNDER_NEGOTIATION', 'SOLD', 'EXPIRED'],
       default: 'AVAILABLE'
+    },
+    deletionPending: {
+      type: Boolean,
+      default: false
     }
   },
   {
