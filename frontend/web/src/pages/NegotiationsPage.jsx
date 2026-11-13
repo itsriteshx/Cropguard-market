@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { assistantService, negotiationsService, ordersService } from '../services/api';
 import { connectNegotiationSocket } from '../services/socket';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, WEB_LANGUAGES } from '../context/AuthContext';
 import {
   MessageSquare,
   CheckCircle2,
@@ -16,7 +16,19 @@ import {
   Volume2,
   Sparkles,
   IndianRupee,
+  Trash2,
 } from 'lucide-react';
+
+const VOICE_LOCALE_BY_CODE = {
+  en: 'en-IN',
+  hi: 'hi-IN',
+  kn: 'kn-IN',
+  mr: 'mr-IN',
+  te: 'te-IN',
+  ta: 'ta-IN',
+  gu: 'gu-IN',
+  pa: 'pa-IN',
+};
 
 const FARMER_QUICK_CHATS = [
   'Fresh Grade-A harvest ready for dispatch',
@@ -33,7 +45,7 @@ const BUYER_QUICK_CHATS = [
 ];
 
 export default function NegotiationsPage({ onNavigateToOrders }) {
-  const { currentUser, token } = useAuth();
+  const { currentUser, token, language } = useAuth();
   const isFarmer = currentUser?.role === 'FARMER';
   const myTurnRole = isFarmer ? 'FARMER' : 'BUYER';
 
@@ -53,7 +65,8 @@ export default function NegotiationsPage({ onNavigateToOrders }) {
   const [chatText, setChatText] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
   const [dictating, setDictating] = useState(false);
-  const [voiceLang, setVoiceLang] = useState('en-IN');
+  const [voiceCode, setVoiceCode] = useState(language || 'en');
+  const voiceLang = VOICE_LOCALE_BY_CODE[voiceCode] || 'en-IN';
 
   // Typing & presence & AI tip state
   const [onlineByRoom, setOnlineByRoom] = useState({});
@@ -143,6 +156,25 @@ export default function NegotiationsPage({ onNavigateToOrders }) {
       );
     };
 
+    const handleChatDeleted = (data) => {
+      if (!data?.negotiationId) return;
+      setNegotiations((prev) =>
+        prev.map((item) => {
+          if (item._id !== data.negotiationId) return item;
+          const nextMessages = Array.isArray(data.messages)
+            ? data.messages
+            : (item.messages || []).filter((m) => String(m._id) !== String(data.messageId));
+          return { ...item, messages: nextMessages };
+        })
+      );
+    };
+
+    const handleNegotiationDeleted = (data) => {
+      if (!data?.negotiationId) return;
+      setNegotiations((prev) => prev.filter((item) => item._id !== data.negotiationId));
+      setSelectedId((prev) => (prev === data.negotiationId ? null : prev));
+    };
+
     const handleDealLocked = (data) => {
       const id = data?.dealSummary?.negotiationId;
       if (!id) return refresh();
@@ -188,6 +220,8 @@ export default function NegotiationsPage({ onNavigateToOrders }) {
     socket.on('negotiation_created', refresh);
     socket.on('counter_offer_received', handleCounter);
     socket.on('chat_message_received', handleChatMessage);
+    socket.on('chat_message_deleted', handleChatDeleted);
+    socket.on('negotiation_deleted', handleNegotiationDeleted);
     socket.on('deal_locked', handleDealLocked);
     socket.on('deal_rejected', handleDealRejected);
     socket.on('participant_status', handlePresence);
@@ -199,6 +233,8 @@ export default function NegotiationsPage({ onNavigateToOrders }) {
       socket.off('negotiation_created', refresh);
       socket.off('counter_offer_received', handleCounter);
       socket.off('chat_message_received', handleChatMessage);
+      socket.off('chat_message_deleted', handleChatDeleted);
+      socket.off('negotiation_deleted', handleNegotiationDeleted);
       socket.off('deal_locked', handleDealLocked);
       socket.off('deal_rejected', handleDealRejected);
       socket.off('participant_status', handlePresence);
@@ -240,6 +276,7 @@ export default function NegotiationsPage({ onNavigateToOrders }) {
     const msgs = (activeNeg.messages || []).map((m, idx) => ({
       kind: 'CHAT',
       key: `msg-${m._id || idx}-${m.timestamp || ''}`,
+      messageId: m._id || null,
       role: m.senderRole,
       senderName: m.senderName,
       text: m.text,
@@ -313,6 +350,37 @@ export default function NegotiationsPage({ onNavigateToOrders }) {
       setActionError(err.response?.data?.message || 'Unable to send chat message.');
     } finally {
       setSendingChat(false);
+    }
+  };
+
+  const handleDeleteChatMessage = async (messageId) => {
+    if (!activeNeg || !messageId) return;
+    setActionError('');
+    try {
+      const res = await negotiationsService.deleteMessage(activeNeg._id, messageId);
+      if (res?.success && Array.isArray(res.messages)) {
+        setNegotiations((prev) =>
+          prev.map((item) =>
+            item._id === activeNeg._id ? { ...item, messages: res.messages } : item
+          )
+        );
+      }
+    } catch (err) {
+      setActionError(err.response?.data?.message || 'Could not delete chat message.');
+    }
+  };
+
+  const handleDeleteClosedRoom = async (negId) => {
+    if (!negId) return;
+    setActionError('');
+    try {
+      const res = await negotiationsService.remove(negId);
+      if (res?.success) {
+        setNegotiations((prev) => prev.filter((item) => item._id !== negId));
+        setSelectedId((prev) => (prev === negId ? null : prev));
+      }
+    } catch (err) {
+      setActionError(err.response?.data?.message || 'Could not delete closed negotiation.');
     }
   };
 
@@ -517,15 +585,22 @@ export default function NegotiationsPage({ onNavigateToOrders }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setVoiceLang((prev) => (prev === 'en-IN' ? 'hi-IN' : 'en-IN'))}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-300 hover:text-white"
-            title="Switch Voice Input/Read Language"
-          >
-            Voice: {voiceLang === 'hi-IN' ? 'HI' : 'EN'}
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700">
+            <span className="text-[11px] text-slate-400 font-semibold">Voice Language:</span>
+            <select
+              value={voiceCode}
+              onChange={(e) => setVoiceCode(e.target.value)}
+              className="bg-transparent text-[11px] font-bold text-emerald-300 outline-none cursor-pointer"
+              aria-label="Voice Dictation Language"
+            >
+              {WEB_LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code} className="bg-slate-900 text-white">
+                  {l.flag} {l.nativeName}
+                </option>
+              ))}
+            </select>
+          </div>
           <span
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${
               socketConnected
@@ -745,14 +820,27 @@ export default function NegotiationsPage({ onNavigateToOrders }) {
                         <span className="font-bold uppercase">
                           {entry.senderName || entry.role} {entry.isVoice ? '🎙️ Voice' : ''}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => speakMessage(entry.text)}
-                          className="text-sky-300 hover:text-white inline-flex items-center gap-0.5"
-                          title="Read message aloud"
-                        >
-                          <Volume2 className="w-3 h-3" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => speakMessage(entry.text)}
+                            className="text-sky-300 hover:text-white inline-flex items-center gap-0.5"
+                            title="Read message aloud"
+                          >
+                            <Volume2 className="w-3 h-3" />
+                          </button>
+                          {mine && entry.messageId && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteChatMessage(entry.messageId)}
+                              className="text-slate-400 hover:text-red-400 inline-flex items-center"
+                              title="Delete my message"
+                              aria-label="Delete message"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <p className="text-slate-100 leading-relaxed">{entry.text}</p>
                       <div className="text-[10px] text-slate-500 mt-1">
@@ -943,8 +1031,17 @@ export default function NegotiationsPage({ onNavigateToOrders }) {
                   </div>
                 )
               ) : (
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400">
-                  This negotiation is closed ({activeNeg.status}).
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3 text-xs text-slate-400">
+                  <span>This negotiation is closed ({activeNeg.status}).</span>
+                  {!activeNeg.order && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteClosedRoom(activeNeg._id)}
+                      className="px-3 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/60 border border-red-800 text-red-300 font-bold text-[11px] flex items-center gap-1 shrink-0"
+                    >
+                      <Trash2 className="w-3 h-3" /> Delete Closed Chat
+                    </button>
+                  )}
                 </div>
               )}
             </div>

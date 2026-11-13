@@ -5,6 +5,7 @@ const {
   syncAgmarknetRatesToDb,
   upsertRecordsToDb,
   attachCropImagesToRates,
+  fetchCropImageUrl,
   fetchDistrictWeather,
   fetchPincodeInfo
 } = require('../services/externalApiService');
@@ -367,10 +368,12 @@ const getBenchmarkForCrop = async (req, res, next) => {
       });
     }
 
-    // 1 Quintal = 100 Kilograms
-    const modalPerKg = Math.round((benchmark.modalPrice / 100) * 10) / 10;
-    const minPerKg = Math.round((benchmark.minPrice / 100) * 10) / 10;
-    const maxPerKg = Math.round((benchmark.maxPrice / 100) * 10) / 10;
+    const kgPerUnit = { KG: 1, QUINTAL: 100, TON: 1000 }[String(benchmark.unit || 'QUINTAL').toUpperCase()];
+    if (!kgPerUnit) return res.status(422).json({ success: false, message: 'Mandi rate has an unsupported price unit' });
+    const perKg = (value) => Math.round((Number(value) / kgPerUnit) * 10000) / 10000;
+    const modalPerKg = perKg(benchmark.modalPrice);
+    const minPerKg = perKg(benchmark.minPrice);
+    const maxPerKg = perKg(benchmark.maxPrice);
 
     return res.status(200).json({
       success: true,
@@ -379,9 +382,9 @@ const getBenchmarkForCrop = async (req, res, next) => {
       district: benchmark.district,
       state: benchmark.state,
       apmcRates: {
-        modalPricePerQuintal: benchmark.modalPrice,
-        minPricePerQuintal: benchmark.minPrice,
-        maxPricePerQuintal: benchmark.maxPrice,
+        modalPricePerQuintal: Math.round(modalPerKg * 10000) / 100,
+        minPricePerQuintal: Math.round(minPerKg * 10000) / 100,
+        maxPricePerQuintal: Math.round(maxPerKg * 10000) / 100,
         unit: benchmark.unit,
         priceDate: benchmark.priceDate
       },
@@ -390,7 +393,7 @@ const getBenchmarkForCrop = async (req, res, next) => {
         minimumAcceptablePerKg: minPerKg,
         maximumMarketPerKg: maxPerKg,
         recommendedAskingPrice: modalPerKg,
-        antiExploitationNotice: `Market average in ${benchmark.district} is ₹${modalPerKg}/kg. Do not accept buyer offers below ₹${minPerKg}/kg.`
+        antiExploitationNotice: `Market average in ${benchmark.district} is ₹${modalPerKg}/kg. Rates are a market reference; review the date and market before deciding.`
       }
     });
   } catch (error) {
@@ -600,11 +603,85 @@ const getMandiMarketComparison = async (req, res, next) => {
 
 
 
+const ALLOWED_IMAGE_HOSTS = new Set(['thumb.wikimedia.org', 'upload.wikimedia.org']);
+const IMAGE_PROXY_TTL_MS = 24 * 60 * 60 * 1000;
+const imageProxyCache = new Map();
+
+/**
+ * Proxies allowlisted Wikimedia crop thumbnails so mobile clients never receive 403 from OkHttp User-Agent checks.
+ * Supports ?url=<wikimedia_https_url> or ?crop=<crop_name>.
+ */
+const getCropImageProxy = async (req, res) => {
+  try {
+    let targetUrl = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+    const cropQuery = typeof req.query.crop === 'string' ? req.query.crop.trim() : '';
+
+    if (!targetUrl && cropQuery) {
+      targetUrl = (await fetchCropImageUrl(cropQuery)) || '';
+    }
+
+    if (!targetUrl) {
+      return res.status(404).json({ success: false, message: 'Crop image unavailable' });
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(targetUrl);
+    } catch {
+      return res.status(400).json({ success: false, message: 'Invalid image URL' });
+    }
+
+    if (parsed.protocol !== 'https:' || !ALLOWED_IMAGE_HOSTS.has(parsed.hostname.toLowerCase())) {
+      return res.status(400).json({ success: false, message: 'Unsupported image host' });
+    }
+
+    const cached = imageProxyCache.get(targetUrl);
+    if (cached && Date.now() - cached.timestamp < IMAGE_PROXY_TTL_MS) {
+      res.set('Content-Type', cached.contentType);
+      res.set('Cache-Control', 'public, max-age=86400');
+      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+      return res.status(200).send(cached.buffer);
+    }
+
+    const upstream = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'CropGuardMarket/1.0 (https://cropguard-market.onrender.com)',
+        Accept: 'image/*'
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (!upstream.ok) {
+      return res.status(502).json({ success: false, message: `Upstream image HTTP ${upstream.status}` });
+    }
+
+    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.toLowerCase().startsWith('image/')) {
+      return res.status(502).json({ success: false, message: 'Upstream response is not an image' });
+    }
+
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    if (imageProxyCache.size >= 150) {
+      const oldestKey = imageProxyCache.keys().next().value;
+      imageProxyCache.delete(oldestKey);
+    }
+    imageProxyCache.set(targetUrl, { buffer, contentType, timestamp: Date.now() });
+
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    return res.status(200).send(buffer);
+  } catch (error) {
+    return res.status(502).json({ success: false, message: error.message || 'Image fetch failed' });
+  }
+};
+
 module.exports = {
   getMandiRates,
   getLiveAgmarknetRates,
   getDistrictWeather,
   lookupPincode,
+  getCropImageProxy,
   getBenchmarkForCrop,
   getMandiAnalytics,
   getMandiPriceTrends,

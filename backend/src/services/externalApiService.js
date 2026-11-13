@@ -340,8 +340,88 @@ function interpretWeatherCode(code) {
   return { label: 'Moderate Weather', advisory: 'Standard APMC handling recommended.' };
 }
 
+const FALLBACK_INDIAN_DISTRICTS = {
+  dharwad: { latitude: 15.4589, longitude: 75.0078, name: 'Dharwad', state: 'Karnataka' },
+  hubballi: { latitude: 15.3647, longitude: 75.124, name: 'Hubballi', state: 'Karnataka' },
+  hubli: { latitude: 15.3647, longitude: 75.124, name: 'Hubballi', state: 'Karnataka' },
+  pune: { latitude: 18.5204, longitude: 73.8567, name: 'Pune', state: 'Maharashtra' },
+  nashik: { latitude: 19.9975, longitude: 73.7898, name: 'Nashik', state: 'Maharashtra' },
+  nagpur: { latitude: 21.1458, longitude: 79.0882, name: 'Nagpur', state: 'Maharashtra' },
+  bengaluru: { latitude: 12.9716, longitude: 77.5946, name: 'Bengaluru', state: 'Karnataka' },
+  bangalore: { latitude: 12.9716, longitude: 77.5946, name: 'Bengaluru', state: 'Karnataka' },
+  belagavi: { latitude: 15.8497, longitude: 74.4977, name: 'Belagavi', state: 'Karnataka' },
+  belgaum: { latitude: 15.8497, longitude: 74.4977, name: 'Belagavi', state: 'Karnataka' },
+  indore: { latitude: 22.7196, longitude: 75.8577, name: 'Indore', state: 'Madhya Pradesh' },
+  ludhiana: { latitude: 30.901, longitude: 75.8573, name: 'Ludhiana', state: 'Punjab' },
+  agra: { latitude: 27.1767, longitude: 78.0081, name: 'Agra', state: 'Uttar Pradesh' },
+  jaipur: { latitude: 26.9124, longitude: 75.7873, name: 'Jaipur', state: 'Rajasthan' },
+  surat: { latitude: 21.1702, longitude: 72.8311, name: 'Surat', state: 'Gujarat' },
+  rajkot: { latitude: 22.3039, longitude: 70.8022, name: 'Rajkot', state: 'Gujarat' },
+  hyderabad: { latitude: 17.385, longitude: 78.4867, name: 'Hyderabad', state: 'Telangana' },
+  coimbatore: { latitude: 11.0168, longitude: 76.9558, name: 'Coimbatore', state: 'Tamil Nadu' },
+  guntur: { latitude: 16.3067, longitude: 80.4365, name: 'Guntur', state: 'Andhra Pradesh' },
+  patna: { latitude: 25.5941, longitude: 85.1376, name: 'Patna', state: 'Bihar' },
+  kolkata: { latitude: 22.5726, longitude: 88.3639, name: 'Kolkata', state: 'West Bengal' },
+  mumbai: { latitude: 19.076, longitude: 72.8777, name: 'Mumbai', state: 'Maharashtra' },
+  delhi: { latitude: 28.6139, longitude: 77.209, name: 'Delhi', state: 'Delhi' },
+  haveri: { latitude: 14.7951, longitude: 75.3991, name: 'Haveri', state: 'Karnataka' },
+  gadag: { latitude: 15.4319, longitude: 75.6355, name: 'Gadag', state: 'Karnataka' }
+};
+
+function interpretWttrCondition(desc = '') {
+  const lower = String(desc).toLowerCase();
+  if (/thunder|storm/.test(lower)) return interpretWeatherCode(95);
+  if (/rain|shower|drizzle/.test(lower)) return interpretWeatherCode(61);
+  if (/fog|mist|haze/.test(lower)) return interpretWeatherCode(45);
+  if (/cloud|overcast/.test(lower)) return interpretWeatherCode(2);
+  if (/clear|sun/.test(lower)) return interpretWeatherCode(0);
+  return { label: desc.trim() || 'Moderate Weather', advisory: 'Standard APMC handling recommended.' };
+}
+
+async function fetchWttrBackupWeather(districtName, fallbackState, lat, lon) {
+  const queryLoc = districtName ? `${districtName},India` : `${lat},${lon}`;
+  const res = await fetch(`https://wttr.in/${encodeURIComponent(queryLoc)}?format=j1`, {
+    headers: { 'User-Agent': 'CropGuardMarket/1.0' },
+    signal: AbortSignal.timeout(7000)
+  });
+  if (!res.ok) throw new Error(`Backup weather API responded with HTTP ${res.status}`);
+  const data = await res.json();
+  const current = data.current_condition?.[0];
+  if (!current) throw new Error('Backup weather payload unavailable');
+
+  const desc = current.weatherDesc?.[0]?.value || 'Partly Cloudy';
+  const interpreted = interpretWttrCondition(desc);
+  const forecast = Array.isArray(data.weather)
+    ? data.weather.slice(0, 4).map((day) => ({
+        date: day.date,
+        maxC: day.maxtempC != null ? Number(day.maxtempC) : null,
+        minC: day.mintempC != null ? Number(day.mintempC) : null,
+        rainChancePct: day.hourly?.[4]?.chanceofrain != null ? Number(day.hourly[4].chanceofrain) : null,
+        condition: interpreted.label
+      }))
+    : [];
+
+  return {
+    district: districtName || 'Dharwad',
+    state: fallbackState || 'India',
+    coordinates: { latitude: lat || 0, longitude: lon || 0 },
+    temperatureC: current.temp_C != null ? Number(current.temp_C) : null,
+    todayMaxC: forecast[0]?.maxC ?? null,
+    todayMinC: forecast[0]?.minC ?? null,
+    rainChancePct: forecast[0]?.rainChancePct ?? null,
+    humidityPercent: current.humidity != null ? Number(current.humidity) : null,
+    precipitationMm: current.precipMM != null ? Number(current.precipMM) : 0,
+    windSpeedKmh: current.windspeedKmph != null ? Number(current.windspeedKmph) : null,
+    condition: desc.trim() || interpreted.label,
+    advisory: interpreted.advisory,
+    forecast,
+    observedAt: new Date().toISOString(),
+    source: 'Wttr.in Live Weather API (Open-Meteo fallback)'
+  };
+}
+
 /**
- * Fetches live weather and geocoding from Open-Meteo (zero API key required).
+ * Fetches live weather and geocoding from Open-Meteo (with wttr.in fallback when rate-limited).
  */
 async function fetchDistrictWeather({ district = 'Dharwad', latitude, longitude } = {}) {
   const { openMeteoForecastUrl, openMeteoGeocodeUrl } = getApiConfig();
@@ -354,18 +434,24 @@ async function fetchDistrictWeather({ district = 'Dharwad', latitude, longitude 
     const geoKey = `geo:${String(district).toLowerCase()}`;
     let geo = getCached(geoCache, geoKey, MEDIA_CACHE_TTL_MS);
     if (!geo) {
-      const geoUrl = `${openMeteoGeocodeUrl}?name=${encodeURIComponent(district)}&count=1&country_code=IN`;
-      const geoRes = await fetch(geoUrl, { signal: AbortSignal.timeout(5000) });
-      if (!geoRes.ok) throw new Error(`Geocoding failed with HTTP ${geoRes.status}`);
-      const geoJson = await geoRes.json();
-      const hit = geoJson.results?.[0];
-      if (!hit) throw new Error(`Could not geocode district "${district}"`);
-      geo = {
-        latitude: hit.latitude,
-        longitude: hit.longitude,
-        name: hit.name,
-        state: hit.admin1 || ''
-      };
+      const staticHit = FALLBACK_INDIAN_DISTRICTS[String(district || '').trim().toLowerCase()];
+      try {
+        const geoUrl = `${openMeteoGeocodeUrl}?name=${encodeURIComponent(district)}&count=1&country_code=IN`;
+        const geoRes = await fetch(geoUrl, { signal: AbortSignal.timeout(5000) });
+        if (!geoRes.ok) throw new Error(`Geocoding failed with HTTP ${geoRes.status}`);
+        const geoJson = await geoRes.json();
+        const hit = geoJson.results?.[0];
+        if (!hit) throw new Error(`Could not geocode district "${district}"`);
+        geo = {
+          latitude: hit.latitude,
+          longitude: hit.longitude,
+          name: hit.name,
+          state: hit.admin1 || ''
+        };
+      } catch (geoErr) {
+        if (!staticHit) throw geoErr;
+        geo = staticHit;
+      }
       setCached(geoCache, geoKey, geo);
     }
     lat = geo.latitude;
@@ -378,29 +464,50 @@ async function fetchDistrictWeather({ district = 'Dharwad', latitude, longitude 
   const cachedWeather = getCached(apiCache, weatherKey, CACHE_TTL_MS);
   if (cachedWeather) return cachedWeather;
 
-  const url = `${openMeteoForecastUrl}?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-  if (!res.ok) throw new Error(`Weather API responded with HTTP ${res.status}`);
-  const data = await res.json();
-  const current = data.current || {};
-  const interpreted = interpretWeatherCode(current.weather_code);
+  try {
+    const url = `${openMeteoForecastUrl}?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&timezone=auto&forecast_days=4`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error(`Weather API responded with HTTP ${res.status}`);
+    const data = await res.json();
+    const current = data.current || {};
+    const daily = data.daily || {};
+    const interpreted = interpretWeatherCode(current.weather_code);
 
-  const payload = {
-    district: resolvedName,
-    state: adminState,
-    coordinates: { latitude: lat, longitude: lon },
-    temperatureC: current.temperature_2m ?? null,
-    humidityPercent: current.relative_humidity_2m ?? null,
-    precipitationMm: current.precipitation ?? 0,
-    windSpeedKmh: current.wind_speed_10m ?? null,
-    condition: interpreted.label,
-    advisory: interpreted.advisory,
-    observedAt: current.time || new Date().toISOString(),
-    source: 'Open-Meteo Live Weather API'
-  };
+    const forecast = Array.isArray(daily.time)
+      ? daily.time.map((dateStr, i) => ({
+          date: dateStr,
+          maxC: daily.temperature_2m_max?.[i] ?? null,
+          minC: daily.temperature_2m_min?.[i] ?? null,
+          rainChancePct: daily.precipitation_probability_max?.[i] ?? null,
+          condition: interpretWeatherCode(daily.weather_code?.[i]).label
+        }))
+      : [];
 
-  setCached(apiCache, weatherKey, payload);
-  return payload;
+    const payload = {
+      district: resolvedName,
+      state: adminState,
+      coordinates: { latitude: lat, longitude: lon },
+      temperatureC: current.temperature_2m ?? null,
+      todayMaxC: forecast[0]?.maxC ?? null,
+      todayMinC: forecast[0]?.minC ?? null,
+      rainChancePct: forecast[0]?.rainChancePct ?? null,
+      humidityPercent: current.relative_humidity_2m ?? null,
+      precipitationMm: current.precipitation ?? 0,
+      windSpeedKmh: current.wind_speed_10m ?? null,
+      condition: interpreted.label,
+      advisory: interpreted.advisory,
+      forecast,
+      observedAt: current.time || new Date().toISOString(),
+      source: 'Open-Meteo Live Weather API'
+    };
+
+    setCached(apiCache, weatherKey, payload);
+    return payload;
+  } catch (openMeteoErr) {
+    const backup = await fetchWttrBackupWeather(resolvedName, adminState, lat, lon);
+    setCached(apiCache, weatherKey, backup);
+    return backup;
+  }
 }
 
 /**

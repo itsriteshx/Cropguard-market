@@ -23,12 +23,14 @@ import LedgerScreen from './src/screens/LedgerScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import AuthScreen from './src/screens/AuthScreen';
+import AssistantModal from './src/components/AssistantModal';
 
 function MainApp() {
   const { t, role, language, setLanguage, languages, user, restoring, restoreError, restoreSession, logout } = useAuth();
   const { isConnected } = useSocket();
   const [activeTab, setActiveTab] = useState('MARKET');
   const [langModalVisible, setLangModalVisible] = useState(false);
+  const [assistantVisible, setAssistantVisible] = useState(false);
 
   if (restoring) return <View style={styles.restoreScreen}><ActivityIndicator size="large" color="#10B981" /><Text style={styles.restoreText}>Restoring your session…</Text></View>;
   if (restoreError && !user) {
@@ -143,6 +145,14 @@ function MainApp() {
       {/* Main Screen Content */}
       <View style={styles.mainContent}>
         {renderActiveScreen()}
+        <TouchableOpacity
+          style={styles.aiFab}
+          onPress={() => setAssistantVisible(true)}
+          activeOpacity={0.85}
+          accessibilityLabel="Open AI Assistant"
+        >
+          <Text style={styles.aiFabText}>🎙️ AI Assistant</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Bottom Navigation Bar */}
@@ -226,6 +236,13 @@ function MainApp() {
           </View>
         </View>
       </Modal>
+
+      <AssistantModal
+        visible={assistantVisible}
+        onClose={() => setAssistantVisible(false)}
+        activeTab={activeTab}
+        onNavigateTab={setActiveTab}
+      />
     </SafeAreaView>
   );
 }
@@ -473,5 +490,26 @@ const styles = StyleSheet.create({
     color: '#10B981',
     fontSize: 11,
     fontWeight: 'bold'
+  },
+  aiFab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 14,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    borderWidth: 1,
+    borderColor: '#6EE7B7'
+  },
+  aiFabText: {
+    color: '#0F172A',
+    fontWeight: '900',
+    fontSize: 13
   }
 });

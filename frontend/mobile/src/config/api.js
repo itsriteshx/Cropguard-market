@@ -14,7 +14,22 @@ const origin = selectApiOrigin(process.env.EXPO_PUBLIC_API_ORIGIN, Platform.OS, 
 const getSocketUrl = () => origin;
 const resolveMediaUrl = (url) => url?.startsWith('/uploads/') ? `${origin}${url}` : url;
 const API_BASE_URL = `${origin}/api`;
+const getImageSource = (url) => {
+  const resolved = resolveMediaUrl(url);
+  if (!resolved || typeof resolved !== 'string') return null;
+  if (/^https?:\/\/([^/]+\.)?(wikimedia\.org|wikipedia\.org)\//i.test(resolved)) {
+    return { uri: `${API_BASE_URL}/mandi-rates/image?url=${encodeURIComponent(resolved)}` };
+  }
+  return { uri: resolved };
+};
 const SOCKET_URL = getSocketUrl();
+
+const unauthorizedListeners = new Set();
+const subscribeUnauthorized = (listener) => {
+  if (typeof listener !== 'function') return () => {};
+  unauthorizedListeners.add(listener);
+  return () => unauthorizedListeners.delete(listener);
+};
 
 const apiRequest = async (endpoint, options = {}, token = null) => {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -28,7 +43,7 @@ const apiRequest = async (endpoint, options = {}, token = null) => {
     ...(options.headers || {})
   };
 
-  const { timeoutMs = 8000, ...fetchOptions } = options;
+  const { timeoutMs = 25000, ...fetchOptions } = options;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -51,6 +66,13 @@ const apiRequest = async (endpoint, options = {}, token = null) => {
       data = { success: false, message: text || `HTTP error ${res.status}` };
     }
     clearTimeout(timeoutId);
+    if (res.status === 401 && !String(endpoint).startsWith('/auth/')) {
+      unauthorizedListeners.forEach((fn) => {
+        try {
+          fn(data?.message || 'Session expired');
+        } catch (_) {}
+      });
+    }
     return { ...data, httpStatus: res.status };
   } catch (error) {
     clearTimeout(timeoutId);
@@ -66,6 +88,8 @@ const apiRequest = async (endpoint, options = {}, token = null) => {
 module.exports = {
   getSocketUrl,
   resolveMediaUrl,
+  getImageSource,
+  subscribeUnauthorized,
   API_BASE_URL,
   SOCKET_URL,
   apiRequest

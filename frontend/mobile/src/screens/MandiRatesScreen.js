@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { apiRequest } from '../config/api';
+import CropImage from '../components/CropImage';
 
 const STATES = [
   { label: 'All India', value: 'ALL' },
@@ -72,6 +72,8 @@ export default function MandiRatesScreen() {
   const [totalAvailable, setTotalAvailable] = useState(null);
   const [sourceLabel, setSourceLabel] = useState('');
   const requestId = useRef(0);
+  const feedModeRef = useRef('live');
+  const savedPageRef = useRef(1);
   const [nextOffset, setNextOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
@@ -93,6 +95,39 @@ export default function MandiRatesScreen() {
     else setLoading(true);
     setErrorMsg('');
 
+    const applySavedPage = async (pageNum, isAppend) => {
+      const savedParams = [`state=${encodeURIComponent(state)}`, 'limit=10', `page=${pageNum}`];
+      if (crop && crop !== 'ALL') savedParams.push(`commodity=${encodeURIComponent(crop)}`);
+      const savedRes = await apiRequest(`/mandi-rates?${savedParams.join('&')}`, { timeoutMs: 25000 });
+      if (id !== requestId.current) return;
+
+      if (savedRes?.success && Array.isArray(savedRes.rates)) {
+        feedModeRef.current = 'saved';
+        savedPageRef.current = savedRes.page || pageNum;
+        if (isAppend) {
+          setRates((prev) => [...prev, ...savedRes.rates]);
+        } else {
+          setRates(savedRes.rates);
+        }
+        setTotalAvailable(savedRes.total ?? savedRes.totalAvailable ?? null);
+        setSourceLabel(savedRes.source || 'Saved APMC Mandi Rates');
+        setHasMore((savedRes.page || pageNum) < (savedRes.pages || 1));
+      } else {
+        if (!isAppend) { setRates([]); setHasMore(false); setTotalAvailable(null); setSourceLabel(''); }
+        setErrorMsg(savedRes?.message || 'Unable to load mandi rates.');
+      }
+    };
+
+    if (append && feedModeRef.current === 'saved') {
+      await applySavedPage(savedPageRef.current + 1, true);
+      if (id === requestId.current) {
+        setLoading(false);
+        setRefreshing(false);
+        setLoadingMore(false);
+      }
+      return;
+    }
+
     const params = [`state=${encodeURIComponent(state)}`, 'limit=10', `offset=${offset}`];
     if (crop && crop !== 'ALL') {
       params.push(`commodity=${encodeURIComponent(crop)}`);
@@ -101,24 +136,32 @@ export default function MandiRatesScreen() {
     const liveRes = await apiRequest(`/mandi-rates/live?${params.join('&')}`, { timeoutMs: 25000 });
     if (id !== requestId.current) return;
 
-    if (liveRes?.success && Array.isArray(liveRes.rates)) {
+    const isFallbackSnapshot =
+      !liveRes?.success ||
+      (typeof liveRes.source === 'string' && liveRes.source.toLowerCase().includes('live source unavailable'));
+
+    if (!isFallbackSnapshot && Array.isArray(liveRes.rates)) {
+      feedModeRef.current = 'live';
       if (append) {
         setRates((prev) => [...prev, ...liveRes.rates]);
       } else {
         setRates(liveRes.rates);
       }
       setTotalAvailable(liveRes.totalAvailable ?? null);
-      setSourceLabel(liveRes.source || 'Mandi rates (source unavailable)');
+      setSourceLabel(liveRes.source || 'Live Agmarknet Rates');
       setNextOffset(liveRes.nextOffset ?? offset + liveRes.rates.length);
       setHasMore(Boolean(liveRes.hasMore) && liveRes.rates.length > 0);
+    } else if (!append) {
+      await applySavedPage(1, false);
     } else {
-      if (!append) { setRates([]); setHasMore(false); setTotalAvailable(null); setSourceLabel(''); }
       setErrorMsg(liveRes?.message || 'Unable to load mandi rates.');
     }
 
-    setLoading(false);
-    setRefreshing(false);
-    setLoadingMore(false);
+    if (id === requestId.current) {
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
+    }
   };
 
   useEffect(() => {
@@ -147,11 +190,12 @@ export default function MandiRatesScreen() {
     return (
       <View style={styles.card}>
         <View style={styles.photoBox}>
-          {item.imageUrl ? (
-            <Image source={{ uri: item.imageUrl }} style={styles.photo} resizeMode="cover" />
-          ) : (
-            <Text style={styles.photoFallback}>{getCategoryEmoji(item.category)}</Text>
-          )}
+          <CropImage
+            uri={item.imageUrl}
+            style={styles.photo}
+            fallbackEmoji={getCategoryEmoji(item.category)}
+            emojiSize={44}
+          />
           <View style={styles.catBadge}>
             <Text style={styles.catBadgeText}>{item.category || 'AGMARKNET'}</Text>
           </View>
@@ -199,7 +243,16 @@ export default function MandiRatesScreen() {
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.banner}>
-        <Text style={styles.heading}>📊 Mandi rates</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.heading}>📊 Mandi rates</Text>
+          <TouchableOpacity
+            style={styles.reloadPill}
+            onPress={() => fetchMandiFeed({ state: selectedState, crop: selectedCrop, offset: 0, isRefresh: true })}
+            disabled={loading || refreshing}
+          >
+            <Text style={styles.reloadPillText}>{refreshing ? 'Loading…' : '🔄 Reload'}</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.subHeading}>
           {rates.length} markets loaded
           {totalAvailable ? ` • ${Number(totalAvailable).toLocaleString('en-IN')} available` : ''}
@@ -207,7 +260,7 @@ export default function MandiRatesScreen() {
         <Text style={styles.sourceTag}>{sourceLabel}</Text>
         {weather && (
           <Text style={styles.weatherLine}>
-            🌤️ {weather.district || 'Dharwad'}: {weather.temperatureC ?? '--'}°C ({weather.condition}) • {weather.humidityPct ?? '--'}% RH
+            🌤️ {weather.district || 'Dharwad'}: {weather.temperatureC ?? '--'}°C ({weather.condition}) • {weather.humidityPercent ?? weather.humidityPct ?? '--'}% RH • {weather.windSpeedKmh ?? weather.windKmh ?? '--'} km/h
           </Text>
         )}
       </View>
@@ -319,6 +372,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   heading: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
+  reloadPill: {
+    backgroundColor: 'rgba(16,185,129,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.45)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  reloadPillText: { color: '#6ee7b7', fontSize: 11, fontWeight: '800' },
   subHeading: { color: '#34d399', fontSize: 12, fontWeight: '700' },
   sourceTag: { color: '#94a3b8', fontSize: 11 },
   weatherLine: { color: '#fcd34d', fontSize: 11, marginTop: 4, fontWeight: '600' },

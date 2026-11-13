@@ -6,7 +6,6 @@ import {
   MapPin,
   CheckCircle2,
   Truck,
-  ArrowRight,
   ShieldCheck,
   SlidersHorizontal,
   Eye,
@@ -15,15 +14,9 @@ import {
   RefreshCw,
   Zap,
   Calendar,
-  Building2,
-  TrendingUp,
-  Star,
   Leaf,
   BarChart3,
   Lock,
-  Globe,
-  Sparkles,
-  ChevronRight,
   MessageSquare,
   PlusCircle,
 } from 'lucide-react';
@@ -107,7 +100,7 @@ const getLocalizedCropName = (cropName, lang) => {
 };
 
 export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiations, onNavigateToMandi }) {
-  const { activePersona, currentUser, t, language } = useAuth();
+  const { currentUser, t, language } = useAuth();
   const m = t.marketplace || {};
   const modalText = m.modal || {};
   const userRole = currentUser?.role;
@@ -236,7 +229,7 @@ export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiat
     setOrderError('');
 
     try {
-      const buyerName = currentUser?.name || activePersona?.name || 'Registered Buyer';
+      const buyerName = currentUser?.name || 'Registered Buyer';
       const payload = {
         listingId: selectedLot._id,
         quantity: Number(orderQuantity),

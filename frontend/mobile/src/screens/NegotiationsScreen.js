@@ -243,6 +243,28 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
         })
       : () => {};
 
+    const unsubChatDeleted = socketService.onChatMessageDeleted
+      ? socketService.onChatMessageDeleted((data) => {
+          if (!data?.negotiationId) return;
+          setNegotiations((prev) =>
+            prev.map((item) => {
+              if (item._id !== data.negotiationId) return item;
+              const nextMessages = Array.isArray(data.messages)
+                ? data.messages
+                : (item.messages || []).filter((m) => String(m._id) !== String(data.messageId));
+              return { ...item, messages: nextMessages };
+            })
+          );
+        })
+      : () => {};
+
+    const unsubNegDeleted = socketService.onNegotiationDeleted
+      ? socketService.onNegotiationDeleted((data) => {
+          if (!data?.negotiationId) return;
+          setNegotiations((prev) => prev.filter((item) => item._id !== data.negotiationId));
+        })
+      : () => {};
+
     return () => {
       unsubCreated();
       unsubCounter();
@@ -250,6 +272,8 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
       unsubRejected();
       unsubPresence();
       unsubChat();
+      unsubChatDeleted();
+      unsubNegDeleted();
     };
   }, [socketService, role, isConnected]);
 
@@ -401,6 +425,42 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
     }
   };
 
+  const handleDeleteChatMessage = async (negotiationId, messageId) => {
+    if (!negotiationId || !messageId) return;
+    const res = await apiRequest(
+      `/negotiations/${negotiationId}/message/${messageId}`,
+      { method: 'DELETE' },
+      token
+    );
+    if (res?.success && Array.isArray(res.messages)) {
+      setNegotiations((prev) =>
+        prev.map((item) =>
+          item._id === negotiationId ? { ...item, messages: res.messages } : item
+        )
+      );
+    } else {
+      Alert.alert('Delete failed', res?.message || 'Unable to delete message.');
+    }
+  };
+
+  const handleDeleteClosedNegotiation = (negotiationId) => {
+    Alert.alert('Delete closed chat?', 'Remove this closed negotiation thread permanently?', [
+      { text: t.common.cancel, style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const res = await apiRequest(`/negotiations/${negotiationId}`, { method: 'DELETE' }, token);
+          if (res?.success) {
+            setNegotiations((prev) => prev.filter((item) => item._id !== negotiationId));
+          } else {
+            Alert.alert('Notice', res?.message || 'Unable to delete negotiation.');
+          }
+        }
+      }
+    ]);
+  };
+
   const placeOrder = async (session) => {
     if (creatingOrder) return;
     setCreatingOrder(session._id);
@@ -529,9 +589,16 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
                   msg.senderRole === myRole ? styles.chatBubbleMine : styles.chatBubbleOther
                 ]}
               >
-                <Text style={styles.chatSender}>
-                  {msg.senderName || msg.senderRole}{msg.isVoice ? ' 🎙️' : ''}
-                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                  <Text style={styles.chatSender}>
+                    {msg.senderName || msg.senderRole}{msg.isVoice ? ' 🎙️' : ''}
+                  </Text>
+                  {msg.senderRole === myRole && msg._id && (
+                    <TouchableOpacity onPress={() => handleDeleteChatMessage(item._id, msg._id)}>
+                      <Text style={{ color: '#F87171', fontSize: 11, fontWeight: '700' }}>🗑️</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
                 <Text style={styles.chatText}>{msg.text}</Text>
               </View>
             ))}
@@ -598,6 +665,15 @@ export default function NegotiationsScreen({ onNavigateToOrders }) {
               <Text style={styles.rejectBtnText}>✕</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {isRejected && !item.order && (
+          <TouchableOpacity
+            style={styles.rejectBtn}
+            onPress={() => handleDeleteClosedNegotiation(item._id)}
+          >
+            <Text style={styles.rejectBtnText}>🗑️ Delete Closed Chat</Text>
+          </TouchableOpacity>
         )}
       </View>
     );

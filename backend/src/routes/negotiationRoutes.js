@@ -7,6 +7,8 @@ const {
   acceptDeal,
   rejectDeal,
   sendNegotiationMessage,
+  deleteNegotiationMessage,
+  deleteClosedNegotiation,
   getMyNegotiations,
   getNegotiationById
 } = require('../controllers/negotiationController');
@@ -25,6 +27,8 @@ router.use('/:id', sanitizeParams);
 router.get('/:id', getNegotiationById);
 router.post('/:id/counter', counterOffer);
 router.post('/:id/message', sendNegotiationMessage);
+router.delete('/:id/message/:messageId', deleteNegotiationMessage);
+router.delete('/:id', deleteClosedNegotiation);
 router.post('/:id/accept', acceptDeal);
 router.post('/:id/reject', rejectDeal);
 
