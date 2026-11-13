@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const ProduceListing = require('../models/ProduceListing');
+const Order = require('../models/Order');
+const Negotiation = require('../models/Negotiation');
 const MandiRate = require('../models/MandiRate');
 const {
   calculateDistanceKm,
@@ -402,6 +404,42 @@ const deleteListing = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete this listing'
+      });
+    }
+
+    // Referential integrity check: active or settled orders
+    const activeOrderExists = await Order.exists({
+      listing: req.params.id,
+      orderStatus: { $in: ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED', 'SETTLED'] }
+    });
+
+    if (activeOrderExists) {
+      return res.status(409).json({
+        success: false,
+        message: 'Cannot delete listing with active or settled orders'
+      });
+    }
+
+    // Referential integrity check: active or unfulfilled accepted negotiations
+    const activeNegotiationExists = await Negotiation.exists({
+      listing: req.params.id,
+      $or: [
+        {
+          status: { $in: ['OPEN', 'COUNTER_OFFERED'] },
+          expiresAt: { $gt: new Date() },
+          order: null
+        },
+        {
+          status: 'ACCEPTED',
+          order: null
+        }
+      ]
+    });
+
+    if (activeNegotiationExists) {
+      return res.status(409).json({
+        success: false,
+        message: 'Cannot delete listing with active negotiations'
       });
     }
 
