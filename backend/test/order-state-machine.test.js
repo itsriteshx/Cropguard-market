@@ -4,9 +4,16 @@ const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const Order = require('../src/models/Order');
 const Listing = require('../src/models/ProduceListing');
+
+// Mock mongoose.startSession before requiring controller to avoid real transaction attempts
+mongoose.startSession = async () => ({
+  withTransaction: async fn => fn(),
+  endSession: async () => {}
+});
+
 const { updateOrderStatus } = require('../src/controllers/orderController');
 
-// Helper to mock a simple order document
+// Helper to mock a simple order document with ObjectId strings
 function mockOrder(overrides = {}) {
   const base = {
     _id: 'order1',
@@ -14,8 +21,8 @@ function mockOrder(overrides = {}) {
     listing: 'listing1',
     quantity: 5,
     stockReserved: true,
-    buyer: { _id: 'buyer1' },
-    farmer: { _id: 'farmer1' },
+    buyer: { _id: new mongoose.Types.ObjectId('aaaaaaaaaaaaaaaaaaaaaaaa') },
+    farmer: { _id: new mongoose.Types.ObjectId('bbbbbbbbbbbbbbbbbbbbbbbb') },
     orderStatus: 'PLACED',
     paymentStatus: 'PENDING',
     paymentDetails: {},
@@ -42,7 +49,7 @@ test('dispatching without escrow should fail with 409', async () => {
     Order.findById = () => order;
     let status, result;
     await updateOrderStatus(
-      { params: { id: 'order1' }, user: { _id: 'farmer1', role: 'FARMER' }, body: { nextStatus: 'DISPATCHED' } },
+      { params: { id: 'order1' }, user: { _id: order.farmer._id, role: 'FARMER' }, body: { nextStatus: 'DISPATCHED' } },
       { status(s) { status = s; return this; }, json(v) { result = v; return this; } },
       e => { throw e; }
     );
@@ -61,7 +68,7 @@ test('dispatch succeeds when escrow secured', async () => {
   try {
     Order.findById = () => order;
     Order.findOneAndUpdate = async (filter, update) => {
-      // Simulate atomic update success
+      // Simulate atomic update success based on version and status match
       if (filter._id === order._id && filter.orderStatus === order.orderStatus && filter.__v === order.__v) {
         order.orderStatus = update.$set.orderStatus;
         order.__v++;
@@ -72,7 +79,7 @@ test('dispatch succeeds when escrow secured', async () => {
     };
     let status, result;
     await updateOrderStatus(
-      { params: { id: 'order1' }, user: { _id: 'farmer1', role: 'FARMER' }, body: { nextStatus: 'DISPATCHED' } },
+      { params: { id: 'order1' }, user: { _id: order.farmer._id, role: 'FARMER' }, body: { nextStatus: 'DISPATCHED' } },
       { status(s) { status = s; return this; }, json(v) { result = v; return this; } },
       e => { throw e; }
     );
@@ -86,41 +93,75 @@ test('dispatch succeeds when escrow secured', async () => {
 
 // ----- Test: Optimistic concurrency conflict -----
 test('concurrent update detects version conflict and returns 409', async () => {
-  const order = mockOrder({ orderStatus: 'PLACED', __v: 0 });
+  let persisted = mockOrder({ orderStatus: 'PLACED', __v: 0 });
+  const snapshot = {
+    ...persisted,
+    buyer: { ...persisted.buyer },
+    farmer: { ...persisted.farmer },
+    timeline: [...persisted.timeline]
+  };
   const originalFindById = Order.findById;
   const originalFindOneAndUpdate = Order.findOneAndUpdate;
+
+  let reads = 0;
+  let writeCount = 0;
+  let releaseWrites;
+  const bothReadPromise = new Promise(resolve => { releaseWrites = resolve; });
+
   try {
-    Order.findById = () => order;
-    // First call succeeds, second sees stale __v
-    let callCount = 0;
-    Order.findOneAndUpdate = async (filter, update) => {
-      if (callCount === 0) {
-        // succeed and increment version
-        order.orderStatus = update.$set.orderStatus;
-        order.__v++;
-        callCount++;
-        return order;
+    // Both requests read the original PLACED, __v: 0 snapshot
+    Order.findById = () => ({
+      populate() { return this; },
+      then(resolve) {
+        reads++;
+        if (reads === 2) {
+          releaseWrites();
+        }
+        resolve({ ...snapshot });
       }
-      // second call uses old __v, should return null
-      return null;
+    });
+
+    // Conditional update checking _id, orderStatus, and __v
+    Order.findOneAndUpdate = async (filter, update) => {
+      // Ensure both requests have completed their read before any write is processed
+      await bothReadPromise;
+      if (String(filter._id) !== String(persisted._id)) return null;
+      if (filter.orderStatus !== persisted.orderStatus) return null;
+      if (filter.__v !== persisted.__v) return null;
+      writeCount++;
+      persisted = {
+        ...persisted,
+        ...update.$set,
+        __v: persisted.__v + (update.$inc?.__v || 1)
+      };
+      if (update.$push?.timeline) {
+        persisted.timeline = [...persisted.timeline, update.$push.timeline];
+      }
+      return persisted;
     };
-    // First transition: PLACED -> ESCROW_HELD (buyer)
-    let status1, result1;
-    await updateOrderStatus(
-      { params: { id: 'order1' }, user: { _id: 'buyer1', role: 'BUYER_RETAIL' }, body: { nextStatus: 'ESCROW_HELD' } },
-      { status(s) { status1 = s; return this; }, json(v) { result1 = v; return this; } },
-      e => { throw e; }
-    );
-    assert.equal(status1, 200);
-    // Second transition attempts using stale version (still PLACED in filter)
-    let status2, result2;
-    await updateOrderStatus(
-      { params: { id: 'order1' }, user: { _id: 'buyer1', role: 'BUYER_RETAIL' }, body: { nextStatus: 'ESCROW_HELD' } },
-      { status(s) { status2 = s; return this; }, json(v) { result2 = v; return this; } },
-      e => { throw e; }
-    );
-    assert.equal(status2, 409);
-    assert.match(result2.message, /changed/i);
+
+    const callTransition = async () => {
+      let status, result;
+      await updateOrderStatus(
+        { params: { id: persisted._id }, user: { _id: persisted.buyer._id, role: 'BUYER_RETAIL' }, body: { nextStatus: 'ESCROW_HELD' } },
+        { status(s) { status = s; return this; }, json(v) { result = v; return this; } },
+        e => { throw e; }
+      );
+      return { status, result };
+    };
+
+    // Start both requests concurrently using Promise.all
+    const [res1, res2] = await Promise.all([callTransition(), callTransition()]);
+
+    const statuses = [res1.status, res2.status].sort();
+    assert.deepEqual(statuses, [200, 409]);
+    const conflictRes = res1.status === 409 ? res1.result : res2.result;
+    assert.match(conflictRes.message, /changed/i);
+
+    // Assert exactly one successful persisted update
+    assert.equal(writeCount, 1);
+    assert.equal(persisted.__v, 1);
+    assert.equal(persisted.orderStatus, 'ESCROW_HELD');
   } finally {
     Order.findById = originalFindById;
     Order.findOneAndUpdate = originalFindOneAndUpdate;
@@ -145,7 +186,7 @@ test('cancellation respects role and payment status', async () => {
     Listing.findOneAndUpdate = async () => ({ quantity: 15 }); // stock restore mock
     let statusA, resA;
     await updateOrderStatus(
-      { params: { id: 'order1' }, user: { _id: 'buyer1', role: 'BUYER_RETAIL' }, body: { nextStatus: 'CANCELLED' } },
+      { params: { id: 'order1' }, user: { _id: order1.buyer._id, role: 'BUYER_RETAIL' }, body: { nextStatus: 'CANCELLED' } },
       { status(s) { statusA = s; return this; }, json(v) { resA = v; return this; } },
       e => { throw e; }
     );
@@ -164,19 +205,19 @@ test('cancellation respects role and payment status', async () => {
     };
     let statusB, resB;
     await updateOrderStatus(
-      { params: { id: 'order2' }, user: { _id: 'buyer1', role: 'BUYER_RETAIL' }, body: { nextStatus: 'CANCELLED' } },
+      { params: { id: 'order2' }, user: { _id: order2.buyer._id, role: 'BUYER_RETAIL' }, body: { nextStatus: 'CANCELLED' } },
       { status(s) { statusB = s; return this; }, json(v) { resB = v; return this; } },
       e => { throw e; }
     );
     assert.equal(statusB, 200);
     assert.equal(resB.order.paymentStatus, 'REFUNDED');
 
-    // Scenario 3: Farmer attempts to cancel after DISPATCHED (should be forbidden)
+    // Scenario 3: Farmer attempts to cancel after DISPATCHED (invalid transition)
     let order3 = mockOrder({ orderStatus: 'DISPATCHED', paymentStatus: 'ESCROW_SECURED' });
     Order.findById = () => order3;
     let statusC, resC;
     await updateOrderStatus(
-      { params: { id: 'order3' }, user: { _id: 'farmer1', role: 'FARMER' }, body: { nextStatus: 'CANCELLED' } },
+      { params: { id: 'order3' }, user: { _id: order3.farmer._id, role: 'FARMER' }, body: { nextStatus: 'CANCELLED' } },
       { status(s) { statusC = s; return this; }, json(v) { resC = v; return this; } },
       e => { throw e; }
     );
@@ -188,4 +229,3 @@ test('cancellation respects role and payment status', async () => {
     Listing.findOneAndUpdate = originalListingUpdate;
   }
 });
-
