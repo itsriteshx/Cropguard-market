@@ -74,7 +74,7 @@ const register = async (req, res, next) => {
       }
     }
 
-    // Create user
+    // Create user in unverified state
     const user = await User.create({
       name: name.trim(),
       phone: cleanPhone,
@@ -82,16 +82,35 @@ const register = async (req, res, next) => {
       password,
       role: role || 'FARMER',
       languagePreference: languagePreference || 'en',
-      location: location || { type: 'Point' }
+      location: location || { type: 'Point' },
+      isVerified: false,
+      phoneVerified: false,
+      emailVerified: false
     });
 
-    // Generate JWT Token
-    const token = generateToken(user._id, user.role);
+    // Automatically initiate phone verification and email verification
+    try {
+      await smsService.sendPhoneOtp({ userId: user._id, phone: cleanPhone });
+    } catch (_) {}
+
+    if (cleanEmail) {
+      try {
+        await emailService.sendEmailOtp({ userId: user._id, email: cleanEmail, name: user.name });
+      } catch (_) {}
+    }
+
+    // Generate restricted verification token
+    const verificationToken = generateToken.generateVerificationToken
+      ? generateToken.generateVerificationToken(user._id, user.role)
+      : generateToken(user._id, user.role);
 
     return res.status(201).json({
       success: true,
-      message: 'User registered successfully',
-      token,
+      requiresVerification: true,
+      message: 'Account created. Please verify your mobile number' + (cleanEmail ? ' and email' : '') + ' to activate your account.',
+      token: verificationToken,
+      verificationToken,
+      verificationStatus: user.getVerificationStatus(),
       user: {
         _id: user._id,
         name: user.name,
@@ -101,6 +120,8 @@ const register = async (req, res, next) => {
         languagePreference: user.languagePreference,
         location: user.location,
         isVerified: user.isVerified,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
         createdAt: user.createdAt
       }
     });
@@ -136,7 +157,7 @@ const login = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. User not found.'
+        message: 'Invalid credentials. User not found or incorrect password.'
       });
     }
 
@@ -145,11 +166,42 @@ const login = async (req, res, next) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. Incorrect password.'
+        message: 'Invalid credentials. User not found or incorrect password.'
       });
     }
 
-    // Generate JWT Token
+    // Synchronize verification state & check if user is verified
+    user.syncVerificationState();
+
+    if (!user.isVerified) {
+      const verificationToken = generateToken.generateVerificationToken
+        ? generateToken.generateVerificationToken(user._id, user.role)
+        : generateToken(user._id, user.role);
+
+      return res.status(200).json({
+        success: false,
+        requiresVerification: true,
+        message: 'Account verification required before accessing the market.',
+        token: verificationToken,
+        verificationToken,
+        verificationStatus: user.getVerificationStatus(),
+        user: {
+          _id: user._id,
+          name: user.name,
+          phone: user.phone,
+          email: user.email,
+          role: user.role,
+          languagePreference: user.languagePreference,
+          location: user.location,
+          isVerified: user.isVerified,
+          emailVerified: user.emailVerified,
+          phoneVerified: user.phoneVerified,
+          createdAt: user.createdAt
+        }
+      });
+    }
+
+    // Generate JWT Token for fully verified user
     const token = generateToken(user._id, user.role);
 
     return res.status(200).json({
@@ -165,6 +217,8 @@ const login = async (req, res, next) => {
         languagePreference: user.languagePreference,
         location: user.location,
         isVerified: user.isVerified,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
         createdAt: user.createdAt
       }
     });
@@ -468,6 +522,48 @@ const resendPhoneOtp = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get verification status for current user or given email/phone
+ * @route   GET /api/auth/verification-status
+ * @access  Public (Optional Bearer token)
+ */
+const getVerificationStatus = async (req, res, next) => {
+  try {
+    let user = req.user;
+    if (!user) {
+      const email = req.query.email ? normalizeEmail(req.query.email) : null;
+      const phone = req.query.phone ? normalizePhone(req.query.phone) : null;
+      if (email) user = await User.findOne({ email });
+      else if (phone) user = await User.findOne({ phone });
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User account not found'
+      });
+    }
+
+    user.syncVerificationState();
+    return res.status(200).json({
+      success: true,
+      verificationStatus: user.getVerificationStatus(),
+      user: {
+        _id: user._id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -476,5 +572,6 @@ module.exports = {
   verifyEmail,
   resendEmailOtp,
   verifyPhone,
-  resendPhoneOtp
+  resendPhoneOtp,
+  getVerificationStatus
 };
