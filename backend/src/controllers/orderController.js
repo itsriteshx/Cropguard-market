@@ -345,39 +345,109 @@ const getMyOrders = async (req, res, next) => {
 const getFarmerLedger = async (req, res, next) => {
   try {
     const farmerId = req.user._id;
+    const farmerObjectId =
+      farmerId instanceof mongoose.Types.ObjectId
+        ? farmerId
+        : mongoose.Types.ObjectId.isValid(farmerId)
+        ? new mongoose.Types.ObjectId(farmerId.toString())
+        : farmerId;
 
-    // Fetch all orders for this farmer
-    const orders = await Order.find({ farmer: farmerId })
-      .populate('buyer', 'name phone')
-      .sort('-createdAt');
-
-    let totalEarnings = 0;
-    let pendingEscrowAmount = 0;
-    let totalVolumeKg = 0;
-    let settledOrdersCount = 0;
-    let activeOrdersCount = 0;
-
-    orders.forEach((order) => {
-      // Calculate volumes (normalize Quintal to Kg for metrics: 1 Quintal = 100 Kg)
-      const volumeInKg = order.unit === 'QUINTAL' ? order.quantity * 100 : order.quantity;
-
-      if (order.orderStatus === 'SETTLED') {
-        totalEarnings += order.totalAmount;
-        settledOrdersCount += 1;
-        totalVolumeKg += volumeInKg;
-      } else if (['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED'].includes(order.orderStatus)) {
-        if (order.paymentStatus === 'ESCROW_SECURED') {
-          pendingEscrowAmount += order.totalAmount;
+    const [aggResult, recentOrders] = await Promise.all([
+      Order.aggregate([
+        {
+          $match: {
+            farmer: farmerObjectId,
+            orderStatus: { $in: ['SETTLED', 'PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED'] }
+          }
+        },
+        {
+          $project: {
+            orderStatus: 1,
+            paymentStatus: 1,
+            totalAmount: 1,
+            volumeKg: {
+              $switch: {
+                branches: [
+                  { case: { $eq: ['$unit', 'QUINTAL'] }, then: { $multiply: ['$quantity', 100] } },
+                  { case: { $eq: ['$unit', 'TON'] }, then: { $multiply: ['$quantity', 1000] } }
+                ],
+                default: '$quantity'
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalEarnings: {
+              $sum: {
+                $cond: [{ $eq: ['$orderStatus', 'SETTLED'] }, '$totalAmount', 0]
+              }
+            },
+            settledOrdersCount: {
+              $sum: {
+                $cond: [{ $eq: ['$orderStatus', 'SETTLED'] }, 1, 0]
+              }
+            },
+            activeOrdersCount: {
+              $sum: {
+                $cond: [
+                  { $in: ['$orderStatus', ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED']] },
+                  1,
+                  0
+                ]
+              }
+            },
+            pendingEscrowAmount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $in: ['$orderStatus', ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED']] },
+                      { $eq: ['$paymentStatus', 'ESCROW_SECURED'] }
+                    ]
+                  },
+                  '$totalAmount',
+                  0
+                ]
+              }
+            },
+            totalVolumeKg: {
+              $sum: '$volumeKg'
+            }
+          }
         }
-        activeOrdersCount += 1;
-        totalVolumeKg += volumeInKg;
-      }
-    });
+      ]),
+      Order.find({ farmer: farmerId })
+        .select('_id orderNumber cropName quantity unit totalAmount buyer orderStatus paymentStatus createdAt')
+        .populate('buyer', 'name phone')
+        .sort('-createdAt')
+        .limit(10)
+        .lean()
+    ]);
+
+    const stats = (aggResult && aggResult[0]) || {
+      totalEarnings: 0,
+      settledOrdersCount: 0,
+      activeOrdersCount: 0,
+      pendingEscrowAmount: 0,
+      totalVolumeKg: 0
+    };
+
+    const totalEarnings = stats.totalEarnings || 0;
+    const settledOrdersCount = stats.settledOrdersCount || 0;
+    const activeOrdersCount = stats.activeOrdersCount || 0;
+    const pendingEscrowAmount = stats.pendingEscrowAmount || 0;
+    const totalVolumeKg = stats.totalVolumeKg || 0;
 
     // Traditional supply chain cuts ~10% intermediary commission
     const estimatedMiddlemanSavings = Math.round(totalEarnings * 0.1);
 
-    const recentTransactions = orders.slice(0, 10).map((order) => ({
+    const totalQuintals = Math.round((totalVolumeKg / 100) * 10) / 10;
+    const averageRatePerQuintal =
+      totalVolumeKg > 0 ? Math.round(totalEarnings / (totalVolumeKg / 100)) : 2525;
+
+    const recentTransactions = (recentOrders || []).map((order) => ({
       orderId: order._id,
       orderNumber: order.orderNumber,
       cropName: order.cropName,
@@ -395,8 +465,8 @@ const getFarmerLedger = async (req, res, next) => {
         totalRevenue: Math.round(totalEarnings * 100) / 100,
         totalMiddlemanSaved: estimatedMiddlemanSavings,
         totalTransactions: settledOrdersCount,
-        totalQuintals: Math.round((totalVolumeKg / 100) * 10) / 10,
-        averageRatePerQuintal: totalVolumeKg > 0 ? Math.round(totalEarnings / (totalVolumeKg / 100)) : 2525,
+        totalQuintals,
+        averageRatePerQuintal,
         fairPriceComplianceRate: '100%',
         pendingEscrowAmount: Math.round(pendingEscrowAmount * 100) / 100,
         currency: 'INR'
