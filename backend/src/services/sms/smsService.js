@@ -8,11 +8,13 @@ const {
   maskPhone
 } = require('../../utils/otpUtils');
 const { getSmsAdapter } = require('./smsAdapter');
+const { verifyOtpCore } = require('../otpVerificationCore');
+const { withResendLock } = require('../../utils/resendLock');
 
 /**
  * Dispatches an SMS verification OTP to an Indian mobile number.
  */
-async function sendPhoneOtp({ userId, phone, adapter = null }) {
+async function sendPhoneOtp({ userId, phone, adapter = null, lockOptions = {} }) {
   const cleanPhone = normalizePhone(phone);
   if (!cleanPhone || !/^[6-9]\d{9}$/.test(cleanPhone)) {
     return {
@@ -21,59 +23,120 @@ async function sendPhoneOtp({ userId, phone, adapter = null }) {
     };
   }
 
-  const now = new Date();
-
-  // 1. Check for active resend cooldown
-  const existingOtp = await VerificationOtp.findOne({
-    target: cleanPhone,
-    type: 'PHONE',
-    consumedAt: null,
-    expiresAt: { $gt: now }
-  }).sort({ createdAt: -1 });
-
-  if (existingOtp && existingOtp.resendAvailableAt > now) {
-    const waitSeconds = Math.ceil((existingOtp.resendAvailableAt.getTime() - now.getTime()) / 1000);
+  // Pre-initialize adapter so any initialization error fails before creating the OTP
+  let smsAdapter;
+  try {
+    smsAdapter = adapter || getSmsAdapter();
+  } catch (err) {
     return {
       success: false,
-      cooldown: true,
-      waitSeconds,
-      message: `Please wait ${waitSeconds} seconds before requesting a new SMS verification code`
+      deliveryFailed: true,
+      message: 'Failed to deliver SMS verification code. Please check your mobile number or try again later.'
     };
   }
 
-  // 2. Invalidate previous active unconsumed OTPs for this phone
-  if (existingOtp) {
-    await VerificationOtp.updateMany(
-      { target: cleanPhone, type: 'PHONE', consumedAt: null },
-      { $set: { consumedAt: now } }
-    );
+  const lockKey = `PHONE:${cleanPhone}`;
+  let otpDoc = null;
+  let otp = null;
+  let cooldownResult = null;
+  let expiresAt = null;
+  let resendAvailableAt = null;
+
+  // CRITICAL SECTION (Under distributed lock):
+  // Limited strictly to checking cooldown, invalidating old OTPs, and creating new OTP.
+  // The lock is released BEFORE sending SMS.
+  await withResendLock(lockKey, async (lockContext) => {
+    const now = new Date();
+
+    // 1. Find latest active/unconsumed OTP for this mobile number
+    const existingOtp = await VerificationOtp.findOne({
+      target: cleanPhone,
+      type: 'PHONE',
+      consumedAt: null
+    }).sort({ createdAt: -1 });
+
+    // Revalidate after awaited database read and before subsequent writes
+    if (lockContext && typeof lockContext.assertValid === 'function') {
+      lockContext.assertValid();
+    }
+
+    if (existingOtp) {
+      const isExpired = existingOtp.expiresAt && existingOtp.expiresAt <= now;
+
+      // Safe handling of expired unconsumed records: invalidate and do not enforce cooldown
+      if (isExpired) {
+        if (lockContext && typeof lockContext.assertValid === 'function') {
+          lockContext.assertValid();
+        }
+        await VerificationOtp.updateMany(
+          { target: cleanPhone, type: 'PHONE', consumedAt: null },
+          { $set: { consumedAt: now } }
+        );
+      } else if (existingOtp.resendAvailableAt > now) {
+        // Active cooldown in effect
+        const waitSeconds = Math.ceil((existingOtp.resendAvailableAt.getTime() - now.getTime()) / 1000);
+        cooldownResult = {
+          success: false,
+          cooldown: true,
+          waitSeconds,
+          message: `Please wait ${waitSeconds} seconds before requesting a new SMS verification code`
+        };
+        return;
+      } else {
+        // Cooldown has elapsed: invalidate previous active unconsumed OTPs
+        if (lockContext && typeof lockContext.assertValid === 'function') {
+          lockContext.assertValid();
+        }
+        await VerificationOtp.updateMany(
+          { target: cleanPhone, type: 'PHONE', consumedAt: null },
+          { $set: { consumedAt: now } }
+        );
+      }
+    }
+
+    // Revalidate lock validity immediately before creating new OTP
+    if (lockContext && typeof lockContext.assertValid === 'function') {
+      lockContext.assertValid();
+    }
+
+    // 4. Generate secure OTP and cryptographic hash
+    otp = generateSecureOtp(OTP_CONFIG.LENGTH);
+    const otpHash = hashOtp(otp, cleanPhone);
+    expiresAt = new Date(now.getTime() + OTP_CONFIG.EXPIRY_SECONDS * 1000);
+    resendAvailableAt = new Date(now.getTime() + OTP_CONFIG.RESEND_COOLDOWN_SECONDS * 1000);
+
+    // 5. Persist hashed OTP record in MongoDB
+    otpDoc = await VerificationOtp.create({
+      userId: userId || null,
+      target: cleanPhone,
+      type: 'PHONE',
+      otpHash,
+      expiresAt,
+      resendAvailableAt,
+      attempts: 0,
+      maxAttempts: OTP_CONFIG.MAX_ATTEMPTS,
+      consumedAt: null
+    });
+  }, lockOptions);
+
+  // If cooldown was detected inside critical section, return cooldown response
+  if (cooldownResult) {
+    return cooldownResult;
   }
 
-  // 3. Generate secure OTP and cryptographic hash
-  const otp = generateSecureOtp(OTP_CONFIG.LENGTH);
-  const otpHash = hashOtp(otp, cleanPhone);
-  const expiresAt = new Date(now.getTime() + OTP_CONFIG.EXPIRY_SECONDS * 1000);
-  const resendAvailableAt = new Date(now.getTime() + OTP_CONFIG.RESEND_COOLDOWN_SECONDS * 1000);
+  if (!otpDoc) {
+    return {
+      success: false,
+      message: 'Failed to generate verification code. Please try again later.'
+    };
+  }
 
-  // 4. Persist hashed OTP record in MongoDB
-  const otpDoc = await VerificationOtp.create({
-    userId: userId || null,
-    target: cleanPhone,
-    type: 'PHONE',
-    otpHash,
-    expiresAt,
-    resendAvailableAt,
-    attempts: 0,
-    maxAttempts: OTP_CONFIG.MAX_ATTEMPTS
-  });
-
-  // 5. Build DLT-compliant SMS message
-  const expiryMinutes = Math.round(OTP_CONFIG.EXPIRY_SECONDS / 60);
-  const message = `CropGuard Market: Your verification code is ${otp}. Valid for ${expiryMinutes} minutes. Never share this OTP with anyone. - UASD APMC`;
-
-  // 6. Deliver via configured SMS adapter
-  const smsAdapter = adapter || getSmsAdapter();
+  // OUTSIDE CRITICAL SECTION: Deliver via configured SMS adapter.
+  // Any failure after OTP creation immediately invalidates the created OTP record.
   try {
+    const expiryMinutes = Math.round(OTP_CONFIG.EXPIRY_SECONDS / 60);
+    const message = `CropGuard Market: Your verification code is ${otp}. Valid for ${expiryMinutes} minutes. Never share this OTP with anyone. - UASD APMC`;
+
     const delivery = await smsAdapter.send({
       phone: cleanPhone,
       message,
@@ -102,86 +165,20 @@ async function sendPhoneOtp({ userId, phone, adapter = null }) {
 /**
  * Verifies entered phone OTP against cryptographic hash with atomic single-use consumption.
  */
-async function verifyPhoneOtp({ phone, otp }) {
+async function verifyPhoneOtp({ phone, otp, userId = null }) {
   const cleanPhone = normalizePhone(phone);
   if (!cleanPhone || !otp) {
     return { success: false, message: 'Phone number and verification code are required' };
   }
 
-  const cleanOtp = String(otp).trim();
-  const now = new Date();
-
-  // Find latest active OTP record for this phone number
-  const record = await VerificationOtp.findOne({
-    target: cleanPhone,
+  return verifyOtpCore({
     type: 'PHONE',
-    consumedAt: null
-  }).sort({ createdAt: -1 });
-
-  if (!record) {
-    return {
-      success: false,
-      message: 'No active verification code found for this mobile number. Please request a new code.'
-    };
-  }
-
-  // Check if expired
-  if (record.expiresAt < now) {
-    await VerificationOtp.updateOne({ _id: record._id }, { $set: { consumedAt: now } });
-    return {
-      success: false,
-      expired: true,
-      message: 'Verification code has expired. Please request a new code.'
-    };
-  }
-
-  // Check attempt limit
-  if (record.attempts >= record.maxAttempts) {
-    await VerificationOtp.updateOne({ _id: record._id }, { $set: { consumedAt: now } });
-    return {
-      success: false,
-      maxAttemptsExceeded: true,
-      message: 'Too many incorrect attempts. This code has been invalidated. Please request a new code.'
-    };
-  }
-
-  // Verify cryptographic hash
-  const isValid = verifyOtpHash(cleanOtp, record.otpHash, cleanPhone);
-
-  if (!isValid) {
-    const updated = await VerificationOtp.findOneAndUpdate(
-      { _id: record._id, consumedAt: null },
-      { $inc: { attempts: 1 } },
-      { new: true }
-    );
-    const attemptsLeft = Math.max(0, (record.maxAttempts || 5) - (updated?.attempts || record.attempts + 1));
-    return {
-      success: false,
-      message: attemptsLeft > 0
-        ? `Incorrect verification code. ${attemptsLeft} attempt(s) remaining.`
-        : 'Too many incorrect attempts. Please request a new code.',
-      attemptsRemaining: attemptsLeft
-    };
-  }
-
-  // Atomic single-use consumption
-  const consumed = await VerificationOtp.findOneAndUpdate(
-    { _id: record._id, consumedAt: null },
-    { $set: { consumedAt: now } },
-    { new: true }
-  );
-
-  if (!consumed) {
-    return {
-      success: false,
-      message: 'Verification code was already used or invalidated.'
-    };
-  }
-
-  return {
-    success: true,
-    message: 'Mobile number verified successfully'
-  };
+    target: cleanPhone,
+    otp,
+    userId,
+    notFoundMessage: 'No active verification code found for this mobile number. Please request a new code.',
+    successMessage: 'Mobile number verified successfully'
+  });
 }
 
 module.exports = {

@@ -91,12 +91,12 @@ const register = async (req, res, next) => {
     // Automatically initiate phone verification and email verification
     try {
       await smsService.sendPhoneOtp({ userId: user._id, phone: cleanPhone });
-    } catch (_) {}
+    } catch (_) { }
 
     if (cleanEmail) {
       try {
         await emailService.sendEmailOtp({ userId: user._id, email: cleanEmail, name: user.name });
-      } catch (_) {}
+      } catch (_) { }
     }
 
     // Generate restricted verification token
@@ -295,8 +295,20 @@ const verifyEmail = async (req, res, next) => {
     const { otp } = req.body;
     let email = req.body.email;
 
-    // If request has authenticated / restricted token, can fall back to user's registered email
-    if (!email && req.user && req.user.email) {
+    // Authenticated account ownership enforcement
+    if (req.user) {
+      if (!req.user.email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Authenticated account does not have a registered email address'
+        });
+      }
+      if (email && normalizeEmail(email) !== normalizeEmail(req.user.email)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden. Contact detail does not match authenticated account.'
+        });
+      }
       email = req.user.email;
     }
 
@@ -308,14 +320,20 @@ const verifyEmail = async (req, res, next) => {
       });
     }
 
+    // Resolve user: req.user or unauthenticated lookup
+    let user = req.user || (await User.findOne({ email: cleanEmail }));
+
     // Call email verification service (atomic consumption & validation)
-    const verification = await emailService.verifyEmailOtp({ email: cleanEmail, otp });
+    const verification = await emailService.verifyEmailOtp({
+      email: cleanEmail,
+      otp,
+      userId: user ? user._id : null
+    });
     if (!verification.success) {
       return res.status(400).json(verification);
     }
 
     // Update user record if exists
-    let user = req.user || (await User.findOne({ email: cleanEmail }));
     if (!user) {
       return res.status(200).json({
         success: true,
@@ -362,7 +380,21 @@ const verifyEmail = async (req, res, next) => {
 const resendEmailOtp = async (req, res, next) => {
   try {
     let email = req.body.email;
-    if (!email && req.user && req.user.email) {
+
+    // Authenticated account ownership enforcement
+    if (req.user) {
+      if (!req.user.email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Authenticated account does not have a registered email address'
+        });
+      }
+      if (email && normalizeEmail(email) !== normalizeEmail(req.user.email)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden. Contact detail does not match authenticated account.'
+        });
+      }
       email = req.user.email;
     }
 
@@ -415,7 +447,20 @@ const verifyPhone = async (req, res, next) => {
     const { otp } = req.body;
     let phone = req.body.phone;
 
-    if (!phone && req.user && req.user.phone) {
+    // Authenticated account ownership enforcement
+    if (req.user) {
+      if (!req.user.phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Authenticated account does not have a registered phone number'
+        });
+      }
+      if (phone && normalizePhone(phone) !== normalizePhone(req.user.phone)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden. Contact detail does not match authenticated account.'
+        });
+      }
       phone = req.user.phone;
     }
 
@@ -427,14 +472,20 @@ const verifyPhone = async (req, res, next) => {
       });
     }
 
+    // Resolve user: req.user or unauthenticated lookup
+    let user = req.user || (await User.findOne({ phone: cleanPhone }));
+
     // Call SMS verification service (atomic consumption & validation)
-    const verification = await smsService.verifyPhoneOtp({ phone: cleanPhone, otp });
+    const verification = await smsService.verifyPhoneOtp({
+      phone: cleanPhone,
+      otp,
+      userId: user ? user._id : null
+    });
     if (!verification.success) {
       return res.status(400).json(verification);
     }
 
     // Update user record if exists
-    let user = req.user || (await User.findOne({ phone: cleanPhone }));
     if (!user) {
       return res.status(200).json({
         success: true,
@@ -480,7 +531,21 @@ const verifyPhone = async (req, res, next) => {
 const resendPhoneOtp = async (req, res, next) => {
   try {
     let phone = req.body.phone;
-    if (!phone && req.user && req.user.phone) {
+
+    // Authenticated account ownership enforcement
+    if (req.user) {
+      if (!req.user.phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Authenticated account does not have a registered phone number'
+        });
+      }
+      if (phone && normalizePhone(phone) !== normalizePhone(req.user.phone)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden. Contact detail does not match authenticated account.'
+        });
+      }
       phone = req.user.phone;
     }
 
@@ -530,7 +595,22 @@ const resendPhoneOtp = async (req, res, next) => {
 const getVerificationStatus = async (req, res, next) => {
   try {
     let user = req.user;
-    if (!user) {
+    if (user) {
+      const queryEmail = req.query.email ? normalizeEmail(req.query.email) : null;
+      const queryPhone = req.query.phone ? normalizePhone(req.query.phone) : null;
+      if (queryEmail && normalizeEmail(user.email) !== queryEmail) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden. Contact detail does not match authenticated account.'
+        });
+      }
+      if (queryPhone && normalizePhone(user.phone) !== queryPhone) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden. Contact detail does not match authenticated account.'
+        });
+      }
+    } else {
       const email = req.query.email ? normalizeEmail(req.query.email) : null;
       const phone = req.query.phone ? normalizePhone(req.query.phone) : null;
       if (email) user = await User.findOne({ email });

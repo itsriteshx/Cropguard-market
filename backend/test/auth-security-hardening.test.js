@@ -84,8 +84,16 @@ test('security hardening: brute force lockout after max attempts exceeded', asyn
   const correctOtp = '654321';
   const otpHash = hashOtp(correctOtp, phone);
 
-  let attempts = 4; // 1 attempt remaining before lockout
-  let consumed = null;
+  let doc = {
+    _id: 'brute_otp',
+    target: phone,
+    type: 'PHONE',
+    otpHash,
+    expiresAt: new Date(Date.now() + 600000),
+    attempts: 4, // 1 attempt remaining before lockout
+    maxAttempts: 5,
+    consumedAt: null
+  };
 
   const origFindOne = VerificationOtp.findOne;
   const origFindOneAndUpdate = VerificationOtp.findOneAndUpdate;
@@ -93,38 +101,41 @@ test('security hardening: brute force lockout after max attempts exceeded', asyn
 
   try {
     VerificationOtp.findOne = () => ({
-      sort: () => (consumed ? null : {
-        _id: 'brute_otp',
-        target: phone,
-        type: 'PHONE',
-        otpHash,
-        expiresAt: new Date(Date.now() + 600000),
-        attempts,
-        maxAttempts: 5,
-        consumedAt: consumed
-      })
+      sort: () => doc
     });
 
-    VerificationOtp.findOneAndUpdate = async () => {
-      attempts += 1;
-      return { _id: 'brute_otp', attempts };
+    // Atomic pipeline emulator: reaching maxAttempts sets consumedAt in the same database operation
+    VerificationOtp.findOneAndUpdate = async (filter, update) => {
+      if (filter._id === doc._id && filter.consumedAt === null) {
+        if (filter.attempts && filter.attempts.$lt && doc.attempts >= filter.attempts.$lt) {
+          return null;
+        }
+        const newAttempts = doc.attempts + 1;
+        const newConsumedAt = newAttempts >= doc.maxAttempts ? new Date() : doc.consumedAt;
+        doc = { ...doc, attempts: newAttempts, consumedAt: newConsumedAt };
+        return doc;
+      }
+      return null;
     };
 
-    VerificationOtp.updateOne = async () => {
-      consumed = new Date();
-      return { modifiedCount: 1 };
-    };
+    VerificationOtp.updateOne = async () => ({ modifiedCount: 1 });
 
-    // 1st wrong attempt -> reaches max attempts (5)
+    // 1st wrong attempt -> reaches max attempts (5) and immediately sets consumedAt
     const res1 = await verifyPhoneOtp({ phone, otp: '000000' });
     assert.equal(res1.success, false);
     assert.equal(res1.attemptsRemaining, 0);
+    assert.ok(doc.consumedAt instanceof Date, 'The final incorrect attempt must immediately set consumedAt');
 
     // 2nd wrong attempt -> rejected as max attempts exceeded
     const res2 = await verifyPhoneOtp({ phone, otp: '000000' });
     assert.equal(res2.success, false);
     assert.equal(res2.maxAttemptsExceeded, true);
     assert.match(res2.message, /too many incorrect attempts/i);
+
+    // Correct OTP cannot succeed after maximum incorrect attempts
+    const resCorrect = await verifyPhoneOtp({ phone, otp: correctOtp });
+    assert.equal(resCorrect.success, false);
+    assert.equal(resCorrect.maxAttemptsExceeded, true);
   } finally {
     VerificationOtp.findOne = origFindOne;
     VerificationOtp.findOneAndUpdate = origFindOneAndUpdate;
