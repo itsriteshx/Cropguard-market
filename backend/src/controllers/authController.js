@@ -1,5 +1,7 @@
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
+const emailService = require('../services/email/emailService');
+const { normalizeEmail, maskEmail } = require('../utils/otpUtils');
 
 /**
  * Normalizes Indian mobile number by removing non-digits, country code (+91/91),
@@ -228,9 +230,131 @@ const updateLanguagePreference = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Verify Email using 6-digit OTP
+ * @route   POST /api/auth/verify-email
+ * @access  Public (Optional Bearer token for session association)
+ */
+const verifyEmail = async (req, res, next) => {
+  try {
+    const { otp } = req.body;
+    let email = req.body.email;
+
+    // If request has authenticated / restricted token, can fall back to user's registered email
+    if (!email && req.user && req.user.email) {
+      email = req.user.email;
+    }
+
+    const cleanEmail = normalizeEmail(email);
+    if (!cleanEmail || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email and verification code'
+      });
+    }
+
+    // Call email verification service (atomic consumption & validation)
+    const verification = await emailService.verifyEmailOtp({ email: cleanEmail, otp });
+    if (!verification.success) {
+      return res.status(400).json(verification);
+    }
+
+    // Update user record if exists
+    let user = req.user || (await User.findOne({ email: cleanEmail }));
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'Email address verified successfully'
+      });
+    }
+
+    user.emailVerified = true;
+    user.emailVerifiedAt = new Date();
+    user.syncVerificationState();
+    await user.save();
+
+    const verificationStatus = user.getVerificationStatus();
+    // If account now satisfies full verification, issue full access token
+    const token = user.isVerified ? generateToken(user._id, user.role) : undefined;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email address verified successfully',
+      isFullyVerified: user.isVerified,
+      verificationStatus,
+      ...(token && { token }),
+      user: {
+        _id: user._id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Resend Email OTP
+ * @route   POST /api/auth/resend-email-otp
+ * @access  Public (Optional Bearer token)
+ */
+const resendEmailOtp = async (req, res, next) => {
+  try {
+    let email = req.body.email;
+    if (!email && req.user && req.user.email) {
+      email = req.user.email;
+    }
+
+    const cleanEmail = normalizeEmail(email);
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    const user = req.user || (await User.findOne({ email: cleanEmail }));
+    if (user && user.emailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is already verified'
+      });
+    }
+
+    const result = await emailService.sendEmailOtp({
+      userId: user?._id,
+      email: cleanEmail,
+      name: user?.name || 'Farmer/Trader'
+    });
+
+    if (!result.success) {
+      const statusCode = result.cooldown ? 429 : 400;
+      return res.status(statusCode).json(result);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Verification code sent to your email',
+      maskedEmail: result.maskedEmail,
+      resendAvailableAt: result.resendAvailableAt,
+      expiresAt: result.expiresAt
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
-  updateLanguagePreference
+  updateLanguagePreference,
+  verifyEmail,
+  resendEmailOtp
 };

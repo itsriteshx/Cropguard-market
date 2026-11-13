@@ -5,14 +5,21 @@ const {
   register,
   login,
   getMe,
-  updateLanguagePreference
+  updateLanguagePreference,
+  verifyEmail,
+  resendEmailOtp
 } = require('../controllers/authController');
 
-const { protect } = require('../middleware/authMiddleware');
+const { protect, optionalProtect } = require('../middleware/authMiddleware');
+const { otpLimiter } = require('../middleware/securityMiddleware');
 
 // Public routes
 router.post('/register', register);
 router.post('/login', login);
+
+// Email verification endpoints
+router.post('/verify-email', optionalProtect, verifyEmail);
+router.post('/resend-email-otp', otpLimiter, optionalProtect, resendEmailOtp);
 
 // Protected routes (Require JWT Bearer Token)
 router.get('/me', protect, getMe);
