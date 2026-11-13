@@ -4,6 +4,7 @@ const Order = require('../models/Order');
 const Negotiation = require('../models/Negotiation');
 const MandiRate = require('../models/MandiRate');
 
+const defaultStartSession = mongoose.startSession;
 const defaultProduceListingFindOneAndUpdate = ProduceListing.findOneAndUpdate;
 const defaultProduceListingUpdateOne = ProduceListing.updateOne;
 const {
@@ -397,17 +398,31 @@ class ListingError extends Error {
  */
 const deleteListing = async (req, res, next) => {
   let session = null;
-  let claimAcquired = false;
+  let nonTransactionalClaimToken = null;
   const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
-  const isMocked = mongoose.startSession && mongoose.startSession.__isMock;
+  const isMocked = mongoose.startSession && (mongoose.startSession.__isMock || mongoose.startSession !== defaultStartSession);
+  const isProduction = process.env.NODE_ENV === 'production';
 
   try {
-    if (isConnected || isMocked) {
+    if (isConnected || isProduction || isMocked) {
       try {
         session = await mongoose.startSession();
       } catch (err) {
+        if (isConnected || isProduction) {
+          return res.status(503).json({
+            success: false,
+            message: 'Listing deletion requires MongoDB replica set transaction support'
+          });
+        }
         session = null;
       }
+    }
+
+    if ((isConnected || isProduction) && (!session || typeof session.withTransaction !== 'function')) {
+      return res.status(503).json({
+        success: false,
+        message: 'Listing deletion requires MongoDB replica set transaction support'
+      });
     }
 
     const executeDeletion = async (sess) => {
@@ -434,6 +449,9 @@ const deleteListing = async (req, res, next) => {
         (ProduceListing.findOneAndUpdate && ProduceListing.findOneAndUpdate !== defaultProduceListingFindOneAndUpdate);
 
       if (isFindOneAndUpdateAvailable) {
+        if (!sess) {
+          nonTransactionalClaimToken = new mongoose.Types.ObjectId().toString();
+        }
         const claimQuery = sess
           ? ProduceListing.findOneAndUpdate(
               { _id: req.params.id, deletionPending: { $ne: true } },
@@ -442,7 +460,7 @@ const deleteListing = async (req, res, next) => {
             )
           : ProduceListing.findOneAndUpdate(
               { _id: req.params.id, deletionPending: { $ne: true } },
-              { $set: { deletionPending: true } },
+              { $set: { deletionPending: true, deletionClaimToken: nonTransactionalClaimToken } },
               { new: true }
             );
 
@@ -456,7 +474,6 @@ const deleteListing = async (req, res, next) => {
         if (!claimed) {
           throw new ListingError(409, 'Listing deletion is already in progress');
         }
-        claimAcquired = true;
       }
 
       // Referential integrity check: active or settled orders
@@ -516,18 +533,29 @@ const deleteListing = async (req, res, next) => {
       message: 'Produce listing deleted successfully'
     });
   } catch (error) {
-    if (claimAcquired) {
+    // Only release non-transactional claims matching our unique token.
+    // Transactional claims are rolled back automatically by MongoDB on abort.
+    if (!session && nonTransactionalClaimToken) {
       const isUpdateOneAvailable =
         isConnected ||
         (ProduceListing.updateOne && ProduceListing.updateOne !== defaultProduceListingUpdateOne);
       if (isUpdateOneAvailable) {
         try {
           await ProduceListing.updateOne(
-            { _id: req.params.id, deletionPending: true },
-            { $set: { deletionPending: false } }
+            { _id: req.params.id, deletionClaimToken: nonTransactionalClaimToken },
+            { $set: { deletionPending: false, deletionClaimToken: null } }
           );
         } catch (_) {}
       }
+    }
+    if (
+      error.code === 20 ||
+      /Transaction numbers are only allowed|replica set|transaction support/i.test(error.message)
+    ) {
+      return res.status(503).json({
+        success: false,
+        message: 'Listing deletion requires MongoDB replica set transaction support'
+      });
     }
     if (error instanceof ListingError || error.status) {
       return res.status(error.status).json({

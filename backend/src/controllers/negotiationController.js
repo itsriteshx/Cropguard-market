@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Negotiation = require('../models/Negotiation');
 const ProduceListing = require('../models/ProduceListing');
 
+const defaultStartSession = mongoose.startSession;
 const defaultProduceListingFindOneAndUpdate = ProduceListing.findOneAndUpdate;
 
 // Broadcast only after a successful database write. Personal rooms notify users
@@ -26,6 +27,11 @@ const revision = (negotiation) => ({ _id: negotiation._id, __v: negotiation.__v 
  * @access  Private (BUYER_RETAIL, BUYER_WHOLESALE)
  */
 const startNegotiation = async (req, res, next) => {
+  let session = null;
+  const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
+  const isMocked = mongoose.startSession && (mongoose.startSession.__isMock || mongoose.startSession !== defaultStartSession);
+  const isProduction = process.env.NODE_ENV === 'production';
+
   try {
     const { listingId, offeredPrice, quantity, note } = req.body;
 
@@ -37,6 +43,27 @@ const startNegotiation = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Please provide listing ID, offered price per unit, and quantity'
+      });
+    }
+
+    if (isConnected || isProduction || isMocked) {
+      try {
+        session = await mongoose.startSession();
+      } catch (err) {
+        if (isConnected || isProduction) {
+          return res.status(503).json({
+            success: false,
+            message: 'Negotiation creation requires MongoDB replica set transaction support'
+          });
+        }
+        session = null;
+      }
+    }
+
+    if ((isConnected || isProduction) && (!session || typeof session.withTransaction !== 'function')) {
+      return res.status(503).json({
+        success: false,
+        message: 'Negotiation creation requires MongoDB replica set transaction support'
       });
     }
 
@@ -103,17 +130,6 @@ const startNegotiation = async (req, res, next) => {
         message: 'You already have an active negotiation on this produce. Please submit a counter-offer.',
         negotiationId: existingNeg._id
       });
-    }
-
-    let session = null;
-    const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
-    const isMocked = mongoose.startSession && mongoose.startSession.__isMock;
-    if (isConnected || isMocked) {
-      try {
-        session = await mongoose.startSession();
-      } catch (err) {
-        session = null;
-      }
     }
 
     const persistNegotiation = async (sess) => {
@@ -236,7 +252,26 @@ const startNegotiation = async (req, res, next) => {
       negotiation
     });
   } catch (error) {
+    if (
+      error.code === 20 ||
+      /Transaction numbers are only allowed|replica set|transaction support/i.test(error.message)
+    ) {
+      return res.status(503).json({
+        success: false,
+        message: 'Negotiation creation requires MongoDB replica set transaction support'
+      });
+    }
+    if (error.status) {
+      return res.status(error.status).json({
+        success: false,
+        message: error.message
+      });
+    }
     next(error);
+  } finally {
+    if (session && typeof session.endSession === 'function') {
+      await session.endSession();
+    }
   }
 };
 

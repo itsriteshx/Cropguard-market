@@ -86,6 +86,10 @@ const produceListingSchema = new mongoose.Schema(
     deletionPending: {
       type: Boolean,
       default: false
+    },
+    deletionClaimToken: {
+      type: String,
+      default: null
     }
   },
   {
