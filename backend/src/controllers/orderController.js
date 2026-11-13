@@ -170,6 +170,22 @@ const updateOrderStatus = async (req, res, next) => {
     }
 
     // Role-specific transition rules
+    const now = new Date();
+    const updateDoc = {
+      $set: {
+        orderStatus: nextStatus
+      },
+      $push: {
+        timeline: {
+          status: nextStatus,
+          note: note || `Order transitioned from ${currentStatus} to ${nextStatus}`,
+          timestamp: now,
+          updatedBy: req.user._id
+        }
+      },
+      $inc: { __v: 1 }
+    };
+
     if (nextStatus === 'ESCROW_HELD') {
       if (!isBuyer && !isAdmin) {
         return res.status(403).json({
@@ -177,16 +193,22 @@ const updateOrderStatus = async (req, res, next) => {
           message: 'Only the buyer can make escrow payment'
         });
       }
-      order.paymentStatus = 'ESCROW_SECURED';
-      order.paymentDetails.escrowSecuredAt = new Date();
+      updateDoc.$set.paymentStatus = 'ESCROW_SECURED';
+      updateDoc.$set['paymentDetails.escrowSecuredAt'] = now;
       if (transactionId) {
-        order.paymentDetails.transactionId = transactionId;
+        updateDoc.$set['paymentDetails.transactionId'] = String(transactionId).trim();
       }
     } else if (nextStatus === 'DISPATCHED') {
       if (!isFarmer && !isAdmin) {
         return res.status(403).json({
           success: false,
           message: 'Only the farmer can dispatch produce'
+        });
+      }
+      if (order.paymentStatus !== 'ESCROW_SECURED') {
+        return res.status(409).json({
+          success: false,
+          message: 'Payment must be secured in escrow before dispatching produce'
         });
       }
     } else if (nextStatus === 'DELIVERED') {
@@ -198,25 +220,34 @@ const updateOrderStatus = async (req, res, next) => {
       }
     } else if (nextStatus === 'SETTLED') {
       if (!isBuyer && !isAdmin) return res.status(403).json({ success: false, message: 'Only the buyer or an admin can mark settlement' });
+      if (order.paymentStatus !== 'ESCROW_SECURED') {
+        return res.status(409).json({
+          success: false,
+          message: 'Payment must be secured in escrow before order can be settled'
+        });
+      }
       // Simulated settlement; no payment is transferred.
-      order.paymentStatus = 'PAID_TO_FARMER';
-      order.paymentDetails.settledAt = new Date();
+      updateDoc.$set.paymentStatus = 'PAID_TO_FARMER';
+      updateDoc.$set['paymentDetails.settledAt'] = now;
     }
 
-    order.orderStatus = nextStatus;
-    order.timeline.push({
-      status: nextStatus,
-      note: note || `Order transitioned from ${currentStatus} to ${nextStatus}`,
-      timestamp: new Date(),
-      updatedBy: req.user._id
-    });
+    const updated = await Order.findOneAndUpdate(
+      { _id: order._id, orderStatus: currentStatus, __v: order.__v ?? 0 },
+      updateDoc,
+      { new: true, runValidators: true }
+    );
 
-    await order.save();
+    if (!updated) {
+      return res.status(409).json({
+        success: false,
+        message: 'Order changed. Refresh and try again.'
+      });
+    }
 
     return res.status(200).json({
       success: true,
       message: `Order transitioned to ${nextStatus} successfully`,
-      order
+      order: updated
     });
   } catch (error) {
     if (error.name === 'VersionError') return res.status(409).json({ success: false, message: 'Order changed. Refresh and try again.' });
