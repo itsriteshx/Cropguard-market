@@ -130,6 +130,39 @@ export default function AuthScreen() {
     }
   };
 
+  const handleVerifyPhone = async () => {
+    if (!phoneOtp || phoneOtp.trim().length !== 6) {
+      setVerificationError('Please enter the 6-digit SMS verification code.');
+      return;
+    }
+    setVerificationError('');
+    const targetPhone = verificationUser?.phone || phone;
+    const res = await verifyPhoneOtp(targetPhone, phoneOtp.trim(), verificationToken);
+    if (!res.success) {
+      setVerificationError(res.message || 'Invalid SMS verification code. Please check and try again.');
+      return;
+    }
+    if (res.verificationStatus?.pending?.includes('email')) {
+      setVerificationSuccessMsg('Phone verified! Please now verify your email address.');
+      setVerificationStep('EMAIL_OTP');
+    } else {
+      setVerificationStep('SUCCESS');
+    }
+  };
+
+  const handleResendPhone = async () => {
+    if (phoneCooldown > 0) return;
+    setVerificationError('');
+    const targetPhone = verificationUser?.phone || phone;
+    const res = await resendPhoneOtp(targetPhone, verificationToken);
+    if (res.success) {
+      setPhoneCooldown(60);
+      setVerificationSuccessMsg('A new verification code has been sent via SMS.');
+    } else {
+      setVerificationError(res.message || 'Failed to resend SMS verification code.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -154,8 +187,86 @@ export default function AuthScreen() {
             </Text>
           </View>
 
-          {/* Verification Step: Email OTP */}
-          {verificationStep === 'EMAIL_OTP' ? (
+          {/* Verification Step: Phone SMS OTP */}
+          {verificationStep === 'PHONE_OTP' ? (
+            <View style={styles.card}>
+              <View style={styles.verificationBadge}>
+                <Text style={styles.verificationBadgeText}>📱 SMS VERIFICATION</Text>
+              </View>
+              <Text style={styles.cardTitle}>Verify Mobile Number</Text>
+              <Text style={styles.cardSubtitle}>
+                Enter the 6-digit SMS code sent to{' '}
+                <Text style={{ color: '#34d399', fontWeight: 'bold' }}>
+                  {verificationUser?.phone || phone}
+                </Text>
+              </Text>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Enter 6-Digit SMS Code</Text>
+                <TextInput
+                  style={[styles.input, styles.otpInput]}
+                  placeholder="000000"
+                  placeholderTextColor="#64748b"
+                  value={phoneOtp}
+                  onChangeText={(val) => {
+                    setPhoneOtp(val.replace(/\D/g, '').slice(0, 6));
+                    if (verificationError) setVerificationError('');
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+              </View>
+
+              {!!verificationError && (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>⚠️ {verificationError}</Text>
+                </View>
+              )}
+
+              {!!verificationSuccessMsg && (
+                <View style={[styles.errorBox, { borderColor: 'rgba(52, 211, 153, 0.4)', backgroundColor: 'rgba(52, 211, 153, 0.1)' }]}>
+                  <Text style={[styles.errorText, { color: '#34d399' }]}>✅ {verificationSuccessMsg}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.button, (loading || phoneOtp.length !== 6) && styles.buttonDisabled]}
+                onPress={handleVerifyPhone}
+                disabled={loading || phoneOtp.length !== 6}
+                accessibilityRole="button"
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.buttonText}>Verify Mobile Number</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.resendBtn, phoneCooldown > 0 && styles.buttonDisabled]}
+                onPress={handleResendPhone}
+                disabled={phoneCooldown > 0}
+                accessibilityRole="button"
+              >
+                <Text style={styles.resendText}>
+                  {phoneCooldown > 0
+                    ? `Resend SMS in ${phoneCooldown}s`
+                    : "Didn't receive SMS? Resend Code"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={() => {
+                  setVerificationStep(null);
+                  setVerificationError('');
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.backBtnText}>← Back to Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          ) : verificationStep === 'EMAIL_OTP' ? (
             <View style={styles.card}>
               <View style={styles.verificationBadge}>
                 <Text style={styles.verificationBadgeText}>✉️ EMAIL VERIFICATION</Text>
