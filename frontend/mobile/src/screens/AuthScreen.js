@@ -344,6 +344,27 @@ export default function AuthScreen() {
                 <Text style={styles.backBtnText}>← Back to Sign In</Text>
               </TouchableOpacity>
             </View>
+          ) : verificationStep === 'SUCCESS' ? (
+            <View style={styles.card}>
+              <View style={[styles.verificationBadge, { backgroundColor: 'rgba(52, 211, 153, 0.2)', borderColor: '#34d399' }]}>
+                <Text style={styles.verificationBadgeText}>🎉 VERIFICATION COMPLETE</Text>
+              </View>
+              <Text style={styles.cardTitle}>Account Activated!</Text>
+              <Text style={styles.cardSubtitle}>
+                Your CropGuard Market account has been verified. You can now access APMC direct trades, live negotiations, and escrow services.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => {
+                  setVerificationStep(null);
+                  setVerificationError('');
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.buttonText}>Enter Marketplace 🌾</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             /* Form Card */
             <View style={styles.card}>
