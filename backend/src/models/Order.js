@@ -136,6 +136,7 @@ orderSchema.virtual('agreedPrice').get(function () {
 // Compound indexes for user query performance
 orderSchema.index({ buyer: 1, orderStatus: 1 });
 orderSchema.index({ farmer: 1, orderStatus: 1 });
+orderSchema.index({ farmer: 1, createdAt: -1 });
 orderSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);

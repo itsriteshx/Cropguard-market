@@ -584,3 +584,9 @@ test('farmer ledger: averageRatePerQuintal calculated correctly from revenue and
     Order.find = originalFind;
   }
 });
+
+test('farmer ledger: Order model defines compound index on { farmer: 1, createdAt: -1 }', () => {
+  const indexes = Order.schema.indexes();
+  const hasFarmerCreatedAtIndex = indexes.some(([fields]) => fields.farmer === 1 && fields.createdAt === -1);
+  assert.ok(hasFarmerCreatedAtIndex, 'Order schema must declare compound index on { farmer: 1, createdAt: -1 }');
+});
