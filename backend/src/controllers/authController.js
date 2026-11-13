@@ -1,8 +1,5 @@
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
-const emailService = require('../services/email/emailService');
-const smsService = require('../services/sms/smsService');
-const { normalizeEmail, normalizePhone, maskEmail, maskPhone } = require('../utils/otpUtils');
 
 /**
  * Normalizes Indian mobile number by removing non-digits, country code (+91/91),
@@ -74,7 +71,7 @@ const register = async (req, res, next) => {
       }
     }
 
-    // Create user in unverified state
+    // Create user
     const user = await User.create({
       name: name.trim(),
       phone: cleanPhone,
@@ -82,35 +79,16 @@ const register = async (req, res, next) => {
       password,
       role: role || 'FARMER',
       languagePreference: languagePreference || 'en',
-      location: location || { type: 'Point' },
-      isVerified: false,
-      phoneVerified: false,
-      emailVerified: false
+      location: location || { type: 'Point' }
     });
 
-    // Automatically initiate phone verification and email verification
-    try {
-      await smsService.sendPhoneOtp({ userId: user._id, phone: cleanPhone });
-    } catch (_) { }
-
-    if (cleanEmail) {
-      try {
-        await emailService.sendEmailOtp({ userId: user._id, email: cleanEmail, name: user.name });
-      } catch (_) { }
-    }
-
-    // Generate restricted verification token
-    const verificationToken = generateToken.generateVerificationToken
-      ? generateToken.generateVerificationToken(user._id, user.role)
-      : generateToken(user._id, user.role);
+    // Generate JWT Token
+    const token = generateToken(user._id, user.role);
 
     return res.status(201).json({
       success: true,
-      requiresVerification: true,
-      message: 'Account created. Please verify your mobile number' + (cleanEmail ? ' and email' : '') + ' to activate your account.',
-      token: verificationToken,
-      verificationToken,
-      verificationStatus: user.getVerificationStatus(),
+      message: 'User registered successfully',
+      token,
       user: {
         _id: user._id,
         name: user.name,
@@ -120,8 +98,6 @@ const register = async (req, res, next) => {
         languagePreference: user.languagePreference,
         location: user.location,
         isVerified: user.isVerified,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
         createdAt: user.createdAt
       }
     });
@@ -157,7 +133,7 @@ const login = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. User not found or incorrect password.'
+        message: 'Invalid credentials. User not found.'
       });
     }
 
@@ -166,42 +142,11 @@ const login = async (req, res, next) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. User not found or incorrect password.'
+        message: 'Invalid credentials. Incorrect password.'
       });
     }
 
-    // Synchronize verification state & check if user is verified
-    user.syncVerificationState();
-
-    if (!user.isVerified) {
-      const verificationToken = generateToken.generateVerificationToken
-        ? generateToken.generateVerificationToken(user._id, user.role)
-        : generateToken(user._id, user.role);
-
-      return res.status(200).json({
-        success: false,
-        requiresVerification: true,
-        message: 'Account verification required before accessing the market.',
-        token: verificationToken,
-        verificationToken,
-        verificationStatus: user.getVerificationStatus(),
-        user: {
-          _id: user._id,
-          name: user.name,
-          phone: user.phone,
-          email: user.email,
-          role: user.role,
-          languagePreference: user.languagePreference,
-          location: user.location,
-          isVerified: user.isVerified,
-          emailVerified: user.emailVerified,
-          phoneVerified: user.phoneVerified,
-          createdAt: user.createdAt
-        }
-      });
-    }
-
-    // Generate JWT Token for fully verified user
+    // Generate JWT Token
     const token = generateToken(user._id, user.role);
 
     return res.status(200).json({
@@ -217,8 +162,6 @@ const login = async (req, res, next) => {
         languagePreference: user.languagePreference,
         location: user.location,
         isVerified: user.isVerified,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
         createdAt: user.createdAt
       }
     });
@@ -285,373 +228,9 @@ const updateLanguagePreference = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Verify Email using 6-digit OTP
- * @route   POST /api/auth/verify-email
- * @access  Public (Optional Bearer token for session association)
- */
-const verifyEmail = async (req, res, next) => {
-  try {
-    const { otp } = req.body;
-    let email = req.body.email;
-
-    // Authenticated account ownership enforcement
-    if (req.user) {
-      if (!req.user.email) {
-        return res.status(400).json({
-          success: false,
-          message: 'Authenticated account does not have a registered email address'
-        });
-      }
-      if (email && normalizeEmail(email) !== normalizeEmail(req.user.email)) {
-        return res.status(403).json({
-          success: false,
-          message: 'Forbidden. Contact detail does not match authenticated account.'
-        });
-      }
-      email = req.user.email;
-    }
-
-    const cleanEmail = normalizeEmail(email);
-    if (!cleanEmail || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email and verification code'
-      });
-    }
-
-    // Resolve user: req.user or unauthenticated lookup
-    let user = req.user || (await User.findOne({ email: cleanEmail }));
-
-    // Call email verification service (atomic consumption & validation)
-    const verification = await emailService.verifyEmailOtp({
-      email: cleanEmail,
-      otp,
-      userId: user ? user._id : null
-    });
-    if (!verification.success) {
-      return res.status(400).json(verification);
-    }
-
-    // Update user record if exists
-    if (!user) {
-      return res.status(200).json({
-        success: true,
-        message: 'Email address verified successfully'
-      });
-    }
-
-    user.emailVerified = true;
-    user.emailVerifiedAt = new Date();
-    user.syncVerificationState();
-    await user.save();
-
-    const verificationStatus = user.getVerificationStatus();
-    // If account now satisfies full verification, issue full access token
-    const token = user.isVerified ? generateToken(user._id, user.role) : undefined;
-
-    return res.status(200).json({
-      success: true,
-      message: 'Email address verified successfully',
-      isFullyVerified: user.isVerified,
-      verificationStatus,
-      ...(token && { token }),
-      user: {
-        _id: user._id,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        role: user.role,
-        isVerified: user.isVerified,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @desc    Resend Email OTP
- * @route   POST /api/auth/resend-email-otp
- * @access  Public (Optional Bearer token)
- */
-const resendEmailOtp = async (req, res, next) => {
-  try {
-    let email = req.body.email;
-
-    // Authenticated account ownership enforcement
-    if (req.user) {
-      if (!req.user.email) {
-        return res.status(400).json({
-          success: false,
-          message: 'Authenticated account does not have a registered email address'
-        });
-      }
-      if (email && normalizeEmail(email) !== normalizeEmail(req.user.email)) {
-        return res.status(403).json({
-          success: false,
-          message: 'Forbidden. Contact detail does not match authenticated account.'
-        });
-      }
-      email = req.user.email;
-    }
-
-    const cleanEmail = normalizeEmail(email);
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a valid email address'
-      });
-    }
-
-    const user = req.user || (await User.findOne({ email: cleanEmail }));
-    if (user && user.emailVerified) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email address is already verified'
-      });
-    }
-
-    const result = await emailService.sendEmailOtp({
-      userId: user?._id,
-      email: cleanEmail,
-      name: user?.name || 'Farmer/Trader'
-    });
-
-    if (!result.success) {
-      const statusCode = result.cooldown ? 429 : 400;
-      return res.status(statusCode).json(result);
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Verification code sent to your email',
-      maskedEmail: result.maskedEmail,
-      resendAvailableAt: result.resendAvailableAt,
-      expiresAt: result.expiresAt
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @desc    Verify Phone using 6-digit SMS OTP
- * @route   POST /api/auth/verify-phone
- * @access  Public (Optional Bearer token for session association)
- */
-const verifyPhone = async (req, res, next) => {
-  try {
-    const { otp } = req.body;
-    let phone = req.body.phone;
-
-    // Authenticated account ownership enforcement
-    if (req.user) {
-      if (!req.user.phone) {
-        return res.status(400).json({
-          success: false,
-          message: 'Authenticated account does not have a registered phone number'
-        });
-      }
-      if (phone && normalizePhone(phone) !== normalizePhone(req.user.phone)) {
-        return res.status(403).json({
-          success: false,
-          message: 'Forbidden. Contact detail does not match authenticated account.'
-        });
-      }
-      phone = req.user.phone;
-    }
-
-    const cleanPhone = normalizePhone(phone);
-    if (!cleanPhone || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide mobile number and verification code'
-      });
-    }
-
-    // Resolve user: req.user or unauthenticated lookup
-    let user = req.user || (await User.findOne({ phone: cleanPhone }));
-
-    // Call SMS verification service (atomic consumption & validation)
-    const verification = await smsService.verifyPhoneOtp({
-      phone: cleanPhone,
-      otp,
-      userId: user ? user._id : null
-    });
-    if (!verification.success) {
-      return res.status(400).json(verification);
-    }
-
-    // Update user record if exists
-    if (!user) {
-      return res.status(200).json({
-        success: true,
-        message: 'Mobile number verified successfully'
-      });
-    }
-
-    user.phoneVerified = true;
-    user.phoneVerifiedAt = new Date();
-    user.syncVerificationState();
-    await user.save();
-
-    const verificationStatus = user.getVerificationStatus();
-    const token = user.isVerified ? generateToken(user._id, user.role) : undefined;
-
-    return res.status(200).json({
-      success: true,
-      message: 'Mobile number verified successfully',
-      isFullyVerified: user.isVerified,
-      verificationStatus,
-      ...(token && { token }),
-      user: {
-        _id: user._id,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        role: user.role,
-        isVerified: user.isVerified,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @desc    Resend Phone SMS OTP
- * @route   POST /api/auth/resend-phone-otp
- * @access  Public (Optional Bearer token)
- */
-const resendPhoneOtp = async (req, res, next) => {
-  try {
-    let phone = req.body.phone;
-
-    // Authenticated account ownership enforcement
-    if (req.user) {
-      if (!req.user.phone) {
-        return res.status(400).json({
-          success: false,
-          message: 'Authenticated account does not have a registered phone number'
-        });
-      }
-      if (phone && normalizePhone(phone) !== normalizePhone(req.user.phone)) {
-        return res.status(403).json({
-          success: false,
-          message: 'Forbidden. Contact detail does not match authenticated account.'
-        });
-      }
-      phone = req.user.phone;
-    }
-
-    const cleanPhone = normalizePhone(phone);
-    if (!cleanPhone || !/^[6-9]\d{9}$/.test(cleanPhone)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a valid 10-digit Indian mobile number'
-      });
-    }
-
-    const user = req.user || (await User.findOne({ phone: cleanPhone }));
-    if (user && user.phoneVerified) {
-      return res.status(400).json({
-        success: false,
-        message: 'Mobile number is already verified'
-      });
-    }
-
-    const result = await smsService.sendPhoneOtp({
-      userId: user?._id,
-      phone: cleanPhone
-    });
-
-    if (!result.success) {
-      const statusCode = result.cooldown ? 429 : 400;
-      return res.status(statusCode).json(result);
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Verification code sent to your mobile number',
-      maskedPhone: result.maskedPhone,
-      resendAvailableAt: result.resendAvailableAt,
-      expiresAt: result.expiresAt
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @desc    Get verification status for current user or given email/phone
- * @route   GET /api/auth/verification-status
- * @access  Public (Optional Bearer token)
- */
-const getVerificationStatus = async (req, res, next) => {
-  try {
-    let user = req.user;
-    if (user) {
-      const queryEmail = req.query.email ? normalizeEmail(req.query.email) : null;
-      const queryPhone = req.query.phone ? normalizePhone(req.query.phone) : null;
-      if (queryEmail && normalizeEmail(user.email) !== queryEmail) {
-        return res.status(403).json({
-          success: false,
-          message: 'Forbidden. Contact detail does not match authenticated account.'
-        });
-      }
-      if (queryPhone && normalizePhone(user.phone) !== queryPhone) {
-        return res.status(403).json({
-          success: false,
-          message: 'Forbidden. Contact detail does not match authenticated account.'
-        });
-      }
-    } else {
-      const email = req.query.email ? normalizeEmail(req.query.email) : null;
-      const phone = req.query.phone ? normalizePhone(req.query.phone) : null;
-      if (email) user = await User.findOne({ email });
-      else if (phone) user = await User.findOne({ phone });
-    }
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User account not found'
-      });
-    }
-
-    user.syncVerificationState();
-    return res.status(200).json({
-      success: true,
-      verificationStatus: user.getVerificationStatus(),
-      user: {
-        _id: user._id,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        role: user.role,
-        isVerified: user.isVerified,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
 module.exports = {
   register,
   login,
   getMe,
-  updateLanguagePreference,
-  verifyEmail,
-  resendEmailOtp,
-  verifyPhone,
-  resendPhoneOtp,
-  getVerificationStatus
+  updateLanguagePreference
 };
