@@ -51,7 +51,7 @@ Traditional agricultural mandi chains force farmers through multiple commission 
 ## 🔄 How It Works — 5 Core Platform Workflows
 
 1. **Farmers List Produce (`Sell Produce`):**  
-   Farmers sign in and publish harvests with crop name, quantity (`KG`/`QUINTAL`), quality grade, produce photos, asking price, and an **India Post Pincode-verified** farm location.
+   Farmers sign in and publish harvests with crop name, quantity (`KG`/`QUINTAL`), quality grade, produce photos, asking price, and an **India Post Pincode-verified** farm location. Farmers can manage active lots via **"My Active Listings"** with real-time editing and safe deletion protected by backend referential integrity.
 2. **Buyers Discover & Compare (`Wholesale Marketplace`):**  
    Buyers browse active farmer lots, compare asking rates against **Government APMC modal benchmarks**, and check proximity (**Haversine distance in `km`**). If a searched crop (such as *Apple* or *Garlic*) has no local farmer listing, live **Agmarknet crop photo + mandi rate cards** appear automatically below.
 3. **Live Bargaining (`Negotiations via Socket.IO`):**  
@@ -71,6 +71,7 @@ Traditional agricultural mandi chains force farmers through multiple commission 
 
 ### 🌾 Marketplace & Produce Publishing
 * **Farmer Lot Publishing:** Unit conversion (`KG` / `QUINTAL`), quality grading (`GRADE_A`, `GRADE_B`, `ORGANIC`), live crop suggestions, and Agmarknet modal guidance.
+* **Farmer Inventory Management:** Web & Mobile "My Active Listings" with real-time editing modal (price, quantity, grade, status), two-step deletion confirmation, and backend referential integrity protection (prevents deleting lots with active negotiations or orders).
 * **India Post Pincode Auto-Fill:** 6-digit pincodes resolve District, Taluk, and State automatically via India Post API.
 * **Smart Image Pipeline:** Client-side HEIC/image compression (`expo-image-manipulator`), Multer validation, Cloudinary / local `/uploads` storage, and a cached backend Wikimedia thumbnail proxy (`/api/mandi-rates/image`).
 
@@ -88,7 +89,7 @@ Traditional agricultural mandi chains force farmers through multiple commission 
 
 ### 📦 Orders, Khata Ledger & AI Assistant
 * **Transactional Order Engine:** Reserves produce stock atomically inside `mongoose.startSession()` transactions (`PLACED` → `ESCROW_HELD` → `DISPATCHED` → `DELIVERED` → `SETTLED`), restoring stock on cancellation.
-* **Digital Khata & Receipts:** Farmer revenue tracking, estimated middleman-margin savings, and printable demo receipts *(payment states are simulated for demonstration)*.
+* **Digital Khata & Receipts:** Farmer revenue tracking powered by high-performance **MongoDB Aggregation Pipelines** (`$match`, `$project`, `$group`), compound indexes, estimated middleman-margin savings, and printable demo receipts *(payment states are simulated for demonstration)*.
 * **8-Language AI Assistant:** Natural-language price lookups, weather checks, screen navigation, and midpoint counter-offer guidance with **Web Speech API** (Web) and **`expo-speech` Read-Aloud** (Mobile).
 
 </td>
