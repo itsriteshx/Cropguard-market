@@ -6,7 +6,6 @@ import {
   MapPin,
   CheckCircle2,
   Truck,
-  ArrowRight,
   ShieldCheck,
   SlidersHorizontal,
   Eye,
@@ -15,15 +14,9 @@ import {
   RefreshCw,
   Zap,
   Calendar,
-  Building2,
-  TrendingUp,
-  Star,
   Leaf,
   BarChart3,
   Lock,
-  Globe,
-  Sparkles,
-  ChevronRight,
   MessageSquare,
   PlusCircle,
 } from 'lucide-react';
@@ -107,7 +100,7 @@ const getLocalizedCropName = (cropName, lang) => {
 };
 
 export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiations, onNavigateToMandi }) {
-  const { activePersona, currentUser, t, language } = useAuth();
+  const { currentUser, t, language } = useAuth();
   const m = t.marketplace || {};
   const modalText = m.modal || {};
   const userRole = currentUser?.role;
@@ -128,6 +121,7 @@ export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiat
   // Modals state
   const [selectedLot, setSelectedLot] = useState(null);
   const [inspectLot, setInspectLot] = useState(null);
+  const [inspectMandiRate, setInspectMandiRate] = useState(null);
   const [offerLot, setOfferLot] = useState(null);
   const [orderQuantity, setOrderQuantity] = useState(50);
   const [offerPrice, setOfferPrice] = useState(0);
@@ -236,7 +230,7 @@ export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiat
     setOrderError('');
 
     try {
-      const buyerName = currentUser?.name || activePersona?.name || 'Registered Buyer';
+      const buyerName = currentUser?.name || 'Registered Buyer';
       const payload = {
         listingId: selectedLot._id,
         quantity: Number(orderQuantity),
@@ -551,7 +545,9 @@ export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiat
                   {liveMandiMatches.map((r, idx) => (
                     <div
                       key={`${r.marketCenter}-${r.district}-${idx}`}
-                      className="rounded-2xl bg-slate-950/90 border border-slate-800 overflow-hidden flex flex-col hover:border-emerald-500/50 transition-colors"
+                      className="rounded-2xl bg-slate-950/90 border border-slate-800 overflow-hidden flex flex-col hover:border-emerald-500/50 transition-colors cursor-pointer hover:shadow-lg hover:shadow-emerald-950/50 active:scale-[0.98]"
+                      onClick={() => setInspectMandiRate(r)}
+                      title="Click to view details"
                     >
                       <div className="relative h-36 bg-gradient-to-br from-emerald-950 to-slate-900 flex items-center justify-center overflow-hidden">
                         {r.imageUrl ? (
@@ -957,6 +953,117 @@ export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiat
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 🏛 AGMARKNET MANDI RATE DETAIL MODAL */}
+      {inspectMandiRate && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setInspectMandiRate(null)}>
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
+            {/* Crop Image Header */}
+            <div className="relative h-48 bg-gradient-to-br from-emerald-950 to-slate-900 overflow-hidden">
+              {inspectMandiRate.imageUrl ? (
+                <img src={inspectMandiRate.imageUrl} alt={inspectMandiRate.commodity} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-6xl">🌾</div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent" />
+              <button
+                onClick={() => setInspectMandiRate(null)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-3 left-4 right-4">
+                <div className="flex gap-2 mb-1.5">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-900/90 border border-emerald-700 text-[10px] font-bold text-emerald-300">
+                    {inspectMandiRate.category || 'AGMARKNET'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-900/90 border border-slate-700 text-[10px] font-semibold text-slate-200">
+                    Grade: {inspectMandiRate.grade || 'Standard'}
+                  </span>
+                </div>
+                <h2 className="text-2xl font-black text-white">
+                  {inspectMandiRate.commodity}
+                  {inspectMandiRate.variety && (
+                    <span className="text-emerald-300 font-semibold text-base ml-2">({inspectMandiRate.variety})</span>
+                  )}
+                </h2>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Location Info */}
+              <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800">
+                <MapPin className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-white">{inspectMandiRate.marketCenter}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{inspectMandiRate.district}, {inspectMandiRate.state}</div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    📅 Arrival Date: <span className="text-slate-300">{inspectMandiRate.arrivalDateRaw || (inspectMandiRate.priceDate ? new Date(inspectMandiRate.priceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Today')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price Grid */}
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500 mb-2">📊 Govt APMC Mandi Rates (per Quintal)</div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 mb-1">Min Price</div>
+                    <div className="font-mono text-sm font-bold text-amber-300">₹{Number(inspectMandiRate.minPrice).toLocaleString('en-IN')}</div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-emerald-950/60 border border-emerald-700/60">
+                    <div className="text-[10px] text-emerald-400 mb-1">Modal Price</div>
+                    <div className="font-mono text-base font-black text-emerald-300">₹{Number(inspectMandiRate.modalPrice).toLocaleString('en-IN')}</div>
+                    <div className="text-[9px] text-emerald-500 mt-0.5">Benchmark</div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400 mb-1">Max Price</div>
+                    <div className="font-mono text-sm font-bold text-sky-300">₹{Number(inspectMandiRate.maxPrice).toLocaleString('en-IN')}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price Range Bar */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
+                <div className="flex justify-between text-[10px] text-slate-500 mb-2">
+                  <span>Min ₹{Number(inspectMandiRate.minPrice).toLocaleString('en-IN')}</span>
+                  <span>Max ₹{Number(inspectMandiRate.maxPrice).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-800 relative overflow-hidden">
+                  <div className="absolute h-full rounded-full bg-gradient-to-r from-amber-500 via-emerald-500 to-sky-500" style={{ width: '100%' }} />
+                  {/* Modal price marker */}
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white border-2 border-emerald-400 shadow"
+                    style={{
+                      left: `${Math.round(((Number(inspectMandiRate.modalPrice) - Number(inspectMandiRate.minPrice)) / Math.max(1, Number(inspectMandiRate.maxPrice) - Number(inspectMandiRate.minPrice))) * 100)}%`,
+                      transform: 'translate(-50%, -50%)'
+                    }}
+                  />
+                </div>
+                <div className="text-center text-[10px] text-emerald-400 mt-2 font-semibold">
+                  Modal (benchmark) at ₹{Number(inspectMandiRate.modalPrice).toLocaleString('en-IN')}/qtl
+                </div>
+              </div>
+
+              {/* Source */}
+              <div className="text-[10px] text-slate-500 text-center">
+                📡 Source: data.gov.in Agmarknet Live Feed
+              </div>
+
+              {/* CTA */}
+              {onNavigateToMandi && (
+                <button
+                  onClick={() => { setInspectMandiRate(null); onNavigateToMandi(); }}
+                  className="w-full py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Explore All Rates in APMC Mandi Intelligence →
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

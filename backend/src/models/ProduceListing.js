@@ -70,7 +70,7 @@ const produceListingSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
-        default: [0, 0]
+        default: undefined,
       },
       village: { type: String, trim: true },
       taluk: { type: String, trim: true },
@@ -82,6 +82,14 @@ const produceListingSchema = new mongoose.Schema(
       type: String,
       enum: ['AVAILABLE', 'UNDER_NEGOTIATION', 'SOLD', 'EXPIRED'],
       default: 'AVAILABLE'
+    },
+    deletionPending: {
+      type: Boolean,
+      default: false
+    },
+    deletionClaimToken: {
+      type: String,
+      default: null
     }
   },
   {
@@ -97,10 +105,10 @@ produceListingSchema.virtual('expectedPrice').get(function () {
 });
 
 produceListingSchema.virtual('locationName').get(function () {
-  if (this.location && this.location.taluk && this.location.district) {
+  if (this.location?.taluk && this.location?.district) {
     return `${this.location.taluk}, ${this.location.district}`;
   }
-  return this.location?.district || 'Dharwad';
+  return this.location?.district || '';
 });
 
 produceListingSchema.virtual('organicCertified').get(function () {

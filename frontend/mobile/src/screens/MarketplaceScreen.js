@@ -11,11 +11,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-  Image,
   Dimensions
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { apiRequest, resolveMediaUrl } from '../config/api';
+import { apiRequest, API_BASE_URL, resolveMediaUrl } from '../config/api';
+import CropImage from '../components/CropImage';
 
 const { width } = Dimensions.get('window');
 
@@ -221,6 +221,14 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
             <Text style={styles.clearSearchText}>✕</Text>
           </TouchableOpacity>
         )}
+        <TouchableOpacity
+          onPress={onRefresh}
+          disabled={loading || refreshing}
+          style={styles.clearSearchBtn}
+          accessibilityLabel="Reload listings"
+        >
+          <Text style={[styles.clearSearchText, { color: '#34d399' }]}>{refreshing ? '…' : '🔄'}</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Horizontal Category Selector */}
@@ -258,17 +266,12 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
       <View style={styles.cropCard}>
         {/* Photo Container with Top Gradient Badges */}
         <View style={styles.imageWrapper}>
-          {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.cropPhoto}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.cropPhoto, { backgroundColor: '#064e3b', justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ fontSize: 42 }}>🌾</Text>
-            </View>
-          )}
+          <CropImage
+            uri={imageUrl}
+            fallbackUri={item.cropName ? `${API_BASE_URL}/mandi-rates/image?crop=${encodeURIComponent(item.cropName)}` : item.resolvedImageUrl}
+            style={styles.cropPhoto}
+            emojiSize={42}
+          />
           <View style={styles.imageScrim} />
           {item.imageSource === 'illustrative' && <Text style={{ color: '#fff', position: 'absolute', right: 8, bottom: 8, backgroundColor: '#0f172a', padding: 4, fontSize: 10 }}>Illustrative image</Text>}
 
@@ -415,13 +418,7 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
 
               {!liveMandiLoading && liveMandiMatches.map((r, idx) => (
                 <View key={`${r.marketCenter}-${r.district}-${idx}`} style={styles.liveMatchCard}>
-                  {r.imageUrl ? (
-                    <Image source={{ uri: r.imageUrl }} style={styles.liveMatchPhoto} resizeMode="cover" />
-                  ) : (
-                    <View style={[styles.liveMatchPhoto, { alignItems: 'center', justifyContent: 'center' }]}>
-                      <Text style={{ fontSize: 28 }}>🌾</Text>
-                    </View>
-                  )}
+                  <CropImage uri={r.imageUrl} style={styles.liveMatchPhoto} emojiSize={28} />
                   <View style={styles.liveMatchInfo}>
                     <Text style={styles.liveMatchTitle} numberOfLines={1}>
                       {r.commodity}{r.variety ? ` (${r.variety})` : ''}
@@ -470,10 +467,11 @@ export default function MarketplaceScreen({ onNavigateToNegotiations, onNavigate
 
             <ScrollView contentContainerStyle={{ gap: 10, paddingVertical: 8 }}>
               {getListingImage(listingDetails) && (
-                <Image
-                  source={{ uri: getListingImage(listingDetails) }}
+                <CropImage
+                  uri={getListingImage(listingDetails)}
+                  fallbackUri={listingDetails?.cropName ? `${API_BASE_URL}/mandi-rates/image?crop=${encodeURIComponent(listingDetails.cropName)}` : listingDetails?.resolvedImageUrl}
                   style={styles.detailImage}
-                  resizeMode="cover"
+                  emojiSize={42}
                 />
               )}
 

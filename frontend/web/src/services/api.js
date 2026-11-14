@@ -142,6 +142,14 @@ export const negotiationsService = {
     const res = await apiClient.post(`/negotiations/${id}/message`, { text, isVoice });
     return res.data;
   },
+  deleteMessage: async (id, messageId) => {
+    const res = await apiClient.delete(`/negotiations/${id}/message/${messageId}`);
+    return res.data;
+  },
+  remove: async (id) => {
+    const res = await apiClient.delete(`/negotiations/${id}`);
+    return res.data;
+  },
 };
 
 // Smart AI Voice & Mandi Assistant
@@ -187,11 +195,6 @@ export const mandiService = {
   },
 
   getPriceTrends: async (params = {}) => {
-    const res = await apiClient.get('/mandi-rates/analytics/trends', { params });
-    return res.data;
-  },
-
-  getAnalyticsTrends: async (params = {}) => {
     const res = await apiClient.get('/mandi-rates/analytics/trends', { params });
     return res.data;
   },

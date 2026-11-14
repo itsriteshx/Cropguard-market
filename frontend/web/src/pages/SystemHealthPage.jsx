@@ -5,12 +5,8 @@ import {
   Server,
   Database,
   Radio,
-  CheckCircle,
-  XCircle,
-  Clock,
   Code,
   RefreshCw,
-  ExternalLink,
 } from 'lucide-react';
 
 export default function SystemHealthPage() {

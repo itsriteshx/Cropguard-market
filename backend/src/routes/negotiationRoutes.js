@@ -7,20 +7,28 @@ const {
   acceptDeal,
   rejectDeal,
   sendNegotiationMessage,
+  deleteNegotiationMessage,
+  deleteClosedNegotiation,
   getMyNegotiations,
   getNegotiationById
 } = require('../controllers/negotiationController');
 
 const { protect } = require('../middleware/authMiddleware');
+const { sanitizeParams } = require('../middleware/securityMiddleware');
 
 // All negotiation routes require JWT authentication
 router.use(protect);
 
 router.post('/', startNegotiation);
 router.get('/my', getMyNegotiations);
+
+// Parameterized negotiation routes - sanitize route params after matching
+router.use('/:id', sanitizeParams);
 router.get('/:id', getNegotiationById);
 router.post('/:id/counter', counterOffer);
 router.post('/:id/message', sendNegotiationMessage);
+router.delete('/:id/message/:messageId', deleteNegotiationMessage);
+router.delete('/:id', deleteClosedNegotiation);
 router.post('/:id/accept', acceptDeal);
 router.post('/:id/reject', rejectDeal);
 

@@ -71,7 +71,7 @@ const userSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
-        default: [0, 0]
+        default: undefined
       },
       village: { type: String, trim: true },
       taluk: { type: String, trim: true },

@@ -9,13 +9,7 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  RefreshCw,
-  TrendingUp,
-  Award,
-  Globe,
-  ArrowRight,
-  Building2,
-  Check
+  RefreshCw
 } from 'lucide-react';
 
 export default function LoginPage() {

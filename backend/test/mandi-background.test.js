@@ -45,3 +45,18 @@ test('live feed does not append an unrelated saved snapshot after a failed page 
     assert.equal(body.success, false);
   } finally { service.fetchAgmarknetMandiRates = originalFetch; MandiRate.find = originalFind; delete require.cache[controllerPath]; }
 });
+
+test('benchmark converts the recorded price unit before reporting per-kilogram guidance', async () => {
+  const original = MandiRate.findOne;
+  const { getBenchmarkForCrop } = require('../src/controllers/mandiController');
+  try {
+    for (const [unit, modal, expected] of [['KG', 25, 25], ['QUINTAL', 2500, 25], ['TON', 25000, 25]]) {
+      MandiRate.findOne = () => ({ sort: async () => ({ commodity: 'WHEAT', district: 'DHARWAD', modalPrice: modal, minPrice: modal, maxPrice: modal, unit }) });
+      let status, body;
+      await getBenchmarkForCrop({ query: { commodity: 'Wheat' } }, { status(value) { status = value; return this; }, json(value) { body = value; } }, (error) => { throw error; });
+      assert.equal(status, 200);
+      assert.equal(body.farmerPriceGuidance.modalRatePerKg, expected);
+      assert.equal(body.apmcRates.modalPricePerQuintal, 2500);
+    }
+  } finally { MandiRate.findOne = original; }
+});

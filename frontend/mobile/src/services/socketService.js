@@ -75,6 +75,19 @@ class SocketService {
   }
 
   /**
+   * Emit typing status events for a negotiation room
+   */
+  startTyping(negotiationId) {
+    if (!this.socket || !negotiationId) return;
+    this.socket.emit('typing_start', { negotiationId });
+  }
+
+  stopTyping(negotiationId) {
+    if (!this.socket || !negotiationId) return;
+    this.socket.emit('typing_stop', { negotiationId });
+  }
+
+  /**
    * Event Listeners
    */
   onNegotiationCreated(callback) {
@@ -95,6 +108,18 @@ class SocketService {
     return () => this.socket?.off('chat_message_received', callback);
   }
 
+  onChatMessageDeleted(callback) {
+    if (!this.socket) return () => {};
+    this.socket.on('chat_message_deleted', callback);
+    return () => this.socket?.off('chat_message_deleted', callback);
+  }
+
+  onNegotiationDeleted(callback) {
+    if (!this.socket) return () => {};
+    this.socket.on('negotiation_deleted', callback);
+    return () => this.socket?.off('negotiation_deleted', callback);
+  }
+
   onDealLocked(callback) {
     if (!this.socket) return () => {};
     this.socket.on('deal_locked', callback);
@@ -111,6 +136,12 @@ class SocketService {
     if (!this.socket) return () => {};
     this.socket.on('participant_status', callback);
     return () => this.socket?.off('participant_status', callback);
+  }
+
+  onParticipantTyping(callback) {
+    if (!this.socket || typeof callback !== 'function') return () => {};
+    this.socket.on('participant_typing', callback);
+    return () => this.socket?.off('participant_typing', callback);
   }
 
   onRoomJoined(callback) {

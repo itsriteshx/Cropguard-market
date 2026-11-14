@@ -122,7 +122,16 @@ const negotiationSchema = new mongoose.Schema(
 );
 
 // Indexes for fast lookup
-negotiationSchema.index({ listing: 1, buyer: 1 });
+// Partial unique index preventing duplicate active negotiations per listing/buyer
+negotiationSchema.index(
+  { listing: 1, buyer: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ['OPEN', 'COUNTER_OFFERED'] } },
+    name: 'active_negotiation_listing_buyer_unique'
+  }
+);
+negotiationSchema.index({ listing: 1, status: 1 });
 negotiationSchema.index({ farmer: 1, status: 1 });
 negotiationSchema.index({ buyer: 1, status: 1 });
 

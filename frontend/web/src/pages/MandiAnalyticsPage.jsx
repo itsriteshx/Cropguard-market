@@ -827,12 +827,18 @@ export default function MandiAnalyticsPage() {
                 {weather.temperatureC ?? '--'}°C{' '}
                 <span className="text-xs font-medium text-emerald-300">{weather.condition}</span>
               </div>
+              {weather.todayMaxC != null && weather.todayMinC != null && (
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  High {weather.todayMaxC}° / Low {weather.todayMinC}°
+                  {weather.rainChancePct != null ? ` • Rain ${weather.rainChancePct}%` : ''}
+                </div>
+              )}
               <div className="text-[11px] text-slate-300 mt-1 flex items-center gap-3">
                 <span className="flex items-center gap-1">
-                  <Droplets className="w-3 h-3 text-sky-400" /> {weather.humidityPct ?? '--'}%
+                  <Droplets className="w-3 h-3 text-sky-400" /> {weather.humidityPercent ?? weather.humidityPct ?? '--'}%
                 </span>
                 <span className="flex items-center gap-1">
-                  <Wind className="w-3 h-3 text-slate-400" /> {weather.windKmh ?? '--'} km/h
+                  <Wind className="w-3 h-3 text-slate-400" /> {weather.windSpeedKmh ?? weather.windKmh ?? '--'} km/h
                 </span>
               </div>
             </>

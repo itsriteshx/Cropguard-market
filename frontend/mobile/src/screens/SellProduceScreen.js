@@ -14,6 +14,10 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../config/api';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { preparePhoto } from '../utils/preparePhoto';
+import { convertPriceUnit } from '../utils/priceUnits';
+import { buildListingLocation } from '../utils/listingLocation';
 
 const CATEGORIES = [
   'OTHER',
@@ -56,12 +60,23 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
   const [description, setDescription] = useState('');
   const [photo, setPhoto] = useState(null);
   const [uploadedPhoto, setUploadedPhoto] = useState(null);
+  const [pincode, setPincode] = useState(user?.location?.pincode || '');
+  const [village, setVillage] = useState(user?.location?.village || '');
+  const [taluk, setTaluk] = useState(user?.location?.taluk || '');
+  const [district, setDistrict] = useState(user?.location?.district || '');
+  const [stateName, setStateName] = useState(user?.location?.state || '');
+  const [lookingUpPin, setLookingUpPin] = useState(false);
+  const [pinStatus, setPinStatus] = useState('');
 
   // Mandi Benchmark & Catalog State
   const [mandiBenchmark, setMandiBenchmark] = useState(null);
   const [loadingBenchmark, setLoadingBenchmark] = useState(false);
   const [liveCropCatalog, setLiveCropCatalog] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const [myListings, setMyListings] = useState([]);
+  const [loadingMine, setLoadingMine] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     apiRequest('/mandi-rates?state=ALL&limit=150').then((res) => {
@@ -80,57 +95,74 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
         setLiveCropCatalog(Array.from(seen.values()));
       }
     });
+    loadMyListings();
   }, []);
 
-  // Auto-check Mandi rates when crop name changes
   useEffect(() => {
-    const trimmed = cropName.trim();
-    if (trimmed.length >= 3) {
-      const timer = setTimeout(() => {
-        fetchMandiBenchmark(trimmed);
-      }, 500);
-      return () => clearTimeout(timer);
-    } else {
-      setMandiBenchmark(null);
-    }
-  }, [cropName]);
+    if (!user?.location) return;
+    setPincode((prev) => prev || user.location.pincode || '');
+    setVillage((prev) => prev || user.location.village || '');
+    setTaluk((prev) => prev || user.location.taluk || '');
+    setDistrict((prev) => prev || user.location.district || '');
+    setStateName((prev) => prev || user.location.state || '');
+  }, [user?.location]);
 
-  const fetchMandiBenchmark = async (commodity) => {
-    setLoadingBenchmark(true);
-    const district = user?.location?.district || 'DHARWAD';
-    const res = await apiRequest(
-      `/mandi-rates/benchmark?commodity=${encodeURIComponent(commodity)}&district=${encodeURIComponent(district)}`
-    );
-    if (res.success && res.farmerPriceGuidance) {
-      setMandiBenchmark(res);
-      // If price not entered yet, auto-suggest the recommended asking price!
-      if (!pricePerUnit) {
-        setPricePerUnit(String(res.farmerPriceGuidance.modalRatePerKg * (unit === 'QUINTAL' ? 100 : 1)));
-      }
-    } else {
-      setMandiBenchmark(null);
+  // Keep stale benchmark responses from changing a newer crop selection.
+  useEffect(() => {
+    let active = true;
+    const trimmed = cropName.trim();
+    setMandiBenchmark(null);
+    if (trimmed.length < 3) { setLoadingBenchmark(false); return () => { active = false; }; }
+    const timer = setTimeout(async () => {
+      setLoadingBenchmark(true);
+      const benchmarkDistrict = district.trim() || user?.location?.district;
+      const params = `commodity=${encodeURIComponent(trimmed)}${benchmarkDistrict ? `&district=${encodeURIComponent(benchmarkDistrict)}` : ''}`;
+      const response = await apiRequest(`/mandi-rates/benchmark?${params}`);
+      if (!active) return;
+      setMandiBenchmark(response.success && response.farmerPriceGuidance ? response : null);
+      setLoadingBenchmark(false);
+    }, 500);
+    return () => { active = false; clearTimeout(timer); };
+  }, [cropName, district, user?.location?.district]);
+
+  const handlePincodeChange = async (raw) => {
+    const cleanPin = String(raw || '').replace(/\D/g, '').slice(0, 6);
+    setPincode(cleanPin);
+    if (cleanPin.length < 6) {
+      setPinStatus('');
+      return;
     }
-    setLoadingBenchmark(false);
+    setLookingUpPin(true);
+    setPinStatus('Looking up India Post pincode...');
+    const res = await apiRequest(`/mandi-rates/pincode/${cleanPin}`);
+    setLookingUpPin(false);
+    if (res?.success && res.location) {
+      if (res.location.district) setDistrict(res.location.district);
+      if (res.location.state) setStateName(res.location.state);
+      if (res.location.taluk) setTaluk(res.location.taluk);
+      setPinStatus(`Verified: ${res.location.district}, ${res.location.state}`);
+    } else {
+      setPinStatus(res?.message || 'Pincode not found — enter district & state manually.');
+    }
   };
 
   const pickPhoto = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
       if (result.canceled) return;
-      const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
-        Alert.alert('Photo too large', 'Choose an image smaller than 5 MB.');
-        return;
-      }
-      setPhoto(asset);
+      setPreparingPhoto(true);
+      const prepared = await preparePhoto(result.assets[0], Platform.OS, ImageManipulator);
+      setPhoto(prepared);
       setUploadedPhoto(null);
     } catch (error) {
-      Alert.alert('Photo unavailable', 'Could not open your photo library. Check your permissions and try again.');
+      Alert.alert('Photo unavailable', error.message || 'Could not prepare this photo. Please choose another image.');
+    } finally {
+      setPreparingPhoto(false);
     }
   };
 
   const handleSubmitListing = async () => {
-    if (submitting) return;
+    if (submitting || preparingPhoto) return;
     if (role !== 'FARMER') {
       Alert.alert('Farmer account required', 'Sign in as a farmer to publish produce.');
       return;
@@ -152,6 +184,15 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
     }
     if (description.trim().length > 500) {
       Alert.alert('Description too long', 'Use at most 500 characters.');
+      return;
+    }
+
+    const locationResult = buildListingLocation(
+      { village, taluk, district, state: stateName, pincode },
+      user?.location
+    );
+    if (!locationResult.valid) {
+      Alert.alert('Location required', locationResult.message);
       return;
     }
 
@@ -192,14 +233,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           qualityGrade,
           description: description.trim(),
           images: photoUrl ? [photoUrl] : [],
-          location: user?.location || {
-            type: 'Point',
-            coordinates: [75.0084, 15.3647],
-            village: 'Navalgund',
-            district: 'Dharwad',
-            state: 'Karnataka',
-            pincode: '580029'
-          }
+          location: locationResult.location
         })
       },
       token
@@ -207,6 +241,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
 
     setSubmitting(false);
     if (res.success) {
+      loadMyListings();
       Alert.alert(
         'Harvest Listed! 🌾',
         `${cropName} (${quantity} ${unit} @ ₹${pricePerUnit}/${unit}) is now live on the marketplace for direct buyers!`,
@@ -232,6 +267,49 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
     }
   };
 
+  const loadMyListings = async () => {
+    setLoadingMine(true);
+    try {
+      const res = await apiRequest('/listings/my-listings', {}, token);
+      if (res?.success && Array.isArray(res.listings)) {
+        setMyListings(res.listings);
+      }
+    } catch {
+      setMyListings([]);
+    } finally {
+      setLoadingMine(false);
+    }
+  };
+
+  const handleDeleteListing = (id, cropName) => {
+    Alert.alert(
+      'Delete Listing',
+      `Are you sure you want to delete "${cropName}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingId(id);
+            try {
+              const res = await apiRequest(`/listings/${id}`, { method: 'DELETE' }, token);
+              if (res?.success !== false) {
+                setMyListings(prev => prev.filter(item => item._id !== id));
+              } else {
+                Alert.alert('Cannot Delete', res.message || 'This listing has active orders or negotiations.');
+              }
+            } catch (err) {
+              Alert.alert('Error', err?.message || 'Could not delete listing.');
+            } finally {
+              setDeletingId(null);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
@@ -244,7 +322,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
       {loadingBenchmark ? (
         <View style={styles.benchmarkLoadingCard}>
           <ActivityIndicator size="small" color="#10B981" />
-          <Text style={styles.benchmarkLoadingText}>Checking live APMC Mandi rates...</Text>
+          <Text style={styles.benchmarkLoadingText}>Checking saved mandi rates...</Text>
         </View>
       ) : mandiBenchmark ? (
         <View style={styles.benchmarkCard}>
@@ -253,7 +331,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
             <Text style={styles.benchmarkYardText}>{mandiBenchmark.marketCenter}</Text>
           </View>
           <Text style={styles.benchmarkRatesText}>
-            Market Average: <Text style={styles.benchmarkHighlight}>₹{mandiBenchmark.farmerPriceGuidance.modalRatePerKg}/kg</Text>
+            Reference modal price: <Text style={styles.benchmarkHighlight}>₹{mandiBenchmark.farmerPriceGuidance.modalRatePerKg}/kg</Text>
             {'  '}(Range: ₹{mandiBenchmark.farmerPriceGuidance.minimumAcceptablePerKg} - ₹{mandiBenchmark.farmerPriceGuidance.maximumMarketPerKg}/kg)
           </Text>
           <View style={styles.adviceBanner}>
@@ -295,10 +373,6 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
                 onPress={() => {
                   setCropName(item.name);
                   if (CATEGORIES.includes(item.category)) setCategory(item.category);
-                  if (item.modalPrice && !pricePerUnit) {
-                    const scaled = unit === 'QUINTAL' ? item.modalPrice : Math.round((item.modalPrice / 100) * 10) / 10;
-                    setPricePerUnit(String(scaled));
-                  }
                 }}
               >
                 <Text style={styles.suggestionText}>
@@ -352,7 +426,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
                 <TouchableOpacity
                   key={u}
                   style={[styles.unitBtn, unit === u && styles.unitBtnActive]}
-                  onPress={() => setUnit(u)}
+                  onPress={() => { setPricePerUnit((value) => convertPriceUnit(value, unit, u)); setUnit(u); }}
                 >
                   <Text style={[styles.unitBtnText, unit === u && styles.unitBtnTextActive]}>
                     {u}
@@ -470,21 +544,68 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           ))}
         </View>
 
+        <Text style={styles.inputLabel}>📍 Farm Location</Text>
+        <View style={styles.dualRow}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              maxLength={6}
+              placeholder="Pincode (6 digits)"
+              placeholderTextColor="#64748B"
+              value={pincode}
+              onChangeText={handlePincodeChange}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="Village / Town"
+              placeholderTextColor="#64748B"
+              value={village}
+              onChangeText={setVillage}
+            />
+          </View>
+        </View>
+        <View style={[styles.dualRow, { marginTop: 8 }]}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="District *"
+              placeholderTextColor="#64748B"
+              value={district}
+              onChangeText={setDistrict}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="State *"
+              placeholderTextColor="#64748B"
+              value={stateName}
+              onChangeText={setStateName}
+            />
+          </View>
+        </View>
+        {(lookingUpPin || !!pinStatus) && (
+          <Text style={styles.photoHint}>{lookingUpPin ? 'Checking India Post pincode…' : pinStatus}</Text>
+        )}
+
         <Text style={styles.inputLabel}>📷 Produce photo (optional)</Text>
         {photo && <Image source={{ uri: photo.uri }} style={styles.photoPreview} accessibilityLabel="Selected produce photo" />}
         <View style={styles.photoActions}>
-          <TouchableOpacity onPress={pickPhoto} disabled={submitting} style={styles.photoButton} accessibilityRole="button">
-            <Text style={styles.photoButtonText}>{photo ? 'Change photo' : 'Choose photo'}</Text>
+          <TouchableOpacity onPress={pickPhoto} disabled={submitting || preparingPhoto} style={styles.photoButton} accessibilityRole="button">
+            <Text style={styles.photoButtonText}>{preparingPhoto ? 'Preparing photo…' : photo ? 'Change photo' : 'Choose photo'}</Text>
           </TouchableOpacity>
-          {photo && <TouchableOpacity onPress={() => { setPhoto(null); setUploadedPhoto(null); }} disabled={submitting} style={styles.photoButton} accessibilityRole="button"><Text style={styles.photoButtonText}>Remove</Text></TouchableOpacity>}
+          {photo && <TouchableOpacity onPress={() => { setPhoto(null); setUploadedPhoto(null); }} disabled={submitting || preparingPhoto} style={styles.photoButton} accessibilityRole="button"><Text style={styles.photoButtonText}>Remove</Text></TouchableOpacity>}
         </View>
-        <Text style={styles.photoHint}>Choose an image under 5 MB.</Text>
+        <Text style={styles.photoHint}>Choose a produce photo. Browser uploads must be JPG, PNG, or WebP under 5 MB.</Text>
 
         {/* Publish Button */}
         <TouchableOpacity
           style={styles.publishButton}
           onPress={handleSubmitListing}
-          disabled={submitting}
+          disabled={submitting || preparingPhoto}
         >
           {submitting ? (
             <ActivityIndicator color="#0F172A" />
@@ -492,6 +613,57 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
             <Text style={styles.publishButtonText}>🚀 {t.sell.publishBtn}</Text>
           )}
         </TouchableOpacity>
+      </View>
+      {/* My Active Listings */}
+      <View style={styles.myListingsSection}>
+        <View style={styles.myListingsHeader}>
+          <Text style={styles.myListingsTitle}>📦 My Active Listings ({myListings.length})</Text>
+          <TouchableOpacity onPress={loadMyListings} disabled={loadingMine}>
+            <Text style={styles.refreshText}>{loadingMine ? '...' : '↻ Refresh'}</Text>
+          </TouchableOpacity>
+        </View>
+        {loadingMine ? (
+          <ActivityIndicator color="#10B981" style={{ marginVertical: 16 }} />
+        ) : myListings.length === 0 ? (
+          <Text style={styles.emptyListingsText}>No listings yet. Publish your first crop above!</Text>
+        ) : (
+          myListings.map((item) => (
+            <View key={item._id} style={styles.listingCard}>
+              <View style={styles.listingCardTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listingCropName}>{item.cropName}</Text>
+                  <Text style={styles.listingMeta}>
+                    {item.quantity} {item.unit} • ₹{Number(item.pricePerUnit).toLocaleString('en-IN')}/{item.unit}
+                  </Text>
+                  <Text style={styles.listingLocation}>
+                    📍 {item.location?.district || 'Location set'}, {item.location?.state || ''}
+                  </Text>
+                </View>
+                <View style={[styles.statusBadge, item.status === 'AVAILABLE' ? styles.statusAvailable : styles.statusOther]}>
+                  <Text style={[styles.statusText, item.status === 'AVAILABLE' ? { color: '#6EE7B7' } : { color: '#94A3B8' }]}>
+                    {item.status}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.listingCardActions}>
+                <Text style={styles.listingDate}>
+                  Listed: {item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : '—'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => handleDeleteListing(item._id, item.cropName)}
+                  disabled={deletingId === item._id}
+                  style={styles.deleteBtn}
+                >
+                  {deletingId === item._id ? (
+                    <ActivityIndicator size="small" color="#F87171" />
+                  ) : (
+                    <Text style={styles.deleteBtnText}>🗑 Delete</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
       </View>
     </ScrollView>
   );
@@ -690,6 +862,106 @@ const styles = StyleSheet.create({
   publishButtonText: {
     color: '#0F172A',
     fontSize: 16,
+    fontWeight: 'bold'
+  },
+  myListingsSection: {
+    marginTop: 28,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B'
+  },
+  myListingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  myListingsTitle: {
+    color: '#F1F5F9',
+    fontSize: 15,
+    fontWeight: 'bold'
+  },
+  refreshText: {
+    color: '#10B981',
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  emptyListingsText: {
+    color: '#475569',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: 20
+  },
+  listingCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#334155'
+  },
+  listingCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10
+  },
+  listingCropName: {
+    color: '#F1F5F9',
+    fontSize: 14,
+    fontWeight: 'bold'
+  },
+  listingMeta: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 2
+  },
+  listingLocation: {
+    color: '#64748B',
+    fontSize: 11,
+    marginTop: 2
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1
+  },
+  statusAvailable: {
+    backgroundColor: 'rgba(16,185,129,0.1)',
+    borderColor: '#059669'
+  },
+  statusOther: {
+    backgroundColor: '#1E293B',
+    borderColor: '#334155'
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: 'bold'
+  },
+  listingCardActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#334155'
+  },
+  listingDate: {
+    color: '#475569',
+    fontSize: 11
+  },
+  deleteBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)'
+  },
+  deleteBtnText: {
+    color: '#F87171',
+    fontSize: 12,
     fontWeight: 'bold'
   }
 });

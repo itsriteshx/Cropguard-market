@@ -16,24 +16,6 @@ export const WEB_LANGUAGES = [
   { code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', flag: '🌾', region: 'Punjab Mandis' },
 ];
 
-function buildUserPersona(u) {
-  if (!u) return null;
-  return {
-    id: u.role,
-    name: u.name,
-    role: u.role,
-    badge: u.role === 'FARMER' ? 'Registered Producer' : u.role === 'ADMIN' ? 'Mandi Admin' : 'Verified Buyer',
-    district: u.location?.district || '',
-    phone: u.phone,
-    initials: (u.name || 'U')
-      .split(' ')
-      .map((s) => s[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase(),
-  };
-}
-
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -43,19 +25,10 @@ export const AuthProvider = ({ children }) => {
       return null;
     }
   });
-  const [activePersona, setActivePersona] = useState(() => {
-    try {
-      const savedUser = localStorage.getItem('cropguard_web_user');
-      return savedUser ? buildUserPersona(JSON.parse(savedUser)) : null;
-    } catch {
-      return null;
-    }
-  });
   const [token, setToken] = useState(localStorage.getItem('cropguard_web_token') || null);
   const [language, setLanguageState] = useState(localStorage.getItem('cropguard_web_lang') || 'en');
   const [loading, setLoading] = useState(false);
   const [backendOnline, setBackendOnline] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const t = webTranslations[language] || webTranslations.en;
 
@@ -74,22 +47,6 @@ export const AuthProvider = ({ children }) => {
         setCurrentUser(data.user);
         localStorage.setItem('cropguard_web_token', data.token);
         localStorage.setItem('cropguard_web_user', JSON.stringify(data.user));
-
-        const userPersona = {
-          id: data.user.role,
-          name: data.user.name,
-          role: data.user.role,
-          badge: data.user.role === 'FARMER' ? 'Registered Farmer' : 'Verified Buyer',
-          district: data.user.location?.district || 'Karnataka',
-          phone: data.user.phone,
-          initials: (data.user.name || 'User')
-            .split(' ')
-            .map((s) => s[0])
-            .slice(0, 2)
-            .join('')
-            .toUpperCase(),
-        };
-        setActivePersona(userPersona);
         setBackendOnline(true);
         return { success: true, user: data.user };
       }
@@ -112,22 +69,6 @@ export const AuthProvider = ({ children }) => {
         setCurrentUser(data.user);
         localStorage.setItem('cropguard_web_token', data.token);
         localStorage.setItem('cropguard_web_user', JSON.stringify(data.user));
-
-        const userPersona = {
-          id: data.user.role,
-          name: data.user.name,
-          role: data.user.role,
-          badge: data.user.role === 'FARMER' ? 'Registered Farmer' : 'Verified Buyer',
-          district: data.user.location?.district || 'Karnataka',
-          phone: data.user.phone,
-          initials: (data.user.name || 'User')
-            .split(' ')
-            .map((s) => s[0])
-            .slice(0, 2)
-            .join('')
-            .toUpperCase(),
-        };
-        setActivePersona(userPersona);
         setBackendOnline(true);
         return { success: true, user: data.user };
       }
@@ -147,7 +88,6 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('cropguard_web_user');
     setCurrentUser(null);
     setToken(null);
-    setActivePersona(null);
   };
 
   useEffect(() => {
@@ -173,7 +113,6 @@ export const AuthProvider = ({ children }) => {
         const res = await authService.getMe();
         if (res && res.user) {
           setCurrentUser(res.user);
-          setActivePersona(buildUserPersona(res.user));
           localStorage.setItem('cropguard_web_user', JSON.stringify(res.user));
           setBackendOnline(true);
         }
@@ -194,13 +133,9 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         currentUser,
-        isCustomUser: !!currentUser,
-        activePersona,
         login,
         register,
         logout,
-        authModalOpen,
-        setAuthModalOpen,
         token,
         language,
         setLanguage,

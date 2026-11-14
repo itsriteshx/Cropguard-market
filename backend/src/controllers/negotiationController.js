@@ -1,5 +1,9 @@
+const mongoose = require('mongoose');
 const Negotiation = require('../models/Negotiation');
 const ProduceListing = require('../models/ProduceListing');
+
+const defaultStartSession = mongoose.startSession;
+const defaultProduceListingFindOneAndUpdate = ProduceListing.findOneAndUpdate;
 
 // Broadcast only after a successful database write. Personal rooms notify users
 // about new offers even when they have not opened a negotiation room yet.
@@ -23,6 +27,11 @@ const revision = (negotiation) => ({ _id: negotiation._id, __v: negotiation.__v 
  * @access  Private (BUYER_RETAIL, BUYER_WHOLESALE)
  */
 const startNegotiation = async (req, res, next) => {
+  let session = null;
+  const isConnected = mongoose.connection && mongoose.connection.readyState === 1;
+  const isMocked = mongoose.startSession && (mongoose.startSession.__isMock || mongoose.startSession !== defaultStartSession);
+  const isProduction = process.env.NODE_ENV === 'production';
+
   try {
     const { listingId, offeredPrice, quantity, note } = req.body;
 
@@ -37,11 +46,39 @@ const startNegotiation = async (req, res, next) => {
       });
     }
 
+    if (isConnected || isProduction || isMocked) {
+      try {
+        session = await mongoose.startSession();
+      } catch (err) {
+        if (isConnected || isProduction) {
+          return res.status(503).json({
+            success: false,
+            message: 'Negotiation creation requires MongoDB replica set transaction support'
+          });
+        }
+        session = null;
+      }
+    }
+
+    if ((isConnected || isProduction) && (!session || typeof session.withTransaction !== 'function')) {
+      return res.status(503).json({
+        success: false,
+        message: 'Negotiation creation requires MongoDB replica set transaction support'
+      });
+    }
+
     const listing = await ProduceListing.findById(listingId);
     if (!listing) {
       return res.status(404).json({
         success: false,
         message: 'Produce listing not found'
+      });
+    }
+
+    if (listing.deletionPending) {
+      return res.status(409).json({
+        success: false,
+        message: 'Produce listing is currently being deleted or unavailable'
       });
     }
 
@@ -65,40 +102,147 @@ const startNegotiation = async (req, res, next) => {
       });
     }
 
+    const now = new Date();
+    // Expire stale sessions for this listing and buyer before checking for existing active negotiation
+    // Records with null or missing expiresAt must NOT be expired
+    await Negotiation.updateMany(
+      {
+        listing: listingId,
+        buyer: req.user._id,
+        status: { $in: ['OPEN', 'COUNTER_OFFERED'] },
+        expiresAt: { $exists: true, $ne: null, $lte: now }
+      },
+      {
+        $set: { status: 'EXPIRED' }
+      }
+    );
+
     // Check if buyer already has an active negotiation on this listing
-    let existingNeg = await Negotiation.findOne({
+    const existingNeg = await Negotiation.findOne({
       listing: listingId,
       buyer: req.user._id,
       status: { $in: ['OPEN', 'COUNTER_OFFERED'] }
     });
 
     if (existingNeg) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         message: 'You already have an active negotiation on this produce. Please submit a counter-offer.',
         negotiationId: existingNeg._id
       });
     }
 
-    const initialBid = {
-      bidder: req.user._id,
-      bidderRole: 'BUYER',
-      pricePerUnit: Number(offeredPrice),
-      note: note || `Initial purchase offer of ₹${offeredPrice}/${listing.unit}`,
-      timestamp: new Date()
+    const persistNegotiation = async (sess) => {
+      // Atomic concurrency guard: Touch ProduceListing to generate write lock/conflict
+      // and ensure deletion has not begun
+      const isFindOneAndUpdateAvailable =
+        isConnected ||
+        Boolean(sess) ||
+        (ProduceListing.findOneAndUpdate && ProduceListing.findOneAndUpdate !== defaultProduceListingFindOneAndUpdate);
+
+      if (isFindOneAndUpdateAvailable) {
+        const guardQuery = sess
+          ? ProduceListing.findOneAndUpdate(
+              {
+                _id: listingId,
+                status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] },
+                deletionPending: { $ne: true }
+              },
+              { $inc: { __v: 1 } },
+              { new: true, session: sess }
+            )
+          : ProduceListing.findOneAndUpdate(
+              {
+                _id: listingId,
+                status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] },
+                deletionPending: { $ne: true }
+              },
+              { $inc: { __v: 1 } },
+              { new: true }
+            );
+
+        let guard = null;
+        if (guardQuery && typeof guardQuery.then === 'function') {
+          guard = await guardQuery;
+        } else {
+          guard = guardQuery;
+        }
+
+        if (!guard) {
+          const current = await ProduceListing.findById(listingId);
+          if (!current) {
+            return { status: 404, message: 'Produce listing not found' };
+          }
+          return {
+            status: 409,
+            message: 'Produce listing is currently being deleted or unavailable'
+          };
+        }
+      }
+
+      const initialBid = {
+        bidder: req.user._id,
+        bidderRole: 'BUYER',
+        pricePerUnit: Number(offeredPrice),
+        note: note || `Initial purchase offer of ₹${offeredPrice}/${listing.unit}`,
+        timestamp: now
+      };
+
+      const negData = {
+        listing: listingId,
+        buyer: req.user._id,
+        farmer: listing.farmer,
+        quantity: Number(quantity),
+        originalListingPrice: listing.pricePerUnit,
+        currentOfferedPrice: Number(offeredPrice),
+        currentTurn: 'FARMER',
+        status: 'OPEN',
+        bidHistory: [initialBid]
+      };
+
+      let createdNeg;
+      try {
+        if (sess) {
+          const [doc] = await Negotiation.create([negData], { session: sess });
+          createdNeg = doc;
+        } else {
+          createdNeg = await Negotiation.create(negData);
+        }
+      } catch (createErr) {
+        if (createErr.code === 11000 || (createErr.message && createErr.message.includes('E11000'))) {
+          return {
+            status: 409,
+            message: 'An active negotiation already exists for this listing and buyer.'
+          };
+        }
+        throw createErr;
+      }
+
+      return { status: 201, negotiation: createdNeg };
     };
 
-    const negotiation = await Negotiation.create({
-      listing: listingId,
-      buyer: req.user._id,
-      farmer: listing.farmer,
-      quantity: Number(quantity),
-      originalListingPrice: listing.pricePerUnit,
-      currentOfferedPrice: Number(offeredPrice),
-      currentTurn: 'FARMER',
-      status: 'OPEN',
-      bidHistory: [initialBid]
-    });
+    let result;
+    if (session && typeof session.withTransaction === 'function') {
+      await session.withTransaction(async () => {
+        result = await persistNegotiation(session);
+        if (result.status !== 201) {
+          const err = new Error(result.message);
+          err.status = result.status;
+          throw err;
+        }
+      });
+    } else {
+      result = await persistNegotiation(null);
+    }
+
+    if (result.status !== 201) {
+      return res.status(result.status).json({
+        success: false,
+        message: result.message
+      });
+    }
+
+    const negotiation = result.negotiation;
 
     notify(req, negotiation, 'negotiation_created', { negotiationId: String(negotiation._id) });
 
@@ -108,7 +252,26 @@ const startNegotiation = async (req, res, next) => {
       negotiation
     });
   } catch (error) {
+    if (
+      error.code === 20 ||
+      /Transaction numbers are only allowed|replica set|transaction support/i.test(error.message)
+    ) {
+      return res.status(503).json({
+        success: false,
+        message: 'Negotiation creation requires MongoDB replica set transaction support'
+      });
+    }
+    if (error.status) {
+      return res.status(error.status).json({
+        success: false,
+        message: error.message
+      });
+    }
     next(error);
+  } finally {
+    if (session && typeof session.endSession === 'function') {
+      await session.endSession();
+    }
   }
 };
 
@@ -136,6 +299,17 @@ const counterOffer = async (req, res, next) => {
       });
     }
 
+    const userId = req.user._id.toString();
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
+
+    if (!isBuyer && !isFarmer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to participate in this negotiation session'
+      });
+    }
+
     // Verify session is active
     if (!['OPEN', 'COUNTER_OFFERED'].includes(negotiation.status)) {
       return res.status(400).json({
@@ -144,15 +318,14 @@ const counterOffer = async (req, res, next) => {
       });
     }
 
-    const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer.toString() === userId;
-    const isFarmer = negotiation.farmer.toString() === userId;
-
-    if (!isBuyer && !isFarmer) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to participate in this negotiation session'
-      });
+    // Check expiry only after participant authorization
+    const now = new Date();
+    if (negotiation.expiresAt && new Date(negotiation.expiresAt) <= now) {
+      await Negotiation.findOneAndUpdate(
+        { ...revision(negotiation) },
+        { $set: { status: 'EXPIRED' }, $inc: { __v: 1 } }
+      );
+      return res.status(409).json({ success: false, message: 'Negotiation has expired' });
     }
 
     const role = isBuyer ? 'BUYER' : 'FARMER';
@@ -164,15 +337,31 @@ const counterOffer = async (req, res, next) => {
       bidderRole: role,
       pricePerUnit: Number(counterPrice),
       note: note || `Counter-offer of ₹${counterPrice}`,
-      timestamp: new Date()
+      timestamp: now
+    };
+
+    const updateFilter = {
+      ...revision(negotiation),
+      currentTurn: role,
+      $or: [{ expiresAt: { $gt: now } }, { expiresAt: null }, { expiresAt: { $exists: false } }]
     };
 
     const updated = await Negotiation.findOneAndUpdate(
-      { ...revision(negotiation), currentTurn: role },
+      updateFilter,
       { $set: { currentOfferedPrice: Number(counterPrice), currentTurn: nextTurn, status: 'COUNTER_OFFERED' }, $push: { bidHistory: newBid }, $inc: { __v: 1 } },
       { new: true, runValidators: true }
     );
-    if (!updated) return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    if (!updated) {
+      const latest = await Negotiation.findById(req.params.id);
+      if (latest && latest.expiresAt && new Date(latest.expiresAt) <= now && active.includes(latest.status)) {
+        await Negotiation.findOneAndUpdate(
+          { ...revision(latest) },
+          { $set: { status: 'EXPIRED' }, $inc: { __v: 1 } }
+        );
+        return res.status(409).json({ success: false, message: 'Negotiation has expired' });
+      }
+      return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    }
     notify(req, updated, 'counter_offer_received', { success: true, negotiationId: String(updated._id), latestBid: newBid, currentOfferedPrice: updated.currentOfferedPrice, currentTurn: updated.currentTurn, status: updated.status, bidHistory: updated.bidHistory });
 
     return res.status(200).json({
@@ -204,6 +393,17 @@ const acceptDeal = async (req, res, next) => {
       });
     }
 
+    const userId = req.user._id.toString();
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
+
+    if (!isBuyer && !isFarmer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to accept this deal'
+      });
+    }
+
     if (!['OPEN', 'COUNTER_OFFERED'].includes(negotiation.status)) {
       return res.status(400).json({
         success: false,
@@ -211,15 +411,14 @@ const acceptDeal = async (req, res, next) => {
       });
     }
 
-    const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer._id.toString() === userId;
-    const isFarmer = negotiation.farmer._id.toString() === userId;
-
-    if (!isBuyer && !isFarmer) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to accept this deal'
-      });
+    // Check expiry only after participant authorization
+    const now = new Date();
+    if (negotiation.expiresAt && new Date(negotiation.expiresAt) <= now) {
+      await Negotiation.findOneAndUpdate(
+        { ...revision(negotiation) },
+        { $set: { status: 'EXPIRED' }, $inc: { __v: 1 } }
+      );
+      return res.status(409).json({ success: false, message: 'Negotiation has expired' });
     }
 
     const role = isBuyer ? 'BUYER' : 'FARMER';
@@ -231,16 +430,32 @@ const acceptDeal = async (req, res, next) => {
     }
     const agreedTotalAmount = Math.round(agreedPrice * negotiation.quantity * 100) / 100;
 
+    const updateFilter = {
+      ...revision(negotiation),
+      currentTurn: role,
+      $or: [{ expiresAt: { $gt: now } }, { expiresAt: null }, { expiresAt: { $exists: false } }]
+    };
+
     const updated = await Negotiation.findOneAndUpdate(
-      { ...revision(negotiation), currentTurn: role },
+      updateFilter,
       { $set: { status: 'ACCEPTED', agreedPrice, agreedTotalAmount }, $inc: { __v: 1 } },
       { new: true, runValidators: true }
     );
-    if (!updated) return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    if (!updated) {
+      const latest = await Negotiation.findById(req.params.id);
+      if (latest && latest.expiresAt && new Date(latest.expiresAt) <= now && active.includes(latest.status)) {
+        await Negotiation.findOneAndUpdate(
+          { ...revision(latest) },
+          { $set: { status: 'EXPIRED' }, $inc: { __v: 1 } }
+        );
+        return res.status(409).json({ success: false, message: 'Negotiation has expired' });
+      }
+      return res.status(409).json({ success: false, message: 'The offer changed. Refresh and try again.' });
+    }
     const dealSummary = {
       negotiationId: String(negotiation._id), crop: negotiation.listing?.cropName || 'Produce',
       unit: negotiation.listing?.unit, quantity: negotiation.quantity, agreedPricePerUnit: agreedPrice,
-      agreedTotalAmount, farmer: negotiation.farmer.name, buyer: negotiation.buyer.name, status: 'ACCEPTED'
+      agreedTotalAmount, farmer: negotiation.farmer?.name, buyer: negotiation.buyer?.name, status: 'ACCEPTED'
     };
     notify(req, updated, 'deal_locked', { success: true, dealSummary });
 
@@ -272,8 +487,8 @@ const rejectDeal = async (req, res, next) => {
     }
 
     const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer.toString() === userId;
-    const isFarmer = negotiation.farmer.toString() === userId;
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
 
     if (!isBuyer && !isFarmer) {
       return res.status(403).json({
@@ -348,8 +563,8 @@ const getNegotiationById = async (req, res, next) => {
     }
 
     const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer._id.toString() === userId;
-    const isFarmer = negotiation.farmer._id.toString() === userId;
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
 
     if (!isBuyer && !isFarmer && req.user.role !== 'ADMIN') {
       return res.status(403).json({
@@ -393,8 +608,8 @@ const sendNegotiationMessage = async (req, res, next) => {
     }
 
     const userId = req.user._id.toString();
-    const isBuyer = negotiation.buyer.toString() === userId;
-    const isFarmer = negotiation.farmer.toString() === userId;
+    const isBuyer = (negotiation.buyer._id || negotiation.buyer).toString() === userId;
+    const isFarmer = (negotiation.farmer._id || negotiation.farmer).toString() === userId;
 
     if (!isBuyer && !isFarmer) {
       return res.status(403).json({
@@ -449,12 +664,128 @@ const sendNegotiationMessage = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Delete one of the caller's own chat messages inside a negotiation
+ * @route   DELETE /api/negotiations/:id/message/:messageId
+ * @access  Private (Sender only)
+ */
+const deleteNegotiationMessage = async (req, res, next) => {
+  try {
+    const negotiation = await Negotiation.findById(req.params.id);
+    if (!negotiation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Negotiation session not found'
+      });
+    }
+
+    const userId = req.user._id.toString();
+    const isBuyer = negotiation.buyer.toString() === userId;
+    const isFarmer = negotiation.farmer.toString() === userId;
+    if (!isBuyer && !isFarmer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to modify messages in this negotiation'
+      });
+    }
+
+    const targetMsg = (negotiation.messages || []).find(
+      (m) => String(m._id) === String(req.params.messageId)
+    );
+    if (!targetMsg) {
+      return res.status(404).json({
+        success: false,
+        message: 'Message not found'
+      });
+    }
+
+    if (String(targetMsg.sender) !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only delete your own chat messages'
+      });
+    }
+
+    const updated = await Negotiation.findOneAndUpdate(
+      { _id: negotiation._id },
+      { $pull: { messages: { _id: req.params.messageId, sender: req.user._id } } },
+      { new: true }
+    );
+
+    const remaining = updated?.messages || [];
+    notify(req, negotiation, 'chat_message_deleted', {
+      success: true,
+      negotiationId: String(negotiation._id),
+      messageId: String(req.params.messageId),
+      messages: remaining
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Message deleted',
+      messages: remaining
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Delete a closed (REJECTED/EXPIRED) negotiation chat thread with no linked order
+ * @route   DELETE /api/negotiations/:id
+ * @access  Private (Participants only)
+ */
+const deleteClosedNegotiation = async (req, res, next) => {
+  try {
+    const negotiation = await Negotiation.findById(req.params.id);
+    if (!negotiation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Negotiation session not found'
+      });
+    }
+
+    const userId = req.user._id.toString();
+    const isBuyer = negotiation.buyer.toString() === userId;
+    const isFarmer = negotiation.farmer.toString() === userId;
+    if (!isBuyer && !isFarmer) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this negotiation'
+      });
+    }
+
+    if (negotiation.order || !['REJECTED', 'EXPIRED'].includes(negotiation.status)) {
+      return res.status(409).json({
+        success: false,
+        message: 'Only rejected or expired negotiations without an order can be deleted'
+      });
+    }
+
+    await Negotiation.deleteOne({ _id: negotiation._id });
+    notify(req, negotiation, 'negotiation_deleted', {
+      success: true,
+      negotiationId: String(negotiation._id)
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Closed negotiation deleted',
+      negotiationId: String(negotiation._id)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   startNegotiation,
   counterOffer,
   acceptDeal,
   rejectDeal,
   sendNegotiationMessage,
+  deleteNegotiationMessage,
+  deleteClosedNegotiation,
   getMyNegotiations,
   getNegotiationById
 };

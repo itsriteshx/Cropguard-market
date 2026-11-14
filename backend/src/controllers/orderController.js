@@ -15,7 +15,7 @@ class OrderError extends Error {
 const createOrder = async (req, res, next) => {
   let session;
   try {
-    const { negotiationId, listingId, quantity: requestedQuantity, agreedPrice, deliveryAddress, paymentMethod, notes } = req.body;
+    const { negotiationId, listingId, quantity: requestedQuantity, deliveryAddress, paymentMethod, notes } = req.body;
     if (!negotiationId && !listingId) throw new OrderError(400, 'Provide a negotiation or listing ID');
     if (negotiationId && listingId) throw new OrderError(400, 'Provide only one order source');
     if (!['BUYER_RETAIL', 'BUYER_WHOLESALE', 'ADMIN'].includes(req.user.role)) throw new OrderError(403, 'Only buyers can place orders');
@@ -44,9 +44,10 @@ const createOrder = async (req, res, next) => {
       } else {
         listing = await ProduceListing.findById(listingId).session(session);
         quantity = requestedQuantity === undefined ? Number(listing?.quantity) : Number(requestedQuantity);
-        unitPrice = agreedPrice === undefined ? Number(listing?.pricePerUnit) : Number(agreedPrice);
+        unitPrice = Number(listing?.pricePerUnit);
       }
       if (!listing) throw new OrderError(404, 'Produce listing not found');
+      if (listing.deletionPending) throw new OrderError(409, 'Produce listing is currently being deleted or unavailable');
       if (String(listing.farmer) === String(req.user._id)) throw new OrderError(403, 'You cannot order your own produce');
       if (!Number.isFinite(quantity) || quantity < 1 || !Number.isFinite(unitPrice) || unitPrice < 0.1) throw new OrderError(400, 'Enter a valid quantity and price');
       const totalAmount = Math.round(unitPrice * quantity * 100) / 100;
@@ -54,7 +55,7 @@ const createOrder = async (req, res, next) => {
 
       // Reserve conditionally, including legacy UNDER_NEGOTIATION listings.
       const reserved = await ProduceListing.findOneAndUpdate(
-        { _id: listing._id, status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] }, quantity: { $gte: quantity } },
+        { _id: listing._id, status: { $in: ['AVAILABLE', 'UNDER_NEGOTIATION'] }, deletionPending: { $ne: true }, quantity: { $gte: quantity } },
         [{ $set: { quantity: { $subtract: ['$quantity', quantity] }, status: { $cond: [{ $lte: [{ $subtract: ['$quantity', quantity] }, 0] }, 'SOLD', '$status'] } } }],
         { new: true, session }
       );
@@ -170,6 +171,22 @@ const updateOrderStatus = async (req, res, next) => {
     }
 
     // Role-specific transition rules
+    const now = new Date();
+    const updateDoc = {
+      $set: {
+        orderStatus: nextStatus
+      },
+      $push: {
+        timeline: {
+          status: nextStatus,
+          note: note || `Order transitioned from ${currentStatus} to ${nextStatus}`,
+          timestamp: now,
+          updatedBy: req.user._id
+        }
+      },
+      $inc: { __v: 1 }
+    };
+
     if (nextStatus === 'ESCROW_HELD') {
       if (!isBuyer && !isAdmin) {
         return res.status(403).json({
@@ -177,16 +194,22 @@ const updateOrderStatus = async (req, res, next) => {
           message: 'Only the buyer can make escrow payment'
         });
       }
-      order.paymentStatus = 'ESCROW_SECURED';
-      order.paymentDetails.escrowSecuredAt = new Date();
+      updateDoc.$set.paymentStatus = 'ESCROW_SECURED';
+      updateDoc.$set['paymentDetails.escrowSecuredAt'] = now;
       if (transactionId) {
-        order.paymentDetails.transactionId = transactionId;
+        updateDoc.$set['paymentDetails.transactionId'] = String(transactionId).trim();
       }
     } else if (nextStatus === 'DISPATCHED') {
       if (!isFarmer && !isAdmin) {
         return res.status(403).json({
           success: false,
           message: 'Only the farmer can dispatch produce'
+        });
+      }
+      if (order.paymentStatus !== 'ESCROW_SECURED') {
+        return res.status(409).json({
+          success: false,
+          message: 'Payment must be secured in escrow before dispatching produce'
         });
       }
     } else if (nextStatus === 'DELIVERED') {
@@ -198,25 +221,34 @@ const updateOrderStatus = async (req, res, next) => {
       }
     } else if (nextStatus === 'SETTLED') {
       if (!isBuyer && !isAdmin) return res.status(403).json({ success: false, message: 'Only the buyer or an admin can mark settlement' });
+      if (order.paymentStatus !== 'ESCROW_SECURED') {
+        return res.status(409).json({
+          success: false,
+          message: 'Payment must be secured in escrow before order can be settled'
+        });
+      }
       // Simulated settlement; no payment is transferred.
-      order.paymentStatus = 'PAID_TO_FARMER';
-      order.paymentDetails.settledAt = new Date();
+      updateDoc.$set.paymentStatus = 'PAID_TO_FARMER';
+      updateDoc.$set['paymentDetails.settledAt'] = now;
     }
 
-    order.orderStatus = nextStatus;
-    order.timeline.push({
-      status: nextStatus,
-      note: note || `Order transitioned from ${currentStatus} to ${nextStatus}`,
-      timestamp: new Date(),
-      updatedBy: req.user._id
-    });
+    const updated = await Order.findOneAndUpdate(
+      { _id: order._id, orderStatus: currentStatus, __v: order.__v ?? 0 },
+      updateDoc,
+      { new: true, runValidators: true }
+    );
 
-    await order.save();
+    if (!updated) {
+      return res.status(409).json({
+        success: false,
+        message: 'Order changed. Refresh and try again.'
+      });
+    }
 
     return res.status(200).json({
       success: true,
       message: `Order transitioned to ${nextStatus} successfully`,
-      order
+      order: updated
     });
   } catch (error) {
     if (error.name === 'VersionError') return res.status(409).json({ success: false, message: 'Order changed. Refresh and try again.' });
@@ -274,6 +306,34 @@ const getMyOrders = async (req, res, next) => {
     const { status, role = 'all' } = req.query;
     const userId = req.user._id;
 
+    // Validate and parse pagination parameters
+    let page = 1;
+    let limit = 50;
+
+    if (req.query.page !== undefined) {
+      const pageStr = String(req.query.page).trim();
+      const pageNum = Number(pageStr);
+      if (!/^\d+$/.test(pageStr) || !Number.isInteger(pageNum) || pageNum < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid page number. Page must be a positive integer greater than or equal to 1'
+        });
+      }
+      page = pageNum;
+    }
+
+    if (req.query.limit !== undefined) {
+      const limitStr = String(req.query.limit).trim();
+      const limitNum = Number(limitStr);
+      if (!/^\d+$/.test(limitStr) || !Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid limit. Limit must be a positive integer between 1 and 100'
+        });
+      }
+      limit = limitNum;
+    }
+
     const query = {};
 
     if (req.user.role === 'ADMIN') {
@@ -290,15 +350,27 @@ const getMyOrders = async (req, res, next) => {
       query.orderStatus = status.toUpperCase();
     }
 
-    const orders = await Order.find(query)
-      .populate('buyer', 'name phone location')
-      .populate('farmer', 'name phone location')
-      .populate('listing', 'cropName category expectedPrice pricePerUnit location')
-      .sort('-createdAt');
+    const skip = (page - 1) * limit;
+
+    const [total, orders] = await Promise.all([
+      Order.countDocuments(query),
+      Order.find(query)
+        .populate('buyer', 'name phone location')
+        .populate('farmer', 'name phone location')
+        .populate('listing', 'cropName category expectedPrice pricePerUnit location')
+        .sort('-createdAt')
+        .skip(skip)
+        .limit(limit)
+    ]);
+
+    const pages = total > 0 ? Math.ceil(total / limit) : 0;
 
     return res.status(200).json({
       success: true,
       count: orders.length,
+      total,
+      page,
+      pages,
       orders
     });
   } catch (error) {
@@ -314,39 +386,109 @@ const getMyOrders = async (req, res, next) => {
 const getFarmerLedger = async (req, res, next) => {
   try {
     const farmerId = req.user._id;
+    const farmerObjectId =
+      farmerId instanceof mongoose.Types.ObjectId
+        ? farmerId
+        : mongoose.Types.ObjectId.isValid(farmerId)
+        ? new mongoose.Types.ObjectId(farmerId.toString())
+        : farmerId;
 
-    // Fetch all orders for this farmer
-    const orders = await Order.find({ farmer: farmerId })
-      .populate('buyer', 'name phone')
-      .sort('-createdAt');
-
-    let totalEarnings = 0;
-    let pendingEscrowAmount = 0;
-    let totalVolumeKg = 0;
-    let settledOrdersCount = 0;
-    let activeOrdersCount = 0;
-
-    orders.forEach((order) => {
-      // Calculate volumes (normalize Quintal to Kg for metrics: 1 Quintal = 100 Kg)
-      const volumeInKg = order.unit === 'QUINTAL' ? order.quantity * 100 : order.quantity;
-
-      if (order.orderStatus === 'SETTLED') {
-        totalEarnings += order.totalAmount;
-        settledOrdersCount += 1;
-        totalVolumeKg += volumeInKg;
-      } else if (['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED'].includes(order.orderStatus)) {
-        if (order.paymentStatus === 'ESCROW_SECURED') {
-          pendingEscrowAmount += order.totalAmount;
+    const [aggResult, recentOrders] = await Promise.all([
+      Order.aggregate([
+        {
+          $match: {
+            farmer: farmerObjectId,
+            orderStatus: { $in: ['SETTLED', 'PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED'] }
+          }
+        },
+        {
+          $project: {
+            orderStatus: 1,
+            paymentStatus: 1,
+            totalAmount: 1,
+            volumeKg: {
+              $switch: {
+                branches: [
+                  { case: { $eq: ['$unit', 'QUINTAL'] }, then: { $multiply: ['$quantity', 100] } },
+                  { case: { $eq: ['$unit', 'TON'] }, then: { $multiply: ['$quantity', 1000] } }
+                ],
+                default: '$quantity'
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalEarnings: {
+              $sum: {
+                $cond: [{ $eq: ['$orderStatus', 'SETTLED'] }, '$totalAmount', 0]
+              }
+            },
+            settledOrdersCount: {
+              $sum: {
+                $cond: [{ $eq: ['$orderStatus', 'SETTLED'] }, 1, 0]
+              }
+            },
+            activeOrdersCount: {
+              $sum: {
+                $cond: [
+                  { $in: ['$orderStatus', ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED']] },
+                  1,
+                  0
+                ]
+              }
+            },
+            pendingEscrowAmount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $in: ['$orderStatus', ['PLACED', 'ESCROW_HELD', 'DISPATCHED', 'DELIVERED']] },
+                      { $eq: ['$paymentStatus', 'ESCROW_SECURED'] }
+                    ]
+                  },
+                  '$totalAmount',
+                  0
+                ]
+              }
+            },
+            totalVolumeKg: {
+              $sum: '$volumeKg'
+            }
+          }
         }
-        activeOrdersCount += 1;
-        totalVolumeKg += volumeInKg;
-      }
-    });
+      ]),
+      Order.find({ farmer: farmerId })
+        .select('_id orderNumber cropName quantity unit totalAmount buyer orderStatus paymentStatus createdAt')
+        .populate('buyer', 'name phone')
+        .sort('-createdAt')
+        .limit(10)
+        .lean()
+    ]);
+
+    const stats = (aggResult && aggResult[0]) || {
+      totalEarnings: 0,
+      settledOrdersCount: 0,
+      activeOrdersCount: 0,
+      pendingEscrowAmount: 0,
+      totalVolumeKg: 0
+    };
+
+    const totalEarnings = stats.totalEarnings || 0;
+    const settledOrdersCount = stats.settledOrdersCount || 0;
+    const activeOrdersCount = stats.activeOrdersCount || 0;
+    const pendingEscrowAmount = stats.pendingEscrowAmount || 0;
+    const totalVolumeKg = stats.totalVolumeKg || 0;
 
     // Traditional supply chain cuts ~10% intermediary commission
     const estimatedMiddlemanSavings = Math.round(totalEarnings * 0.1);
 
-    const recentTransactions = orders.slice(0, 10).map((order) => ({
+    const totalQuintals = Math.round((totalVolumeKg / 100) * 10) / 10;
+    const averageRatePerQuintal =
+      totalVolumeKg > 0 ? Math.round(totalEarnings / (totalVolumeKg / 100)) : 2525;
+
+    const recentTransactions = (recentOrders || []).map((order) => ({
       orderId: order._id,
       orderNumber: order.orderNumber,
       cropName: order.cropName,
@@ -364,8 +506,8 @@ const getFarmerLedger = async (req, res, next) => {
         totalRevenue: Math.round(totalEarnings * 100) / 100,
         totalMiddlemanSaved: estimatedMiddlemanSavings,
         totalTransactions: settledOrdersCount,
-        totalQuintals: Math.round((totalVolumeKg / 100) * 10) / 10,
-        averageRatePerQuintal: totalVolumeKg > 0 ? Math.round(totalEarnings / (totalVolumeKg / 100)) : 2525,
+        totalQuintals,
+        averageRatePerQuintal,
         fairPriceComplianceRate: '100%',
         pendingEscrowAmount: Math.round(pendingEscrowAmount * 100) / 100,
         currency: 'INR'

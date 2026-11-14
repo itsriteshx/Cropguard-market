@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { mandiService } from '../services/api';
-import { ShieldCheck, Activity, Building2, UserCheck, ChevronDown, Sparkles, Globe, Check, LogIn, LogOut, User } from 'lucide-react';
-import AuthModal from './AuthModal';
+import { ChevronDown, Sparkles, Globe, Check, LogOut } from 'lucide-react';
 
-export default function Navbar({ onTabChange, activeTab }) {
+export default function Navbar({ onTabChange }) {
   const {
     backendOnline,
     language,
@@ -12,9 +11,7 @@ export default function Navbar({ onTabChange, activeTab }) {
     languages,
     t,
     currentUser,
-    logout,
-    authModalOpen,
-    setAuthModalOpen
+    logout
   } = useAuth();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [tickerRates, setTickerRates] = useState([]);
@@ -142,8 +139,8 @@ export default function Navbar({ onTabChange, activeTab }) {
               <span className="md:hidden">{backendOnline ? 'Live' : 'Offline'}</span>
             </div>
 
-            {/* User Profile Badge or Sign In Trigger */}
-            {currentUser ? (
+            {/* User Profile Badge */}
+            {currentUser && (
               <div className="relative group">
                 <button className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 text-left transition-colors shadow-sm">
                   <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-xs font-bold text-white shadow">
@@ -174,21 +171,10 @@ export default function Navbar({ onTabChange, activeTab }) {
                   </button>
                 </div>
               </div>
-            ) : (
-              <button
-                onClick={() => setAuthModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-xs font-bold text-white shadow-md shadow-emerald-950 transition-all"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Sign In</span>
-              </button>
             )}
           </div>
         </div>
       </div>
-
-      {/* Auth Modal */}
-      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
       {/* APMC Live Benchmark Ticker (sourced from live backend / data.gov.in Agmarknet API) */}
       <div className="bg-slate-950 border-t border-slate-800/60 px-4 py-1.5 overflow-x-auto text-[11px] text-slate-400 flex items-center gap-6">

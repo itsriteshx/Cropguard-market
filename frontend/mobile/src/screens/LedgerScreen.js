@@ -4,7 +4,6 @@ import {
   Text,
   View,
   ScrollView,
-  FlatList,
   TouchableOpacity,
   Modal,
   ActivityIndicator,

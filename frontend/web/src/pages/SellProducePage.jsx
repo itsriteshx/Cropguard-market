@@ -13,6 +13,9 @@ import {
   Package,
   Compass,
   Sparkles,
+  Pencil,
+  X,
+  Save,
 } from 'lucide-react';
 
 const CATEGORIES = ['VEGETABLES', 'GRAINS', 'PULSES', 'FRUITS', 'OILSEEDS', 'SPICES', 'OTHER'];
@@ -139,6 +142,14 @@ export default function SellProducePage({ onNavigateToMarket }) {
   const [formSuccess, setFormSuccess] = useState('');
   const [myListings, setMyListings] = useState([]);
   const [loadingMine, setLoadingMine] = useState(true);
+
+  // Edit listing modal state
+  const [editListing, setEditListing] = useState(null); // null = closed, object = listing being edited
+  const [editFields, setEditFields] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const loadMyListings = async () => {
     setLoadingMine(true);
@@ -392,11 +403,55 @@ export default function SellProducePage({ onNavigateToMarket }) {
   };
 
   const handleDeleteListing = async (id) => {
+    setDeletingId(id);
     try {
       await listingsService.remove(id);
       setMyListings((prev) => prev.filter((item) => item._id !== id));
     } catch (err) {
       setFormError(err.response?.data?.message || 'Could not remove listing.');
+    } finally {
+      setDeletingId(null);
+      setDeleteConfirmId(null);
+    }
+  };
+
+  const openEditModal = (item) => {
+    setEditListing(item);
+    setEditFields({
+      cropName: item.cropName || '',
+      quantity: String(item.quantity || ''),
+      unit: item.unit || 'KG',
+      pricePerUnit: String(item.pricePerUnit || ''),
+      qualityGrade: item.qualityGrade || 'GRADE_A',
+      description: item.description || '',
+      status: item.status || 'AVAILABLE',
+    });
+    setEditError('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editListing) return;
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const payload = {
+        ...editFields,
+        quantity: Number(editFields.quantity),
+        pricePerUnit: Number(editFields.pricePerUnit),
+      };
+      const res = await listingsService.update(editListing._id, payload);
+      if (res?.success) {
+        setMyListings((prev) => prev.map((item) => item._id === editListing._id ? { ...item, ...payload } : item));
+        setEditListing(null);
+        setFormSuccess('Listing updated successfully!');
+        setTimeout(() => setFormSuccess(''), 3000);
+      } else {
+        setEditError(res?.message || 'Could not save changes.');
+      }
+    } catch (err) {
+      setEditError(err.response?.data?.message || 'Could not save changes.');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -925,14 +980,45 @@ export default function SellProducePage({ onNavigateToMarket }) {
                       {item.status}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-                    <span>{item.location?.district || 'Location set'}</span>
-                    <button
-                      onClick={() => handleDeleteListing(item._id)}
-                      className="text-red-400 hover:text-red-300 flex items-center gap-1 font-semibold"
-                    >
-                      <Trash2 className="w-3 h-3" /> Delete
-                    </button>
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                    <span className="text-[10px] text-slate-500">{item.location?.district || 'Location set'}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(item)}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300 px-2 py-1 rounded-lg bg-sky-950/40 border border-sky-800/40 hover:border-sky-600/60 transition-colors"
+                      >
+                        <Pencil className="w-3 h-3" /> Edit
+                      </button>
+                      {deleteConfirmId === item._id ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-red-400">Sure?</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteListing(item._id)}
+                            disabled={deletingId === item._id}
+                            className="text-[11px] font-bold text-red-400 hover:text-red-300 px-2 py-1 rounded-lg bg-red-950/40 border border-red-800/40 hover:border-red-600 transition-colors"
+                          >
+                            {deletingId === item._id ? '...' : 'Yes, Delete'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmId(null)}
+                            className="text-[11px] text-slate-400 hover:text-white px-1 py-1"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirmId(item._id)}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300 px-2 py-1 rounded-lg bg-red-950/40 border border-red-800/40 hover:border-red-600/60 transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -940,6 +1026,140 @@ export default function SellProducePage({ onNavigateToMarket }) {
           )}
         </div>
       </div>
+
+      {/* Edit Listing Modal */}
+      {editListing && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-base font-bold text-white">Edit Produce Listing</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditListing(null)}
+                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-xs text-red-300 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <div className="space-y-3.5 text-xs max-h-[60vh] overflow-y-auto pr-1">
+              <div>
+                <label className="text-slate-400 font-semibold block mb-1">Crop Name</label>
+                <input
+                  type="text"
+                  value={editFields.cropName || ''}
+                  onChange={(e) => setEditFields({ ...editFields, cropName: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editFields.quantity || ''}
+                    onChange={(e) => setEditFields({ ...editFields, quantity: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Unit</label>
+                  <select
+                    value={editFields.unit || 'KG'}
+                    onChange={(e) => setEditFields({ ...editFields, unit: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {UNITS.map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Price per {editFields.unit || 'Unit'} (₹)</label>
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    value={editFields.pricePerUnit || ''}
+                    onChange={(e) => setEditFields({ ...editFields, pricePerUnit: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Quality Grade</label>
+                  <select
+                    value={editFields.qualityGrade || 'GRADE_A'}
+                    onChange={(e) => setEditFields({ ...editFields, qualityGrade: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {GRADES.map((g) => (
+                      <option key={g} value={g}>{g.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400 font-semibold block mb-1">Listing Status</label>
+                <select
+                  value={editFields.status || 'AVAILABLE'}
+                  onChange={(e) => setEditFields({ ...editFields, status: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="AVAILABLE">AVAILABLE (Active in Marketplace)</option>
+                  <option value="SOLD">SOLD (Out of Stock)</option>
+                  <option value="RESERVED">RESERVED (Hold for Order)</option>
+                  <option value="CANCELLED">CANCELLED (Delisted)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-slate-400 font-semibold block mb-1">Description / Agronomic Details</label>
+                <textarea
+                  rows="3"
+                  value={editFields.description || ''}
+                  onChange={(e) => setEditFields({ ...editFields, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditListing(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={editSaving}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{editSaving ? 'Saving...' : 'Save Changes'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,15 +1,19 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "CropGuard Market",
+    "slug": "cropguard-market-app",
+    "scheme": "cropguardmarket",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cropguard.market"
     },
     "android": {
+      "package": "com.cropguard.market",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -31,6 +35,12 @@
           "microphonePermission": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "75acb9fb-ce6b-4e81-83dc-a4c8759a4003"
+      }
+    },
+    "owner": "itsriteshxs"
   }
 }
