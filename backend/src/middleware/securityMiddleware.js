@@ -4,14 +4,14 @@ const helmet = require('helmet');
 // Helper to check if a request should skip general API rate limiting
 const shouldSkipApiLimiter = (req) => {
   const url = req.originalUrl || req.url || '';
-  return url.startsWith('/api/auth') || url.startsWith('/api/mandi-rates/image');
+  return url.startsWith('/api/auth') || url.startsWith('/api/mandi-rates/image') || url.startsWith('/api/health');
 };
 
-// General API rate limiter (150 requests per 15 minutes)
+// General API rate limiter (1500 requests per 15 minutes to prevent rate limit blocks during mobile & web testing)
 // Skips /api/auth endpoints so authentication is strictly governed by authLimiter
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 150,
+  max: 1500,
   standardHeaders: true,
   legacyHeaders: false,
   skip: shouldSkipApiLimiter,

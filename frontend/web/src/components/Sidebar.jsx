@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Server,
   Award,
+  BookOpen,
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, onTabChange }) {
@@ -54,9 +55,9 @@ export default function Sidebar({ activeTab, onTabChange }) {
     },
     {
       id: 'compliance',
-      label: t.nav?.compliance || 'Audit & Khata',
-      sublabel: 'Digital ledger & savings summary',
-      icon: ShieldCheck,
+      label: t.nav?.compliance || 'Digital Khata & Bills',
+      sublabel: 'Store bills, mandi slips & P&L',
+      icon: BookOpen,
     },
     ...(isAdmin
       ? [
