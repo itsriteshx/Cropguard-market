@@ -74,6 +74,9 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
   const [liveCropCatalog, setLiveCropCatalog] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const [myListings, setMyListings] = useState([]);
+  const [loadingMine, setLoadingMine] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     apiRequest('/mandi-rates?state=ALL&limit=150').then((res) => {
@@ -92,6 +95,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
         setLiveCropCatalog(Array.from(seen.values()));
       }
     });
+    loadMyListings();
   }, []);
 
   useEffect(() => {
@@ -237,6 +241,7 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
 
     setSubmitting(false);
     if (res.success) {
+      loadMyListings();
       Alert.alert(
         'Harvest Listed! 🌾',
         `${cropName} (${quantity} ${unit} @ ₹${pricePerUnit}/${unit}) is now live on the marketplace for direct buyers!`,
@@ -260,6 +265,49 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
     } else {
       Alert.alert('Listing Failed', res.message || 'Could not post produce listing');
     }
+  };
+
+  const loadMyListings = async () => {
+    setLoadingMine(true);
+    try {
+      const res = await apiRequest('/listings/my-listings', {}, token);
+      if (res?.success && Array.isArray(res.listings)) {
+        setMyListings(res.listings);
+      }
+    } catch {
+      setMyListings([]);
+    } finally {
+      setLoadingMine(false);
+    }
+  };
+
+  const handleDeleteListing = (id, cropName) => {
+    Alert.alert(
+      'Delete Listing',
+      `Are you sure you want to delete "${cropName}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingId(id);
+            try {
+              const res = await apiRequest(`/listings/${id}`, { method: 'DELETE' }, token);
+              if (res?.success !== false) {
+                setMyListings(prev => prev.filter(item => item._id !== id));
+              } else {
+                Alert.alert('Cannot Delete', res.message || 'This listing has active orders or negotiations.');
+              }
+            } catch (err) {
+              Alert.alert('Error', err?.message || 'Could not delete listing.');
+            } finally {
+              setDeletingId(null);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -566,6 +614,57 @@ export default function SellProduceScreen({ onNavigateToMarket }) {
           )}
         </TouchableOpacity>
       </View>
+      {/* My Active Listings */}
+      <View style={styles.myListingsSection}>
+        <View style={styles.myListingsHeader}>
+          <Text style={styles.myListingsTitle}>📦 My Active Listings ({myListings.length})</Text>
+          <TouchableOpacity onPress={loadMyListings} disabled={loadingMine}>
+            <Text style={styles.refreshText}>{loadingMine ? '...' : '↻ Refresh'}</Text>
+          </TouchableOpacity>
+        </View>
+        {loadingMine ? (
+          <ActivityIndicator color="#10B981" style={{ marginVertical: 16 }} />
+        ) : myListings.length === 0 ? (
+          <Text style={styles.emptyListingsText}>No listings yet. Publish your first crop above!</Text>
+        ) : (
+          myListings.map((item) => (
+            <View key={item._id} style={styles.listingCard}>
+              <View style={styles.listingCardTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.listingCropName}>{item.cropName}</Text>
+                  <Text style={styles.listingMeta}>
+                    {item.quantity} {item.unit} • ₹{Number(item.pricePerUnit).toLocaleString('en-IN')}/{item.unit}
+                  </Text>
+                  <Text style={styles.listingLocation}>
+                    📍 {item.location?.district || 'Location set'}, {item.location?.state || ''}
+                  </Text>
+                </View>
+                <View style={[styles.statusBadge, item.status === 'AVAILABLE' ? styles.statusAvailable : styles.statusOther]}>
+                  <Text style={[styles.statusText, item.status === 'AVAILABLE' ? { color: '#6EE7B7' } : { color: '#94A3B8' }]}>
+                    {item.status}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.listingCardActions}>
+                <Text style={styles.listingDate}>
+                  Listed: {item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : '—'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => handleDeleteListing(item._id, item.cropName)}
+                  disabled={deletingId === item._id}
+                  style={styles.deleteBtn}
+                >
+                  {deletingId === item._id ? (
+                    <ActivityIndicator size="small" color="#F87171" />
+                  ) : (
+                    <Text style={styles.deleteBtnText}>🗑 Delete</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -763,6 +862,106 @@ const styles = StyleSheet.create({
   publishButtonText: {
     color: '#0F172A',
     fontSize: 16,
+    fontWeight: 'bold'
+  },
+  myListingsSection: {
+    marginTop: 28,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B'
+  },
+  myListingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  myListingsTitle: {
+    color: '#F1F5F9',
+    fontSize: 15,
+    fontWeight: 'bold'
+  },
+  refreshText: {
+    color: '#10B981',
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  emptyListingsText: {
+    color: '#475569',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: 20
+  },
+  listingCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#334155'
+  },
+  listingCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10
+  },
+  listingCropName: {
+    color: '#F1F5F9',
+    fontSize: 14,
+    fontWeight: 'bold'
+  },
+  listingMeta: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 2
+  },
+  listingLocation: {
+    color: '#64748B',
+    fontSize: 11,
+    marginTop: 2
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1
+  },
+  statusAvailable: {
+    backgroundColor: 'rgba(16,185,129,0.1)',
+    borderColor: '#059669'
+  },
+  statusOther: {
+    backgroundColor: '#1E293B',
+    borderColor: '#334155'
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: 'bold'
+  },
+  listingCardActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#334155'
+  },
+  listingDate: {
+    color: '#475569',
+    fontSize: 11
+  },
+  deleteBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)'
+  },
+  deleteBtnText: {
+    color: '#F87171',
+    fontSize: 12,
     fontWeight: 'bold'
   }
 });
