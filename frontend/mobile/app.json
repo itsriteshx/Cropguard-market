@@ -7,6 +7,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/75acb9fb-ce6b-4e81-83dc-a4c8759a4003"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cropguard.market"

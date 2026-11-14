@@ -21,6 +21,27 @@ import {
   PlusCircle,
 } from 'lucide-react';
 
+const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : '') || 'https://cropguard-market.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL || `${API_ORIGIN}/api`;
+
+const resolveProduceImageSource = (url, cropName = '') => {
+  if (url && typeof url === 'string') {
+    if (url.startsWith('/uploads/')) {
+      return `${API_ORIGIN}${url}`;
+    }
+    if (/^https?:\/\/([^/]+\.)?(wikimedia\.org|wikipedia\.org)\//i.test(url)) {
+      return `${API_BASE_URL}/mandi-rates/image?url=${encodeURIComponent(url)}`;
+    }
+    if (/^https?:\/\//i.test(url)) {
+      return url;
+    }
+  }
+  if (cropName && typeof cropName === 'string') {
+    return `${API_BASE_URL}/mandi-rates/image?crop=${encodeURIComponent(cropName.trim())}`;
+  }
+  return null;
+};
+
 // Multilingual crop names dictionary for full immersion
 const LOCALIZED_CROPS = {
   hi: {
@@ -627,7 +648,9 @@ export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiat
             const price = Number(lot.expectedPrice || lot.pricePerUnit || 0);
             const totalValue = lot.quantity * price;
             const benchmark = lot.benchmarkRate != null ? Number(lot.benchmarkRate) : null;
-            const cropImg = (Array.isArray(lot.images) && lot.images.find((u) => typeof u === 'string' && (/^https?:\/\//i.test(u) || u.startsWith('/uploads/')))) || lot.resolvedImageUrl || null;
+            const rawImg = (Array.isArray(lot.images) && lot.images.find((u) => typeof u === 'string' && (/^https?:\/\//i.test(u) || u.startsWith('/uploads/')))) || lot.resolvedImageUrl || null;
+            const fallbackCropImg = lot.cropName ? `${API_BASE_URL}/mandi-rates/image?crop=${encodeURIComponent(lot.cropName.trim())}` : null;
+            const cropImg = resolveProduceImageSource(rawImg, lot.cropName) || fallbackCropImg;
             const middlemanSaved = Math.round(totalValue * 0.1);
             const localizedCrop = getLocalizedCropName(lot.cropName, language);
             const translatedCategory = m.categories?.[lot.category] || lot.category;
@@ -655,15 +678,31 @@ export default function MarketplacePage({ onNavigateToSell, onNavigateToNegotiat
                 {/* Crop Image from Farmer Upload or Wikipedia REST Media API */}
                 <div className="relative h-52 overflow-hidden bg-gradient-to-br from-emerald-950 to-slate-900 flex items-center justify-center">
                   {cropImg ? (
-                    <img src={cropImg} alt={lot.cropName}
+                    <img
+                      src={cropImg}
+                      alt={lot.cropName}
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                      loading="lazy" />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-emerald-400/70 gap-2">
-                      <Leaf className="w-10 h-10" />
-                      <span className="text-xs font-semibold text-slate-400">{lot.category}</span>
-                    </div>
-                  )}
+                      loading="lazy"
+                      onError={(e) => {
+                        if (fallbackCropImg && e.currentTarget.src !== fallbackCropImg && !e.currentTarget.dataset.fallbackTried) {
+                          e.currentTarget.dataset.fallbackTried = 'true';
+                          e.currentTarget.src = fallbackCropImg;
+                        } else {
+                          e.currentTarget.style.display = 'none';
+                          const fallbackDiv = e.currentTarget.parentElement?.querySelector('.crop-fallback-icon');
+                          if (fallbackDiv) fallbackDiv.style.display = 'flex';
+                        }
+                      }}
+                    />
+                  ) : null}
+
+                  <div
+                    className="crop-fallback-icon flex-col items-center justify-center text-emerald-400/70 gap-2"
+                    style={{ display: cropImg ? 'none' : 'flex' }}
+                  >
+                    <Leaf className="w-10 h-10" />
+                    <span className="text-xs font-semibold text-slate-400">{lot.category}</span>
+                  </div>
 
                   {/* Multi-layer gradient overlay */}
                   <div className="absolute inset-0"

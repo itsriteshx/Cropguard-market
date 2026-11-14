@@ -13,6 +13,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "android": {
         "buildType": "apk"
       },
@@ -21,6 +22,7 @@
       }
     },
     "production": {
+      "channel": "production",
       "autoIncrement": false,
       "env": {
         "EXPO_PUBLIC_API_ORIGIN": "https://cropguard-market.onrender.com"
